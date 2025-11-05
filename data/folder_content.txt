@@ -1,0 +1,5 @@
+Template Info - "data" Folder Content
+==============================
+The content to be in this folder is all the data that was processed and
+produced by code that is located in this repository.
+Can be divided into sub-folders if seem fit.

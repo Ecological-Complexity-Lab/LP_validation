@@ -1,0 +1,4 @@
+Template Info - "code" Folder Content
+==============================
+The content to be in this folder is all the code to be used in this project.
+The code can be divided to sub folders, but no code should be outside of this folder.

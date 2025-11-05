@@ -1,0 +1,6 @@
+Template Info - "HPC" Folder Content
+==============================
+The content to be in this folder is all the code that will be run on the HPC at some point.
+The code can be divided to sub folders, but no HPC code should be outside of this folder.
+
+this folder is optional, and can be removed if the HPC is not neccesarry to this project.

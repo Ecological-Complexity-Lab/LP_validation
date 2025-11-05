@@ -1,0 +1,4 @@
+Template Info - "figures" Folder Content
+==============================
+The content to be in this folder is the figures produced in this project.
+Figures can be divided to sub folders, but no figures should be outside of this folder.

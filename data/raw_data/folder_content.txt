@@ -1,0 +1,4 @@
+Template Info - "raw_data" Folder Content
+==============================
+The content to be in this folder is all the data that was excepted from external sources, 
+or raw data that was produced by the lab and used in this project.
