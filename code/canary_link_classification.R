@@ -1164,141 +1164,239 @@ df_removed <- df %>%
 
 
 # ---- link taxonomy ----
-# let's try on 1 itr
-# only self-predictions
-
-df_self_itr1 <- df_removed %>% filter(train_layer == test_layer) %>% 
-  filter(itr == 1)
-
-# Assumes df_self_itr1 is in memory with columns:
-# original_binary (0/1), predicted_bin_sigm (0/1), test_layer, node_from, node_to
-# If needed, restrict to self & iter 1:
-# df_self_itr1 <- df_self_itr1 %>% filter(test_layer == train_layer, itr == 1)
-
-# Directed interaction id; for undirected, sort node names before pasting.
-df1 <- df_self_itr1 %>%
-  mutate(
-    original_binary    = as.integer(original_binary),
-    predicted_bin_sigm = as.integer(predicted_bin_sigm),
-    interaction_id     = paste0(node_from, " -> ", node_to)
-  )
-
-# For each interaction, how many islands observe it?
-obs_counts <- df1 %>%
-  group_by(interaction_id) %>%
-  summarise(n_obs_total = sum(original_binary == 1, na.rm = TRUE), .groups = "drop")
-
-# Join back; compute "observed elsewhere" relative to focal island
-df2 <- df1 %>%
-  left_join(obs_counts, by = "interaction_id") %>%
-  mutate(
-    obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1,  # TRUE if observed in ≥1 other island
-    is_all_zero   = n_obs_total == 0,
-    is_unique     = n_obs_total == 1,
-    is_shared     = n_obs_total >= 2
-  )
-
-## ---- Confusion at focal-island level ----
-TP <- sum(df2$original_binary == 1 & df2$predicted_bin_sigm == 1, na.rm = TRUE)
-FP <- sum(df2$original_binary == 0 & df2$predicted_bin_sigm == 1, na.rm = TRUE)
-TN <- sum(df2$original_binary == 0 & df2$predicted_bin_sigm == 0, na.rm = TRUE)
-FN <- sum(df2$original_binary == 1 & df2$predicted_bin_sigm == 0, na.rm = TRUE)
-
-## ---- Subcategories (match confusion totals 1-to-1) ----
-# Observed exactly once (local-only island rows)
-locally_unique_links <- df2 %>%
-  filter(is_unique, original_binary == 1, predicted_bin_sigm == 1) %>%
-  nrow()
-
-unsupported_links <- df2 %>%
-  filter(is_unique, original_binary == 1, predicted_bin_sigm == 0) %>%
-  nrow()
-
-# Shared links (observed in ≥2 islands): per focal island where observed
-confirmed_links <- df2 %>%
-  filter(is_shared, original_binary == 1, predicted_bin_sigm == 1) %>%
-  nrow()
-
-cryptic_links <- df2 %>%
-  filter(is_shared, original_binary == 1, predicted_bin_sigm == 0) %>%
-  nrow()
-
-# All-zero links (never observed anywhere): per focal island rows
-likely_forbidden <- df2 %>%
-  filter(is_all_zero, original_binary == 0, predicted_bin_sigm == 0) %>%
-  nrow()
-
-spurious_links <- df2 %>%
-  filter(is_all_zero, original_binary == 0, predicted_bin_sigm == 1) %>%
-  nrow()
-
-# Absent here but observed elsewhere
-feasible_links <- df2 %>%
-  filter(original_binary == 0, obs_elsewhere, predicted_bin_sigm == 0) %>%
-  nrow()
-
-possibly_missing_links <- df2 %>%
-  filter(original_binary == 0, obs_elsewhere, predicted_bin_sigm == 1) %>%
-  nrow()
-
-## ---- Final table ----
-final_global_table <- tibble::tibble(
-  Category = c(
-    "TP","FP","TN","FN",
-    "locally_unique_links","unsupported_links",
-    "likely_forbidden","spurious_links",
-    "confirmed_links","cryptic_links",
-    "feasible_links","possibly_missing_links"
-  ),
-  Count = c(
-    TP, FP, TN, FN,
-    locally_unique_links, unsupported_links,
-    likely_forbidden, spurious_links,
-    confirmed_links, cryptic_links,
-    feasible_links, possibly_missing_links
-  )
-)
-
-# Optional: quick consistency checks
-stopifnot(TP == confirmed_links + locally_unique_links)
-stopifnot(FN == cryptic_links + unsupported_links)
-stopifnot(FP == spurious_links + possibly_missing_links)
-stopifnot(TN == likely_forbidden + feasible_links)
-
-final_global_table
-
-## ---- all iterations ----
-# ---- INPUT: df_removed with 50 iterations ----
-# Expected cols: original_binary (0/1), predicted_bin_sigm (0/1), test_layer, node_from, node_to, itr
-# If needed, restrict to self-predictions:
+# # let's try on 1 itr
+# # only self-predictions
+# 
+# df_self_itr1 <- df_removed %>% filter(train_layer == test_layer) %>% 
+#   filter(itr == 1)
+# 
+# # Assumes df_self_itr1 is in memory with columns:
+# # original_binary (0/1), predicted_bin_sigm (0/1), test_layer, node_from, node_to
+# # If needed, restrict to self & iter 1:
+# # df_self_itr1 <- df_self_itr1 %>% filter(test_layer == train_layer, itr == 1)
+# 
+# # Directed interaction id; for undirected, sort node names before pasting.
+# df1 <- df_self_itr1 %>%
+#   mutate(
+#     original_binary    = as.integer(original_binary),
+#     predicted_bin_sigm = as.integer(predicted_bin_sigm),
+#     interaction_id     = paste0(node_from, " -> ", node_to)
+#   )
+# 
+# # For each interaction, how many islands observe it?
+# obs_counts <- df1 %>%
+#   group_by(interaction_id) %>%
+#   summarise(n_obs_total = sum(original_binary == 1, na.rm = TRUE), .groups = "drop")
+# 
+# # Join back; compute "observed elsewhere" relative to focal island
+# df2 <- df1 %>%
+#   left_join(obs_counts, by = "interaction_id") %>%
+#   mutate(
+#     obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1,  # TRUE if observed in ≥1 other island
+#     is_all_zero   = n_obs_total == 0,
+#     is_unique     = n_obs_total == 1,
+#     is_shared     = n_obs_total >= 2
+#   )
+# 
+##### ---- Confusion at focal-island level 
+# TP <- sum(df2$original_binary == 1 & df2$predicted_bin_sigm == 1, na.rm = TRUE)
+# FP <- sum(df2$original_binary == 0 & df2$predicted_bin_sigm == 1, na.rm = TRUE)
+# TN <- sum(df2$original_binary == 0 & df2$predicted_bin_sigm == 0, na.rm = TRUE)
+# FN <- sum(df2$original_binary == 1 & df2$predicted_bin_sigm == 0, na.rm = TRUE)
+# 
+### ## ---- Subcategories (match confusion totals 1-to-1)
+# # Observed exactly once (local-only island rows)
+# locally_unique_links <- df2 %>%
+#   filter(is_unique, original_binary == 1, predicted_bin_sigm == 1) %>%
+#   nrow()
+# 
+# unsupported_links <- df2 %>%
+#   filter(is_unique, original_binary == 1, predicted_bin_sigm == 0) %>%
+#   nrow()
+# 
+# # Shared links (observed in ≥2 islands): per focal island where observed
+# confirmed_links <- df2 %>%
+#   filter(is_shared, original_binary == 1, predicted_bin_sigm == 1) %>%
+#   nrow()
+# 
+# cryptic_links <- df2 %>%
+#   filter(is_shared, original_binary == 1, predicted_bin_sigm == 0) %>%
+#   nrow()
+# 
+# # All-zero links (never observed anywhere): per focal island rows
+# likely_forbidden <- df2 %>%
+#   filter(is_all_zero, original_binary == 0, predicted_bin_sigm == 0) %>%
+#   nrow()
+# 
+# spurious_links <- df2 %>%
+#   filter(is_all_zero, original_binary == 0, predicted_bin_sigm == 1) %>%
+#   nrow()
+# 
+# # Absent here but observed elsewhere
+# feasible_links <- df2 %>%
+#   filter(original_binary == 0, obs_elsewhere, predicted_bin_sigm == 0) %>%
+#   nrow()
+# 
+# possibly_missing_links <- df2 %>%
+#   filter(original_binary == 0, obs_elsewhere, predicted_bin_sigm == 1) %>%
+#   nrow()
+# 
+### ## ---- Final table
+# final_global_table <- tibble::tibble(
+#   Category = c(
+#     "TP","FP","TN","FN",
+#     "locally_unique_links","unsupported_links",
+#     "likely_forbidden","spurious_links",
+#     "confirmed_links","cryptic_links",
+#     "feasible_links","possibly_missing_links"
+#   ),
+#   Count = c(
+#     TP, FP, TN, FN,
+#     locally_unique_links, unsupported_links,
+#     likely_forbidden, spurious_links,
+#     confirmed_links, cryptic_links,
+#     feasible_links, possibly_missing_links
+#   )
+# )
+# 
+# # Optional: quick consistency checks
+# stopifnot(TP == confirmed_links + locally_unique_links)
+# stopifnot(FN == cryptic_links + unsupported_links)
+# stopifnot(FP == spurious_links + possibly_missing_links)
+# stopifnot(TN == likely_forbidden + feasible_links)
+# 
+# final_global_table
+# 
+# ## ---- all iterations
+# # ---- INPUT: df_removed with 50 iterations
+# # Expected cols: original_binary (0/1), predicted_bin_sigm (0/1), test_layer, node_from, node_to, itr
+# # restrict to self-predictions:
 # df_removed <- df_removed %>% filter(test_layer == train_layer)
+# 
+# df3 <- df_removed %>%
+#   mutate(
+#     original_binary    = as.integer(original_binary),
+#     predicted_bin_sigm = as.integer(predicted_bin_sigm),
+#     interaction_id     = paste0(node_from, " -> ", node_to)
+#   )
+# 
+# # ---- OBSERVATION COUNTS ACROSS ISLANDS (stable across iters)
+# # Use DISTINCT to avoid counting the same island/interaction multiple times across iterations
+# obs_counts <- df3 %>%
+#   distinct(test_layer, interaction_id, original_binary) %>%
+#   group_by(interaction_id) %>%
+#   summarise(n_obs_total = sum(original_binary == 1, na.rm = TRUE), .groups = "drop")
+# 
+# # Join back once; compute flags relative to each focal island row
+# df4 <- df3 %>%
+#   left_join(obs_counts, by = "interaction_id") %>%
+#   mutate(
+#     is_all_zero = n_obs_total == 0,
+#     is_unique   = n_obs_total == 1,
+#     is_shared   = n_obs_total >= 2,
+#     obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1  # observed in ≥1 other island
+#   )
+# 
+# # ---- PER-ITERATION FINAL TABLE (same structure as your single-iteration table)
+# final_table_by_iter <- df4 %>%
+#   group_by(itr) %>%
+#   summarise(
+#     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+#     FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+#     TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+#     FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+#     
+#     locally_unique_links = sum(is_unique  & original_binary == 1 & predicted_bin_sigm == 1),
+#     unsupported_links    = sum(is_unique  & original_binary == 1 & predicted_bin_sigm == 0),
+#     
+#     confirmed_links      = sum(is_shared  & original_binary == 1 & predicted_bin_sigm == 1),
+#     cryptic_links        = sum(is_shared  & original_binary == 1 & predicted_bin_sigm == 0),
+#     
+#     likely_forbidden     = sum(is_all_zero & original_binary == 0 & predicted_bin_sigm == 0),
+#     spurious_links       = sum(is_all_zero & original_binary == 0 & predicted_bin_sigm == 1),
+#     
+#     feasible_links       = sum(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 0),
+#     possibly_missing_links = sum(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 1),
+#     .groups = "drop"
+#   ) %>%
+#   tidyr::pivot_longer(-itr, names_to = "Category", values_to = "Count") %>%
+#   arrange(itr, Category)
+# 
+# # ---- SUMMARY ACROSS ITERATIONS (mean/sd/min/max per category)
+# final_table_summary <- final_table_by_iter %>%
+#   group_by(Category) %>%
+#   summarise(
+#     mean = mean(Count), sd = sd(Count),
+#     min = min(Count), max = max(Count),
+#     .groups = "drop"
+#   ) %>%
+#   arrange(Category)
+# 
+# # ---- OPTIONAL: per-link/per-island frequencies across iterations
+# # How often (proportion of iterations) does a given focal row fall into each category?
+# per_link_island_freq <- df4 %>%
+#   group_by(test_layer, interaction_id) %>%
+#   summarise(
+#     n_iter = n(),
+#     p_locally_unique = mean(is_unique   & original_binary == 1 & predicted_bin_sigm == 1),
+#     p_unsupported    = mean(is_unique   & original_binary == 1 & predicted_bin_sigm == 0),
+#     p_confirmed      = mean(is_shared   & original_binary == 1 & predicted_bin_sigm == 1),
+#     p_cryptic        = mean(is_shared   & original_binary == 1 & predicted_bin_sigm == 0),
+#     p_likely_forbidden = mean(is_all_zero & original_binary == 0 & predicted_bin_sigm == 0),
+#     p_spurious         = mean(is_all_zero & original_binary == 0 & predicted_bin_sigm == 1),
+#     p_feasible         = mean(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 0),
+#     p_possibly_missing = mean(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 1),
+#     .groups = "drop"
+#   )
+# 
+# # --- OUTPUTS ---
+# # 1) final_table_by_iter  -> one table per iteration (long format)
+# # 2) final_table_summary  -> mean/sd/min/max across 50 iterations
+# # 3) per_link_island_freq -> optional diagnostics (proportions per focal island & link)
+# final_table_by_iter
+# final_table_summary
+# # per_link_island_freq  # uncomment to inspect
 
-df3 <- df_removed %>%
+## ---- full analysis ----
+# run the flagging logic on the full data set (including non-withheld interactions)
+df_self <- df %>%
+  filter(train_layer == test_layer) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+df_self <- df_self %>%
   mutate(
     original_binary    = as.integer(original_binary),
-    predicted_bin_sigm = as.integer(predicted_bin_sigm),
     interaction_id     = paste0(node_from, " -> ", node_to)
   )
 
-# ---- OBSERVATION COUNTS ACROSS ISLANDS (stable across iters) ----
-# Use DISTINCT to avoid counting the same island/interaction multiple times across iterations
-obs_counts <- df3 %>%
+# Observation count per interaction across all islands
+obs_counts <- df_self %>%
   distinct(test_layer, interaction_id, original_binary) %>%
   group_by(interaction_id) %>%
   summarise(n_obs_total = sum(original_binary == 1, na.rm = TRUE), .groups = "drop")
 
-# Join back once; compute flags relative to each focal island row
-df4 <- df3 %>%
+# Join those flags to df_removed (withholding data)
+# restrict to self-predictions:
+df_removed <- df_removed %>% filter(test_layer == train_layer)
+
+df_removed_flagged <- df_removed %>%
+  mutate(
+    original_binary    = as.integer(original_binary),
+    predicted_bin_sigm = as.integer(predicted_bin_sigm),
+    interaction_id     = paste0(node_from, " -> ", node_to)
+  ) %>%
   left_join(obs_counts, by = "interaction_id") %>%
   mutate(
-    is_all_zero = n_obs_total == 0,
-    is_unique   = n_obs_total == 1,
-    is_shared   = n_obs_total >= 2,
+    is_all_zero   = n_obs_total == 0,
+    is_unique     = n_obs_total == 1,
+    is_shared     = n_obs_total >= 2,
     obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1  # observed in ≥1 other island
   )
 
-# ---- PER-ITERATION FINAL TABLE (same structure as your single-iteration table) ----
-final_table_by_iter <- df4 %>%
+# produce results table
+final_table_by_iter <- df_removed_flagged %>%
   group_by(itr) %>%
   summarise(
     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
@@ -1322,7 +1420,7 @@ final_table_by_iter <- df4 %>%
   tidyr::pivot_longer(-itr, names_to = "Category", values_to = "Count") %>%
   arrange(itr, Category)
 
-# ---- SUMMARY ACROSS ITERATIONS (mean/sd/min/max per category) ----
+# summary table
 final_table_summary <- final_table_by_iter %>%
   group_by(Category) %>%
   summarise(
@@ -1331,31 +1429,6 @@ final_table_summary <- final_table_by_iter %>%
     .groups = "drop"
   ) %>%
   arrange(Category)
-
-# ---- OPTIONAL: per-link/per-island frequencies across iterations ----
-# How often (proportion of iterations) does a given focal row fall into each category?
-per_link_island_freq <- df4 %>%
-  group_by(test_layer, interaction_id) %>%
-  summarise(
-    n_iter = n(),
-    p_locally_unique = mean(is_unique   & original_binary == 1 & predicted_bin_sigm == 1),
-    p_unsupported    = mean(is_unique   & original_binary == 1 & predicted_bin_sigm == 0),
-    p_confirmed      = mean(is_shared   & original_binary == 1 & predicted_bin_sigm == 1),
-    p_cryptic        = mean(is_shared   & original_binary == 1 & predicted_bin_sigm == 0),
-    p_likely_forbidden = mean(is_all_zero & original_binary == 0 & predicted_bin_sigm == 0),
-    p_spurious         = mean(is_all_zero & original_binary == 0 & predicted_bin_sigm == 1),
-    p_feasible         = mean(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 0),
-    p_possibly_missing = mean(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 1),
-    .groups = "drop"
-  )
-
-# --- OUTPUTS ---
-# 1) final_table_by_iter  -> one table per iteration (long format)
-# 2) final_table_summary  -> mean/sd/min/max across 50 iterations
-# 3) per_link_island_freq -> optional diagnostics (proportions per focal island & link)
-final_table_by_iter
-final_table_summary
-# per_link_island_freq  # uncomment to inspect
 
 ## ---- plot ----
 # install.packages(c("ggplot2","ggalluvial","dplyr","tidyr","stringr","scales"))
@@ -1366,7 +1439,6 @@ library(ggplot2)
 library(ggalluvial)
 library(scales)
 
-# -------------------------------------------------------------------
 # INPUT: final_table_summary with columns: Category, mean
 # If needed, reconstruct from final_table_by_iter:
 # final_table_summary <- final_table_by_iter %>% group_by(Category) %>%
@@ -1397,13 +1469,12 @@ flows <- tibble::tribble(
     alluvium_id = paste(L1, L3, sep = "⟂")  # stable flow id (TP→confirmed etc.)
   )
 
-# -------------------------------------------------------------------
 # Aesthetics — tweak these as you like
 col_confusion <- c(
   "TP"="lightsteelblue","FP"="lightsteelblue2","TN"="rosybrown","FN"="rosybrown2"
 )
 col_validation <- c(
-  "Validated elsewhere"="salmon","Not validated"="slateblue"
+  "Validated elsewhere"="sandybrown","Not validated"="thistle3"
 )
 col_subcats <- c(
   "confirmed_links"="coral3","locally_unique_links"="thistle3",
@@ -1420,7 +1491,6 @@ stratum_label_size <- 4
 # Choose whether to plot mean counts or proportions:
 metric <- "prop"  # set to "value" for raw mean counts
 
-# -------------------------------------------------------------------
 # Prepare "lodes" format for 3 axes and KEEP alluvium_id
 flows_long <- flows %>%
   select(L1, L2, L3, value, prop, alluvium_id) %>%
@@ -1436,7 +1506,9 @@ stratum_labeller <- function(x) {
   x %>% str_replace_all("_", " ") %>% str_to_sentence()
 }
 
-# -------- choose your orders here --------
+
+
+## -------- choose your orders here --------
 order_confusion  <- c("TP", "FP", "TN", "FN")                 # LEFT column order
 order_validation <- c("Not validated", "Validated elsewhere") # MIDDLE column order
 order_subtypes   <- c(                                       # RIGHT column order
@@ -1445,7 +1517,6 @@ order_subtypes   <- c(                                       # RIGHT column orde
   "confirmed_links", "possibly_missing_links",
   "feasible_links", "cryptic_links"
 )
-# ------------------------------------------
 
 # Rebuild flows_long with your custom orders applied
 flows_long <- flows %>%
@@ -1464,38 +1535,37 @@ flows_long <- flows %>%
     axis = factor(axis, levels = c("Confusion", "Validation", "Subtype"))
   )
 
-# -------------------------------------------------------------------
 # Plot
-gg <- ggplot(
-  flows_long,
-  aes(x = axis,
-      stratum = stratum,
-      alluvium = alluvium_id,
-      y = .data[[metric]],
-      fill = stratum,
-      label = stratum_labeller(stratum))
-) +
-  geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
-  geom_stratum(width = 0.03, color = "white") +
-  geom_text(stat = "stratum", size = stratum_label_size, color = "white") +
-  scale_fill_manual(values = stratum_fill, guide = "none") +
-  scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
-  labs(
-    title = if (metric=="prop") "Alluvial of mean proportions across iterations"
-    else "Alluvial of mean counts across iterations",
-    subtitle = "Confusion classes → Validation group → Subcategories",
-    x = NULL, y = if (metric=="prop") "Proportion of interactions" else "Mean count"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.text.x = element_text(size = 12, face = "bold"),
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(color = "grey30")
-  )
-
-gg + tme
+# gg <- ggplot(
+#   flows_long,
+#   aes(x = axis,
+#       stratum = stratum,
+#       alluvium = alluvium_id,
+#       y = .data[[metric]],
+#       fill = stratum,
+#       label = stratum_labeller(stratum))
+# ) +
+#   geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
+#   geom_stratum(width = 0.03, color = "white") +
+#   geom_text(stat = "stratum", size = stratum_label_size, color = "white") +
+#   scale_fill_manual(values = stratum_fill, guide = "none") +
+#   scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
+#   labs(
+#     title = if (metric=="prop") "Alluvial of mean proportions across iterations"
+#     else "Alluvial of mean counts across iterations",
+#     subtitle = "Confusion classes → Validation group → Subcategories",
+#     x = NULL, y = if (metric=="prop") "Proportion of interactions" else "Mean count"
+#   ) +
+#   theme_minimal(base_size = 12) +
+#   theme(
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     axis.text.x = element_text(size = 12, face = "bold"),
+#     plot.title = element_text(face = "bold"),
+#     plot.subtitle = element_text(color = "grey30")
+#   )
+# 
+# gg + tme
 
 # style it:
 gg <- ggplot(
@@ -1506,8 +1576,8 @@ gg <- ggplot(
       y = .data[[metric]],
       fill = stratum)
 ) +
-  geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
   geom_stratum(width = 0.03, color = "white") +
+  geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
   scale_fill_manual(values = stratum_fill, guide = "none") +
   scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
   labs(
@@ -1524,6 +1594,60 @@ gg <- ggplot(
     plot.title = element_text(face = "bold"),
     plot.subtitle = element_text(color = "grey30")
   )
+
+bg_col <- "white"   # or "#F7F4EF" or whatever your panel background is
+
+gg <- ggplot(
+  flows_long,
+  aes(x = axis,
+      stratum = stratum,
+      alluvium = alluvium_id,
+      y = .data[[metric]],
+      fill = stratum)
+) +
+  # 2) Wide "mask" strata: same width as flows, fill = background,
+  #    so they trim the flows exactly at the axis
+  geom_stratum(
+    width  = 0.02,
+    color  = NA,
+    fill   = bg_col,
+    alpha  = 1
+  ) +
+  
+  # 3) Narrow visible strata on top
+  geom_stratum(
+    width = 0.03,
+    color = "white"
+  ) +
+  # 1) Flows first
+  geom_alluvium(
+    color = flow_colour,
+    alpha = flow_alpha,
+    width = 0.15,
+    knot.pos = 0.2
+  ) +
+  
+  scale_fill_manual(values = stratum_fill, guide = "none") +
+  scale_y_continuous(
+    labels = if (metric == "prop") percent_format(accuracy = 1)
+    else label_number_si()
+  ) +
+  labs(
+    title    = if (metric=="prop") "Alluvial of mean proportions across iterations"
+    else "Alluvial of mean counts across iterations",
+    subtitle = "Confusion classes → Validation group → Subcategories",
+    x = NULL,
+    y = if (metric=="prop") "Proportion of interactions" else "Mean count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    axis.text.x        = element_text(size = 12, face = "bold"),
+    plot.title         = element_text(face = "bold"),
+    plot.subtitle      = element_text(color = "grey30")
+  )
+
 
 # totals per stratum (for % text)
 stratum_totals <- flows_long %>%
@@ -1564,35 +1688,181 @@ label_df <- dplyr::left_join(
 
 # tweakable label settings
 label_nudge_x   <- 0.03                                 # push labels to the right of each box
-y_off           <- 0.2 * diff(range(flows_long[[metric]], na.rm = TRUE))  # vertical gap for % line
-name_size       <- 3.2
-pct_size        <- 2.6
+label_nudge_y   <- 0.05  
+y_off           <- 0.5 * diff(range(flows_long[[metric]], na.rm = TRUE))  # vertical gap for % line
+name_size       <- 4.2
+pct_size        <- 3.6
 font_family     <- ""                                     # "" = default device font
 label_color_map <- c("Confusion"="mistyrose4","Validation"="mistyrose4","Subtype"="mistyrose4")
 
+label_df <- label_df %>%
+  mutate(
+    label_final = paste0(name_txt, " (", pct_txt, ")")
+  )
+
 gg <- gg +
-  # bold category name
   geom_text(
     data = label_df,
     inherit.aes = FALSE,
-    aes(x = x_mid + label_nudge_x, y = y_mid, label = name_txt, color = axis),
-    fontface = "bold", size = name_size, family = font_family, hjust = 0
+    aes(x = x_mid + label_nudge_x, y = y_mid, label = label_final, color = axis),
+    fontface = "bold",
+    size = name_size,
+    family = font_family,
+    hjust = 0
   ) +
-  # percentage beneath
+  scale_color_manual(values = label_color_map, guide = "none") +
+  coord_cartesian(clip = "off")
+
+# gg <- gg +
+#   # bold category name
+#   geom_text(
+#     data = label_df,
+#     inherit.aes = FALSE,
+#     aes(x = x_mid + label_nudge_x, y = y_mid, label = name_txt, color = axis),
+#     fontface = "bold", size = name_size, family = font_family, hjust = 0
+#   ) +
+#   # percentage beneath
+#   geom_text(
+#     data = label_df,
+#     inherit.aes = FALSE,
+#     aes(x = x_mid + label_nudge_x, y = y_mid - y_off, label = pct_txt, color = axis),
+#     size = pct_size, family = font_family, hjust = 0
+#   ) +
+#   scale_color_manual(values = label_color_map, guide = "none") +
+#   coord_cartesian(clip = "off") +
+#   theme(plot.margin = margin(20, 20, 20, 20))  # extra right margin for labels
+# 
+# gg + tme
+gg <- ggplot(
+  flows_long,
+  aes(x = axis,
+      stratum = stratum,
+      alluvium = alluvium_id,
+      y = .data[[metric]],
+      fill = stratum)
+) +
+  # 2) Wide "mask" strata: same width as flows, fill = background,
+  #    so they trim the flows exactly at the axis
+  geom_stratum(
+    width  = 0.02,
+    color  = NA,
+    fill   = bg_col,
+    alpha  = 1
+  ) +
+  
+  # 3) Narrow visible strata on top
+  geom_stratum(
+    width = 0.03,
+    color = "white"
+  ) +
+  
+  # 1) Flows
+  geom_alluvium(
+    color    = flow_colour,
+    alpha    = flow_alpha,
+    width    = 0.15,
+    knot.pos = 0.2
+  ) +
+  
+  scale_fill_manual(values = stratum_fill, guide = "none") +
+  scale_y_continuous(
+    labels = if (metric == "prop") percent_format(accuracy = 1)
+    else label_number_si()
+  ) +
+  labs(
+    title    = NULL,   # remove title
+    subtitle = NULL,   # remove subtitle
+    x = NULL,
+    y = if (metric == "prop") "Proportion of interactions" else "Mean count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    axis.text.x        = element_text(size = 12, face = "bold"),
+    plot.title         = element_text(face = "bold"),
+    plot.subtitle      = element_text(color = "grey30")
+  )
+
+# range for vertical offsets
+yr <- diff(range(flows_long[[metric]], na.rm = TRUE))
+
+# total value per stratum per axis
+stratum_totals <- flows_long %>%
+  dplyr::group_by(axis, stratum) %>%
+  dplyr::summarise(val = sum(.data[[metric]]), .groups = "drop") %>%
+  dplyr::mutate(stratum_chr = as.character(stratum))
+
+# build a hidden stratum layer to get box geometry
+tmp_build <- ggplot_build(
+  ggplot(flows_long,
+         aes(x = axis,
+             stratum = stratum,
+             alluvium = alluvium_id,
+             y = .data[[metric]])) +
+    geom_stratum(width = 0.03, color = NA)
+)
+
+geo <- as.data.frame(tmp_build$data[[1]])
+ax_levels <- levels(flows_long$axis)
+
+# midpoints and axis name for each stratum box
+label_geom <- geo %>%
+  dplyr::transmute(
+    x_mid       = (xmin + xmax)/2,
+    y_mid       = (ymin + ymax)/2,
+    stratum_chr = as.character(stratum),
+    axis        = ax_levels[round(x)]  # map numeric x back to axis factor
+  )
+
+# join values + geometry, build label text and vertically stagger labels
+label_df <- dplyr::left_join(
+  stratum_totals,
+  label_geom,
+  by = c("axis", "stratum_chr")
+) %>%
+  dplyr::mutate(
+    name_txt = stratum_chr %>%
+      stringr::str_replace_all("_", " ") %>%
+      stringr::str_to_sentence(),
+    pct_txt  = if (metric == "prop") scales::percent(val, accuracy = 1)
+    else scales::label_number_si()(val),
+    label_final = paste0(name_txt, " (", pct_txt, ")")
+  ) %>%
+  dplyr::arrange(axis, y_mid) %>%
+  dplyr::group_by(axis) %>%
+  dplyr::mutate(
+    # stagger labels within each axis to reduce overlap
+    label_y = y_mid + (row_number() - mean(row_number())) * (0.033 * yr)
+  ) %>%
+  dplyr::ungroup()
+
+label_nudge_x <- 0.03   # adjust if you want labels further right
+label_nudge_y <- 0.02
+
+gg <- gg +
   geom_text(
     data = label_df,
     inherit.aes = FALSE,
-    aes(x = x_mid + label_nudge_x, y = y_mid - y_off, label = pct_txt, color = axis),
-    size = pct_size, family = font_family, hjust = 0
+    aes(x = x_mid + label_nudge_x,
+        y = label_y + label_nudge_y,
+        label = label_final,
+        color = axis),
+    fontface = "bold",
+    size     = name_size,
+    family   = font_family,
+    hjust    = 0
   ) +
   scale_color_manual(values = label_color_map, guide = "none") +
   coord_cartesian(clip = "off") +
-  theme(plot.margin = margin(20, 20, 20, 20))  # extra right margin for labels
+  theme(
+    plot.margin = margin(20, 20, 20, 20)   # room on the right for labels
+  )
 
-gg + tme
+gg
 
 gg <- gg +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 16) +
   theme(
     panel.grid = element_blank(),
     axis.text = element_blank(),     # remove tick labels
@@ -1605,6 +1875,48 @@ gg <- gg +
   )
 
 gg
+# gg <- gg + labs(title = NULL, subtitle = NULL)
+# gg
+
+pdf( file = "alluvial_canary.pdf", 
+     width = 12, # inches 
+     height = 7, 
+     family = "Helvetica") # or another installed font
+print(gg)
+dev.off()
+
+png(
+  filename = "alluvial_canary.png",
+  width    = 12,
+  height   = 7,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(gg)
+
+dev.off()
+
+# Optional: hide all category labels
+show_labels <- FALSE   # TRUE = show; FALSE = remove all
+
+if (show_labels) {
+  gg <- gg +
+    geom_text(
+      data = label_df,
+      inherit.aes = FALSE,
+      aes(x = x_mid + label_nudge_x,
+          y = y_mid,
+          label = label_final,
+          color = axis),
+      fontface = "bold",
+      size = name_size,
+      family = font_family,
+      hjust = 0
+    )
+}
 
 # ---- certainty in missing links analysis ----
 # Calculate per-link statistics across iterations and islands
