@@ -1371,11 +1371,23 @@ df_self <- df_self %>%
     interaction_id     = paste0(node_from, " -> ", node_to)
   )
 
+
 # Observation count per interaction across all islands
 obs_counts <- df_self %>%
   distinct(test_layer, interaction_id, original_binary) %>%
   group_by(interaction_id) %>%
   summarise(n_obs_total = sum(original_binary == 1, na.rm = TRUE), .groups = "drop")
+
+# Re-attach to df_self to define per-island flags
+df_self_flagged <- df_self %>%
+  left_join(obs_counts, by = "interaction_id") %>%
+  mutate(
+    is_all_zero   = n_obs_total == 0,
+    is_unique     = (n_obs_total == 1),
+    is_shared     = (n_obs_total >= 2),
+    obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1
+  ) %>%
+  select(test_layer, interaction_id, is_all_zero, is_unique, is_shared, obs_elsewhere)
 
 # Join those flags to df_removed (withholding data)
 # restrict to self-predictions:
@@ -1387,13 +1399,8 @@ df_removed_flagged <- df_removed %>%
     predicted_bin_sigm = as.integer(predicted_bin_sigm),
     interaction_id     = paste0(node_from, " -> ", node_to)
   ) %>%
-  left_join(obs_counts, by = "interaction_id") %>%
-  mutate(
-    is_all_zero   = n_obs_total == 0,
-    is_unique     = n_obs_total == 1,
-    is_shared     = n_obs_total >= 2,
-    obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1  # observed in ≥1 other island
-  )
+  left_join(df_self_flagged, by = c("test_layer", "interaction_id"))
+
 
 # produce results table
 final_table_by_iter <- df_removed_flagged %>%
@@ -1430,7 +1437,226 @@ final_table_summary <- final_table_by_iter %>%
   ) %>%
   arrange(Category)
 
-## ---- plot ----
+# inspect categories
+df_categorized <- df_removed_flagged %>%
+  mutate(
+    link_category = case_when(
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 1 ~ "locally_unique_links",
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 0 ~ "unsupported_links",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 1 ~ "confirmed_links",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 0 ~ "cryptic_links",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 0 ~ "likely_forbidden",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 1 ~ "spurious_links",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 0 ~ "feasible_links",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 1 ~ "possibly_missing_links",
+      TRUE ~ "unclassified"
+    )
+  )
+
+df_selected <- df_categorized %>%
+  filter(link_category %in% c("locally_unique_links", "unsupported_links"))
+
+interaction_counts <- df_selected %>%
+  count(link_category, interaction_id) %>%
+  arrange(link_category, desc(n))
+
+interaction_counts %>%
+  group_by(link_category) %>%
+  slice_max(n, n = 10) %>%
+  ungroup() %>%
+  ggplot(aes(x = reorder(interaction_id, n), y = n, fill = link_category)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~link_category, scales = "free_y") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Interactions per Link Category",
+    x = "Interaction ID",
+    y = "Frequency across iterations"
+  ) +
+  theme_minimal()
+
+# ---- map of link categories ----
+
+# First: compute per-interaction averages
+per_link_avg <- df_categorized %>%
+  group_by(interaction_id) %>%
+  summarise(
+    avg_pred_prob    = mean(predicted_prob_sigm, na.rm = TRUE),
+    avg_pred_binary  = mean(predicted_bin_sigm, na.rm = TRUE),
+    avg_original_bin = mean(original_binary, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Then: join back to the full dataframe
+df_categorized_with_avg <- df_categorized %>%
+  left_join(per_link_avg, by = "interaction_id")
+
+
+#### ---- calculate overall degree per species ----
+# filter only existing links
+df_filtered <- df %>%
+  filter(itr == 1, original_links != 0) # filter existing interactions
+
+# calculate degree for each plant species (node_from)
+plant_degree <- df_filtered %>%
+  group_by(train_layer, test_layer, node_from) %>%
+  summarise(plant_degree = n(), .groups = "drop")
+
+# # average plant degree by train_layer and test_layer
+# avg_plant_degree <- plant_degree %>%
+#   group_by(node_from) %>%
+#   summarise(avg_plant_degree = mean(plant_degree), .groups = "drop")
+
+overall_plant_degree <- df_filtered %>% 
+  group_by(node_from) %>% 
+  summarise(overall_plant_degree = length(unique(node_to)), .groups = "drop")
+
+# calculate degree for each pollinator species (node_to)
+pollinator_degree <- df_filtered %>%
+  group_by(train_layer, test_layer, node_to) %>%
+  summarise(poll_degree = n(), .groups = "drop")
+
+overall_poll_degree <- df_filtered %>% 
+  group_by(node_to) %>% 
+  summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
+
+df_categorized_with_avg <- df_categorized_with_avg %>%
+  # join pollinator degree by node_to
+  left_join(overall_poll_degree, by = "node_to") %>%
+  # join plant degree by node_from
+  left_join(overall_plant_degree, by = "node_from")
+
+# oder species by their degree
+plant_order <- df_categorized_with_avg %>%
+  distinct(node_from, overall_plant_degree) %>%
+  arrange(desc(overall_plant_degree)) %>%
+  pull(node_from)
+
+poll_order <- df_categorized_with_avg %>%
+  distinct(node_to, overall_poll_degree) %>%
+  arrange(desc(overall_poll_degree)) %>%
+  pull(node_to)
+
+# reset the levels for the species factors
+df_categorized_with_avg$node_from <- factor(df_categorized_with_avg$node_from, levels = plant_order)
+df_categorized_with_avg$node_to   <- factor(df_categorized_with_avg$node_to, levels = poll_order)
+
+map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = node_from)) +
+  # First layer: Locally unique links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_unique == TRUE & original_binary == 1 & predicted_bin_sigm == 1),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "rosybrown1", high = "rosybrown1",
+                      name = "Locally unique",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: unsupported links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_unique == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tan1",
+                      name = "Unsupported links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # third layer: confirmed links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 1),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "forestgreen", high = "forestgreen",
+                      name = "Recurrent links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # cryptic links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "thistle", high = "thistle",
+                      name = "Cryptic links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # forbidden links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 0),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "thistle4", high = "thistle4",
+                      name = "Forbidden links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # spurious links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 1),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "goldenrod1", high = "goldenrod1",
+                      name = "Spurious links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # feasible links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 0),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+                      name = "Feasible links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  new_scale_fill() +
+  
+  # missing links
+  geom_tile(
+    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 1),
+    aes(fill = avg_pred_prob),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "salmon", high = "salmon",
+                      name = "Missing links",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 8),           # Shrinks label text
+    legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
+    legend.title = element_text(size = 9), 
+    legend.position = "right",         # Place legends to the right
+    legend.box = "vertical" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+map_link_classification
+
+## ---- alluvial plot ----
 # install.packages(c("ggplot2","ggalluvial","dplyr","tidyr","stringr","scales"))
 library(dplyr)
 library(tidyr)
@@ -1535,39 +1761,6 @@ flows_long <- flows %>%
     axis = factor(axis, levels = c("Confusion", "Validation", "Subtype"))
   )
 
-# Plot
-# gg <- ggplot(
-#   flows_long,
-#   aes(x = axis,
-#       stratum = stratum,
-#       alluvium = alluvium_id,
-#       y = .data[[metric]],
-#       fill = stratum,
-#       label = stratum_labeller(stratum))
-# ) +
-#   geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
-#   geom_stratum(width = 0.03, color = "white") +
-#   geom_text(stat = "stratum", size = stratum_label_size, color = "white") +
-#   scale_fill_manual(values = stratum_fill, guide = "none") +
-#   scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
-#   labs(
-#     title = if (metric=="prop") "Alluvial of mean proportions across iterations"
-#     else "Alluvial of mean counts across iterations",
-#     subtitle = "Confusion classes → Validation group → Subcategories",
-#     x = NULL, y = if (metric=="prop") "Proportion of interactions" else "Mean count"
-#   ) +
-#   theme_minimal(base_size = 12) +
-#   theme(
-#     panel.grid.major.x = element_blank(),
-#     panel.grid.minor = element_blank(),
-#     axis.text.x = element_text(size = 12, face = "bold"),
-#     plot.title = element_text(face = "bold"),
-#     plot.subtitle = element_text(color = "grey30")
-#   )
-# 
-# gg + tme
-
-# style it:
 gg <- ggplot(
   flows_long,
   aes(x = axis,
@@ -1899,24 +2092,312 @@ print(gg)
 
 dev.off()
 
-# Optional: hide all category labels
-show_labels <- FALSE   # TRUE = show; FALSE = remove all
 
-if (show_labels) {
-  gg <- gg +
-    geom_text(
-      data = label_df,
-      inherit.aes = FALSE,
-      aes(x = x_mid + label_nudge_x,
-          y = y_mid,
-          label = label_final,
-          color = axis),
-      fontface = "bold",
-      size = name_size,
-      family = font_family,
-      hjust = 0
-    )
-}
+# no label version:
+
+gg <- ggplot(
+  flows_long,
+  aes(x = axis,
+      stratum = stratum,
+      alluvium = alluvium_id,
+      y = .data[[metric]],
+      fill = stratum)
+) +
+  geom_stratum(width = 0.03, color = "white") +
+  geom_alluvium(color = flow_colour, alpha = flow_alpha, width = 0.25) +
+  scale_fill_manual(values = stratum_fill, guide = "none") +
+  scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
+  labs(
+    title = if (metric=="prop") "Alluvial of mean proportions across iterations"
+    else "Alluvial of mean counts across iterations",
+    subtitle = "Confusion classes → Validation group → Subcategories",
+    x = NULL, y = if (metric=="prop") "Proportion of interactions" else "Mean count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 12, face = "bold"),
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "grey30")
+  )
+
+bg_col <- "white"   # or "#F7F4EF" or whatever your panel background is
+
+gg <- ggplot(
+  flows_long,
+  aes(x = axis,
+      stratum = stratum,
+      alluvium = alluvium_id,
+      y = .data[[metric]],
+      fill = stratum)
+) +
+  # 2) Wide "mask" strata: same width as flows, fill = background,
+  #    so they trim the flows exactly at the axis
+  geom_stratum(
+    width  = 0.02,
+    color  = NA,
+    fill   = bg_col,
+    alpha  = 1
+  ) +
+  
+  # 3) Narrow visible strata on top
+  geom_stratum(
+    width = 0.03,
+    color = "white"
+  ) +
+  # 1) Flows first
+  geom_alluvium(
+    color = flow_colour,
+    alpha = flow_alpha,
+    width = 0.15,
+    knot.pos = 0.2
+  ) +
+  
+  scale_fill_manual(values = stratum_fill, guide = "none") +
+  scale_y_continuous(
+    labels = if (metric == "prop") percent_format(accuracy = 1)
+    else label_number_si()
+  ) +
+  labs(
+    title    = if (metric=="prop") "Alluvial of mean proportions across iterations"
+    else "Alluvial of mean counts across iterations",
+    subtitle = "Confusion classes → Validation group → Subcategories",
+    x = NULL,
+    y = if (metric=="prop") "Proportion of interactions" else "Mean count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    axis.text.x        = element_text(size = 12, face = "bold"),
+    plot.title         = element_text(face = "bold"),
+    plot.subtitle      = element_text(color = "grey30")
+  )
+
+
+# totals per stratum (for % text)
+stratum_totals <- flows_long %>%
+  dplyr::group_by(axis, stratum) %>%
+  dplyr::summarise(val = sum(.data[[metric]]), .groups = "drop") %>%
+  dplyr::mutate(stratum_chr = as.character(stratum))
+
+# build one hidden stratum layer to grab box geometry (same width as above: 0.25)
+tmp_build <- ggplot_build(
+  ggplot(flows_long,
+         aes(x = axis, stratum = stratum, alluvium = alluvium_id, y = .data[[metric]])) +
+    geom_stratum(width = 0.03, color = NA)
+)
+
+geo <- as.data.frame(tmp_build$data[[1]])
+ax_levels <- levels(flows_long$axis)
+
+# midpoints and axis name for each stratum box
+label_geom <- geo %>%
+  dplyr::transmute(
+    x_mid       = (xmin + xmax)/2,
+    y_mid       = (ymin + ymax)/2,
+    stratum_chr = as.character(stratum),
+    axis        = ax_levels[pmax(1, pmin(length(ax_levels), round((xmin + xmax)/2)))]
+  )
+
+# join values + geometry, build the two-line label strings
+label_df <- dplyr::left_join(
+  stratum_totals,
+  label_geom,
+  by = c("axis","stratum_chr")
+) %>%
+  dplyr::mutate(
+    name_txt = stratum_chr %>% stringr::str_replace_all("_"," ") %>% stringr::str_to_sentence(),
+    pct_txt  = if (metric == "prop") scales::percent(val, accuracy = 1)
+    else scales::label_number_si()(val)
+  )
+
+# tweakable label settings
+label_nudge_x   <- 0.03                                 # push labels to the right of each box
+label_nudge_y   <- 0.05  
+y_off           <- 0.5 * diff(range(flows_long[[metric]], na.rm = TRUE))  # vertical gap for % line
+name_size       <- 4.2
+pct_size        <- 3.6
+font_family     <- ""                                     # "" = default device font
+label_color_map <- c("Confusion"="mistyrose4","Validation"="mistyrose4","Subtype"="mistyrose4")
+
+label_df <- label_df %>%
+  mutate(
+    label_final = paste0(name_txt, " (", pct_txt, ")")
+  )
+
+gg <- gg +
+  # geom_text(
+  #   data = label_df,
+  #   inherit.aes = FALSE,
+  #   aes(x = x_mid + label_nudge_x, y = y_mid, label = label_final, color = axis),
+  #   fontface = "bold",
+  #   size = name_size,
+  #   family = font_family,
+  #   hjust = 0
+  # ) +
+  scale_color_manual(values = label_color_map, guide = "none") +
+  coord_cartesian(clip = "off")
+
+gg <- ggplot(
+  flows_long,
+  aes(x = axis,
+      stratum = stratum,
+      alluvium = alluvium_id,
+      y = .data[[metric]],
+      fill = stratum)
+) +
+  # 2) Wide "mask" strata: same width as flows, fill = background,
+  #    so they trim the flows exactly at the axis
+  geom_stratum(
+    width  = 0.02,
+    color  = NA,
+    fill   = bg_col,
+    alpha  = 1
+  ) +
+  
+  # 3) Narrow visible strata on top
+  geom_stratum(
+    width = 0.03,
+    color = "white"
+  ) +
+  
+  # 1) Flows
+  geom_alluvium(
+    color    = flow_colour,
+    alpha    = flow_alpha,
+    width    = 0.15,
+    knot.pos = 0.2
+  ) +
+  
+  scale_fill_manual(values = stratum_fill, guide = "none") +
+  scale_y_continuous(
+    labels = if (metric == "prop") percent_format(accuracy = 1)
+    else label_number_si()
+  ) +
+  labs(
+    title    = NULL,   # remove title
+    subtitle = NULL,   # remove subtitle
+    x = NULL,
+    y = if (metric == "prop") "Proportion of interactions" else "Mean count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    axis.text.x        = element_text(size = 12, face = "bold"),
+    plot.title         = element_text(face = "bold"),
+    plot.subtitle      = element_text(color = "grey30")
+  )
+
+# range for vertical offsets
+yr <- diff(range(flows_long[[metric]], na.rm = TRUE))
+
+# total value per stratum per axis
+stratum_totals <- flows_long %>%
+  dplyr::group_by(axis, stratum) %>%
+  dplyr::summarise(val = sum(.data[[metric]]), .groups = "drop") %>%
+  dplyr::mutate(stratum_chr = as.character(stratum))
+
+# build a hidden stratum layer to get box geometry
+tmp_build <- ggplot_build(
+  ggplot(flows_long,
+         aes(x = axis,
+             stratum = stratum,
+             alluvium = alluvium_id,
+             y = .data[[metric]])) +
+    geom_stratum(width = 0.03, color = NA)
+)
+
+geo <- as.data.frame(tmp_build$data[[1]])
+ax_levels <- levels(flows_long$axis)
+
+# midpoints and axis name for each stratum box
+label_geom <- geo %>%
+  dplyr::transmute(
+    x_mid       = (xmin + xmax)/2,
+    y_mid       = (ymin + ymax)/2,
+    stratum_chr = as.character(stratum),
+    axis        = ax_levels[round(x)]  # map numeric x back to axis factor
+  )
+
+# join values + geometry, build label text and vertically stagger labels
+label_df <- dplyr::left_join(
+  stratum_totals,
+  label_geom,
+  by = c("axis", "stratum_chr")
+) %>%
+  dplyr::mutate(
+    name_txt = stratum_chr %>%
+      stringr::str_replace_all("_", " ") %>%
+      stringr::str_to_sentence(),
+    pct_txt  = if (metric == "prop") scales::percent(val, accuracy = 1)
+    else scales::label_number_si()(val),
+    label_final = paste0(name_txt, " (", pct_txt, ")")
+  ) %>%
+  dplyr::arrange(axis, y_mid) %>%
+  dplyr::group_by(axis) %>%
+  dplyr::mutate(
+    # stagger labels within each axis to reduce overlap
+    label_y = y_mid + (row_number() - mean(row_number())) * (0.033 * yr)
+  ) %>%
+  dplyr::ungroup()
+
+label_nudge_x <- 0.03   # adjust if you want labels further right
+label_nudge_y <- 0.02
+
+gg <- gg +
+  # geom_text(
+  #   data = label_df,
+  #   inherit.aes = FALSE,
+  #   aes(x = x_mid + label_nudge_x,
+  #       y = label_y + label_nudge_y,
+  #       label = label_final,
+  #       color = axis),
+  #   fontface = "bold",
+  #   size     = name_size,
+  #   family   = font_family,
+  #   hjust    = 0
+  # ) +
+  scale_color_manual(values = label_color_map, guide = "none") +
+  coord_cartesian(clip = "off") +
+  theme(
+    plot.margin = margin(20, 20, 20, 20)   # room on the right for labels
+  )
+
+gg
+
+gg <- gg +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),     # remove tick labels
+    axis.ticks = element_blank(),    # remove tick marks
+    axis.title = element_blank(),    # remove axis titles
+    axis.line = element_blank(),     # remove axis lines
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "grey30"),
+    plot.margin = margin(20, 20, 20, 20)  # keep right margin for labels
+  )
+
+gg
+
+
+png(
+  filename = "alluvial_canary_blank.png",
+  width    = 14,
+  height   = 7,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(gg)
+
+dev.off()
+
 
 # ---- certainty in missing links analysis ----
 # Calculate per-link statistics across iterations and islands
