@@ -1609,7 +1609,7 @@ map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = 
     aes(fill = avg_pred_prob),
     alpha = 0.6
   ) +
-  scale_fill_gradient(low = "goldenrod1", high = "goldenrod1",
+  scale_fill_gradient(low = "gray85", high = "gray85",
                       name = "Spurious links",
                       breaks = seq(0, 1, 0.1)) +
   
@@ -1642,7 +1642,7 @@ map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = 
   theme_minimal() +
   labs(x = "Pollinator", y = "Plant") +
   theme(
-    axis.text.x = element_blank(), 
+    axis.text.x = element_text(size = 3), 
     axis.text.y = element_text(size = 10),
     legend.text = element_text(size = 8),           # Shrinks label text
     legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
@@ -1652,9 +1652,123 @@ map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = 
   ) + tme +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+map_link_classification
+
+pdf( file = "map_link_classification_names.pdf", 
+     width = 12, # inches 
+     height = 7, 
+     family = "Helvetica") # or another installed font
+print(map_link_classification)
+dev.off()
+
+# forbidden <- df_categorized_with_avg %>% filter(link_category == "likely_forbidden")
+# 
+# forbidden_salvia <- forbidden %>% filter(node_from == "Salvia_aegyptiaca")
+# unique(forbidden_salvia$node_to)
+
+## ---- try to create an interactive plot ----
+
+df_interactive <- df_categorized_with_avg %>%
+  mutate(
+    link_class = case_when(
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 1 ~ "locally_unique",
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 0 ~ "unsupported",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 1 ~ "recurrent",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 0 ~ "cryptic",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 0 ~ "forbidden",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 1 ~ "spurious",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 0 ~ "feasible",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 1 ~ "missing",
+      TRUE ~ "other"
+    )
+  )
+
+
+map_interactive <- ggplot(df_interactive, aes(
+  x = node_to,
+  y = node_from,
+  fill = link_class
+  # fill = link_class,
+  # text = paste("Interaction:", interaction_id,
+  #              "<br>Avg Prob:", round(avg_pred_prob, 3),
+  #              "<br>Class:", link_class)
+)) +
+  geom_tile(color = "white") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5),
+        axis.text.y = element_text(size = 6))
+
+library(plotly)
+ggplotly(map_interactive, tooltip = "text")
+
+htmlwidgets::saveWidget(ggplotly(map_interactive, tooltip = "text"),
+                        "link_map_interactive.html",
+                        selfcontained = TRUE)
+
+
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel("Interactive Link Map"),
+  plotlyOutput("linkPlot", height = "800px")
+)
+
+server <- function(input, output) {
+  output$linkPlot <- renderPlotly({
+    ggplotly(map_interactive, tooltip = "text")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+# nevermind but the plot is pretty
+df_interactive$node_from <- factor(df_interactive$node_from, levels = plant_order)
+df_interactive$node_to   <- factor(df_interactive$node_to, levels = poll_order)
+
+
+map_interactive <- ggplot(df_interactive, aes(
+  x = node_to,
+  y = node_from,
+  fill = link_class
+  # fill = link_class,
+  # text = paste("Interaction:", interaction_id,
+  #              "<br>Avg Prob:", round(avg_pred_prob, 3),
+  #              "<br>Class:", link_class)
+)) +
+  geom_tile(color = "white") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5),
+        axis.text.y = element_text(size = 6)) +
+  labs(x = "Pollinator", y = "Plant") +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
   }))
 
-map_link_classification
+map_interactive
+
+png(
+  filename = "map_categories.png",
+  width    = 12,
+  height   = 7,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_interactive)
+
+dev.off()
+
 
 ## ---- alluvial plot ----
 # install.packages(c("ggplot2","ggalluvial","dplyr","tidyr","stringr","scales"))
