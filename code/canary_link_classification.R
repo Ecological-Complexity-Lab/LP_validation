@@ -1691,11 +1691,10 @@ df_interactive <- df_categorized_with_avg %>%
 map_interactive <- ggplot(df_interactive, aes(
   x = node_to,
   y = node_from,
-  fill = link_class
-  # fill = link_class,
-  # text = paste("Interaction:", interaction_id,
-  #              "<br>Avg Prob:", round(avg_pred_prob, 3),
-  #              "<br>Class:", link_class)
+  fill = link_class,
+  text = paste("Interaction:", interaction_id,
+               "<br>Avg Prob:", round(avg_pred_prob, 3),
+               "<br>Class:", link_class)
 )) +
   geom_tile(color = "white") +
   scale_fill_brewer(palette = "Set2") +

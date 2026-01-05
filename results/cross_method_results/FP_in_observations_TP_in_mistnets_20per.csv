@@ -1,0 +1,2 @@
+higher_level,lower_level,confusion_m2,probability_m2,classification_m2,ground_truth_m2,link_m2,confusion_m1,probability_m1,classification_m1,ground_truth_m1,link_m1
+Pistacia.lentiscus,Luscinia.megarhynchos,FP,0.58,1,0,0,TP,0.7,1,1,-1
