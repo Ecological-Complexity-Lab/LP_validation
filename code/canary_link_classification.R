@@ -1453,6 +1453,42 @@ df_categorized <- df_removed_flagged %>%
     )
   )
 
+# # experiment: map for 1 island
+# 
+# # first find the island with island connectance
+# df_categorized_con <- df_categorized %>% filter(itr == 1)
+# 
+# # Step 1: Count number of observed links per island (where original_binary == 1)
+# observed_links <- df_categorized %>%
+#   filter(original_binary == 1) %>%
+#   distinct(test_layer, node_from, node_to) %>%
+#   count(test_layer, name = "n_observed")
+# 
+# # Step 2: Count unique species per island
+# # (you can customize how you count plants vs pollinators separately if needed)
+# unique_species <- df_categorized_con %>%
+#   distinct(test_layer, node_from, node_to) %>%
+#   group_by(test_layer) %>%
+#   summarise(
+#     n_plants = n_distinct(node_from),
+#     n_pollinators = n_distinct(node_to),
+#     .groups = "drop"
+#   )
+# 
+# # Step 3: Join and calculate connectance
+# connectance_table <- observed_links %>%
+#   left_join(unique_species, by = "test_layer") %>%
+#   mutate(
+#     possible_links = n_plants * n_pollinators,
+#     connectance = n_observed / possible_links
+#   ) %>%
+#   arrange(desc(connectance))  # highest on top
+# 
+# # View the test_layer with the highest connectance
+# connectance_table # island 3 has the highest connectance
+# 
+# df_categorized <- df_categorized %>% filter(train_layer == 3 & test_layer == 3)
+
 df_selected <- df_categorized %>%
   filter(link_category %in% c("locally_unique_links", "unsupported_links"))
 
@@ -1478,6 +1514,7 @@ interaction_counts %>%
 # ---- map of link categories ----
 
 # First: compute per-interaction averages
+
 per_link_avg <- df_categorized %>%
   group_by(interaction_id) %>%
   summarise(
@@ -1526,7 +1563,7 @@ df_categorized_with_avg <- df_categorized_with_avg %>%
   # join plant degree by node_from
   left_join(overall_plant_degree, by = "node_from")
 
-# oder species by their degree
+# order species by their degree
 plant_order <- df_categorized_with_avg %>%
   distinct(node_from, overall_plant_degree) %>%
   arrange(desc(overall_plant_degree)) %>%
