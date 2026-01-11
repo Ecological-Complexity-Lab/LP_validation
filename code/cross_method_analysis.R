@@ -206,6 +206,17 @@ summary_tbl <- df_categorized %>%
   filter(link_category != "unclassified", confusion != "UNK") %>%
   count(method, confusion, validation, link_category, name = "value")
 
+# check
+df_confirmed_1 <- df_categorized %>% filter(link_category == "confirmed_links" & method == "method1")
+df_confirmed_2 <- df_categorized %>% filter(link_category == "confirmed_links" & method == "method2")
+identical(df_confirmed_1$interaction_id, df_confirmed_2$interaction_id)
+length(unique(df_confirmed_1$interaction_id))
+length(unique(df_confirmed_2$interaction_id))
+# recurrent link are not necessarily symmetrical!
+
+## ---- venn ----
+
+
 ## ---- alluvial plot ----
 # make an alluvial plot
 method_to_plot <- "method2"  # we can change to "method2"
@@ -897,4 +908,3 @@ gg
 
 # and a heatmap marking where are the missing links
 
-## ---- venn ----
