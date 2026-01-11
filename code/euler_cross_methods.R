@@ -226,7 +226,7 @@ A12 <- length(AB)     # observed in both
 
 stopifnot(A12 <= A1, A12 <= A2)
 
-# --- scale factor: controls overall size of the figure (bigger = larger rectangles) ---
+# --- sc <- le factor: controls overall size of the figure (bigger = larger rectangles) ---
 s <- 0.5  # try 0.5 or 2 if you want smaller/larger
 
 # --- choose square-like rectangles so area = count*s ---
@@ -269,7 +269,7 @@ method_pos <- data.frame(
 )
 
 # --- plot ---
-ggplot() +
+euler_observed <- ggplot() +
   geom_rect(data = rects,
             aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = method),
             alpha = 0.30, color = "white", linewidth = 0.9) +
@@ -282,6 +282,49 @@ ggplot() +
   labs(title = "Observed interactions: overlap between methods (area ∝ count)") +
   theme(plot.title = element_text(face = "bold")) +
   scale_fill_manual(values = c("#4C78A8", "#F58518"), guide = "none")
+
+png(
+  filename = "euler_observed.png",
+  width    = 8,
+  height   = 8,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(euler_observed)
+
+dev.off()
+
+euler_observed_empty <- ggplot() +
+  geom_rect(data = rects,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = method),
+            alpha = 0.30, color = "white", linewidth = 0.9) +
+  # geom_text(data = method_pos, aes(x, y, label = label),
+  #           fontface = "bold", size = 4) +
+  # geom_text(data = lab_pos, aes(x, y, label = label),
+  #           size = 3.4, lineheight = 1.05) +
+  coord_equal() +
+  theme_void(base_size = 12) +
+  labs(title = "Observed interactions: overlap between methods (area ∝ count)") +
+  theme(plot.title = element_text(face = "bold")) +
+  scale_fill_manual(values = c("#4C78A8", "#F58518"), guide = "none")
+
+png(
+  filename = "euler_observed_empty.png",
+  width    = 8,
+  height   = 8,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(euler_observed_empty)
+
+dev.off()
+
 
 # ---- unobserved links ----
 # ---- 1) Define UNOBSERVED sets per method (unique interaction IDs) ---
@@ -371,7 +414,7 @@ lab_U12 <- paste0(
   "Total: ", length(U12)
 )
 
-# ---- 4) Rectangles with corner overlap (area ∝ count) ----
+# ---- 4) Rectangles with corner overlap (area ∝ count) ---
 U1n  <- length(U1)
 U2n  <- length(U2)
 U12n <- length(U12)
@@ -405,7 +448,7 @@ method_pos <- data.frame(
   label = c(m1, m2)
 )
 
-ggplot() +
+euler_unobserved <- ggplot() +
   geom_rect(
     data = rects,
     aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = method),
@@ -420,3 +463,98 @@ ggplot() +
   labs(title = "Unobserved interactions: overlap between methods (area ∝ count)") +
   theme(plot.title = element_text(face = "bold")) +
   scale_fill_manual(values = c("thistle3", "peachpuff3"), guide = "none")
+
+png(
+  filename = "euler_unobserved.png",
+  width    = 8,
+  height   = 8,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+euler_unobserved_empty <- ggplot() +
+  geom_rect(
+    data = rects,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = method),
+    alpha = 0.30, color = "white", linewidth = 0.9
+  ) +
+  coord_equal() +
+  theme_void(base_size = 12) +
+  labs(title = "Unobserved interactions: overlap between methods (area ∝ count)") +
+  theme(plot.title = element_text(face = "bold")) +
+  scale_fill_manual(values = c("thistle3", "peachpuff3"), guide = "none")
+
+png(
+  filename = "euler_unobserved_empty.png",
+  width    = 8,
+  height   = 8,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+
+# --- your plotting code here ---
+print(euler_unobserved_empty)
+
+dev.off()
+
+# ---- summary tables ----
+
+# observed
+
+observed_tbl <- df0 %>%
+  filter(original_binary == 1) %>%
+  group_by(method) %>%
+  summarise(
+    total_observed  = n_distinct(interaction_id),
+    recurrent       = n_distinct(interaction_id[link_category == "confirmed_links"]),
+    method_specific = n_distinct(interaction_id[link_category == "locally_unique_links"]),
+    cryptic         = n_distinct(interaction_id[link_category == "cryptic_links"]),
+    unsupported     = n_distinct(interaction_id[link_category == "unsupported_links"]),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -method,
+    names_to = "metric",
+    values_to = "n"
+  ) %>%
+  group_by(method) %>%
+  mutate(
+    denom = n[metric == "total_observed"][1],
+    pct = ifelse(denom > 0, n / denom, 0)
+  ) %>%
+  ungroup() %>%
+  arrange(method, factor(metric, levels = c(
+    "total_observed",
+    "recurrent",
+    "method_specific",
+    "cryptic",
+    "unsupported"
+  )))
+
+observed_tbl
+
+# unobserved
+
+unobserved_tbl <- df0 %>%
+  filter(original_binary == 0) %>%
+  group_by(method) %>%
+  summarise(
+    total_unobserved       = n_distinct(interaction_id),
+    likely_forbidden   = n_distinct(interaction_id[link_category == "likely_forbidden"]),
+    feasible  = n_distinct(interaction_id[link_category == "feasible_links"]),
+    spurious               = n_distinct(interaction_id[link_category == "spurious_links"]),
+    possibly_missing       = n_distinct(interaction_id[link_category == "possibly_missing_links"]),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(-method, names_to = "metric", values_to = "n") %>%
+  group_by(method) %>%
+  mutate(
+    denom = n[metric == "total_unobserved"][1],
+    pct = ifelse(denom > 0, n / denom, 0)
+  ) %>%
+  ungroup()
+
+unobserved_tbl
