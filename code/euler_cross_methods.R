@@ -483,7 +483,7 @@ euler_unobserved_empty <- ggplot() +
   theme_void(base_size = 12) +
   labs(title = "Unobserved interactions: overlap between methods (area ∝ count)") +
   theme(plot.title = element_text(face = "bold")) +
-  scale_fill_manual(values = c("thistle3", "peachpuff3"), guide = "none")
+  scale_fill_manual(values = c("thistle3", "lightsalmon1"), guide = "none")
 
 png(
   filename = "euler_unobserved_empty.png",
@@ -536,6 +536,16 @@ observed_tbl <- df0 %>%
 
 observed_tbl
 
+confirmed_shared_ids <- df0 %>%
+  select(interaction_id, method, link_category) %>%
+  pivot_wider(names_from = method, values_from = link_category) %>%
+  filter(if_all(-interaction_id, ~ .x == "confirmed_links")) %>%
+  pull(interaction_id)
+
+n_confirmed_shared <- length(confirmed_shared_ids)
+
+n_confirmed_shared
+
 # unobserved
 
 unobserved_tbl <- df0 %>%
@@ -558,3 +568,13 @@ unobserved_tbl <- df0 %>%
   ungroup()
 
 unobserved_tbl
+
+forbidden_shared_ids <- df0 %>%
+  select(interaction_id, method, link_category) %>%
+  pivot_wider(names_from = method, values_from = link_category) %>%
+  filter(if_all(-interaction_id, ~ .x == "likely_forbidden")) %>%
+  pull(interaction_id)
+
+forbidden_shared_ids <- length(forbidden_shared_ids)
+
+forbidden_shared_ids
