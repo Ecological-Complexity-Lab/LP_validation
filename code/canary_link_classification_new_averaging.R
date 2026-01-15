@@ -1371,6 +1371,7 @@ df_self <- df_self %>%
     interaction_id     = paste0(node_from, " -> ", node_to)
   )
 
+# per island per iteration
 
 # Observation count per interaction across all islands
 obs_counts <- df_self %>%
@@ -1380,20 +1381,33 @@ obs_counts <- df_self %>%
 
 # Re-attach to df_self to define per-island flags ## fix iteration bug: everything is multiplied by 50
 df_self_flagged <- df_self %>%
-  left_join(obs_counts, by = "interaction_id") %>%
+  mutate(
+    original_binary = as.integer(original_binary),
+    interaction_id  = paste0(node_from, " -> ", node_to)
+  ) %>%
+  distinct(test_layer, interaction_id, original_binary) %>%
+  group_by(interaction_id) %>%
+  summarise(
+    n_obs_total = sum(original_binary == 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  right_join(
+    df_self %>%
+      mutate(interaction_id = paste0(node_from, " -> ", node_to)) %>%
+      distinct(test_layer, interaction_id),
+    by = "interaction_id"
+  ) %>%
   mutate(
     is_all_zero   = n_obs_total == 0,
-    is_unique     = (n_obs_total == 1),
-    is_shared     = (n_obs_total >= 2),
-    obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1
-  ) %>%
-  select(test_layer, interaction_id, is_all_zero, is_unique, is_shared, obs_elsewhere)
+    is_unique     = n_obs_total == 1,
+    is_shared     = n_obs_total >= 2,
+    obs_elsewhere = n_obs_total >= 2  # observed in ≥1 other than focal — approximated
+  )
 
 # Join those flags to df_removed (withholding data)
 # restrict to self-predictions:
-df_removed <- df_removed %>% filter(test_layer == train_layer)
-
 df_removed_flagged <- df_removed %>%
+  filter(test_layer == train_layer) %>%
   mutate(
     original_binary    = as.integer(original_binary),
     predicted_bin_sigm = as.integer(predicted_bin_sigm),
@@ -1510,7 +1524,8 @@ connectance_table <- observed_links %>%
 # View the test_layer with the highest connectance
 connectance_table # island 3 has the highest connectance
 
-df_categorized_island <- df_categorized %>% filter(train_layer == 3 & test_layer == 3) # proceed to map
+df_categorized_island <- df_categorized %>% filter(train_layer == 3 & test_layer == 3) 
+# proceed to map (under 'map of link categories')
 
 # another check 
 df_selected <- df_categorized %>%
