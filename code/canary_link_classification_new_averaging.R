@@ -1617,129 +1617,129 @@ poll_order <- df_categorized_with_avg %>%
 df_categorized_with_avg$node_from <- factor(df_categorized_with_avg$node_from, levels = plant_order)
 df_categorized_with_avg$node_to   <- factor(df_categorized_with_avg$node_to, levels = poll_order)
 
-map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = node_from)) +
-  # First layer: Locally unique links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_unique == TRUE & original_binary == 1 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "rosybrown1", high = "rosybrown1",
-                      name = "Locally unique",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: unsupported links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_unique == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tan1",
-                      name = "Unsupported links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # third layer: confirmed links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "forestgreen", high = "forestgreen",
-                      name = "Recurrent links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # cryptic links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "thistle", high = "thistle",
-                      name = "Cryptic links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # forbidden links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "thistle4", high = "thistle4",
-                      name = "Forbidden links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # spurious links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "gray85", high = "gray85",
-                      name = "Spurious links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # feasible links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
-                      name = "Feasible links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # missing links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "salmon", high = "salmon",
-                      name = "Missing links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_text(size = 3), 
-    axis.text.y = element_text(size = 10),
-    legend.text = element_text(size = 8),           # Shrinks label text
-    legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
-    legend.title = element_text(size = 9), 
-    legend.position = "right",         # Place legends to the right
-    legend.box = "vertical" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  })) +
-  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-map_link_classification
-
-pdf( file = "map_link_classification_names.pdf", 
-     width = 12, # inches 
-     height = 7, 
-     family = "Helvetica") # or another installed font
-print(map_link_classification)
-dev.off()
+# map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = node_from)) +
+#   # First layer: Locally unique links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_unique == TRUE & original_binary == 1 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "rosybrown1", high = "rosybrown1",
+#                       name = "Locally unique",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   # Reset fill scale so the next layer can have its own gradient
+#   new_scale_fill() +
+#   
+#   # Second layer: unsupported links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_unique == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "tan1", high = "tan1",
+#                       name = "Unsupported links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # third layer: confirmed links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "forestgreen", high = "forestgreen",
+#                       name = "Recurrent links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # cryptic links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "thistle", high = "thistle",
+#                       name = "Cryptic links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # forbidden links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "thistle4", high = "thistle4",
+#                       name = "Forbidden links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # spurious links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "gray85", high = "gray85",
+#                       name = "Spurious links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # feasible links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+#                       name = "Feasible links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # missing links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "salmon", high = "salmon",
+#                       name = "Missing links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   
+#   # Final adjustments
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x = element_text(size = 3), 
+#     axis.text.y = element_text(size = 10),
+#     legend.text = element_text(size = 8),           # Shrinks label text
+#     legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
+#     legend.title = element_text(size = 9), 
+#     legend.position = "right",         # Place legends to the right
+#     legend.box = "vertical" 
+#   ) + tme +
+#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   })) +
+#   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   }))
+# map_link_classification
+# 
+# pdf( file = "map_link_classification_names.pdf", 
+#      width = 12, # inches 
+#      height = 7, 
+#      family = "Helvetica") # or another installed font
+# print(map_link_classification)
+# dev.off()
 
 # forbidden <- df_categorized_with_avg %>% filter(link_category == "likely_forbidden")
 # 

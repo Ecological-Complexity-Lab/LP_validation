@@ -50,7 +50,7 @@ view(links_with_disagreement %>%
        distinct() %>%
        arrange(interaction_id, test_layer))
 
-view(distinct(links_with_disagreement)) # in some cases we get different 
+view(distinct(links_with_disagreement)) # in some cases we get different classes
 
 # trying to fix it
 df_self_flagged <- df_self %>%

@@ -1387,23 +1387,32 @@ df_self_flagged <- df_self %>%
     is_shared     = (n_obs_total >= 2),
     obs_elsewhere = (n_obs_total - (original_binary == 1)) >= 1
   ) %>%
-  select(test_layer, interaction_id, is_all_zero, is_unique, is_shared, obs_elsewhere)
+  select(test_layer, interaction_id, itr, is_all_zero, is_unique, is_shared, obs_elsewhere)
 
 # Join those flags to df_removed (withholding data)
-# restrict to self-predictions:
-df_removed <- df_removed %>% filter(test_layer == train_layer)
+# and restrict to self-predictions:
+
+# df_removed_flagged <- df_removed %>%
+#   filter(train_layer == test_layer) %>% 
+#   mutate(
+#     original_binary    = as.integer(original_binary),
+#     predicted_bin_sigm = as.integer(predicted_bin_sigm),
+#     interaction_id     = paste0(node_from, " -> ", node_to)
+#   ) %>%
+#   left_join(df_self_flagged, by = c("test_layer", "interaction_id"))
 
 df_removed_flagged <- df_removed %>%
+  filter(train_layer == test_layer) %>% 
   mutate(
     original_binary    = as.integer(original_binary),
     predicted_bin_sigm = as.integer(predicted_bin_sigm),
     interaction_id     = paste0(node_from, " -> ", node_to)
   ) %>%
-  left_join(df_self_flagged, by = c("test_layer", "interaction_id"))
+  left_join(df_self_flagged, by = c("test_layer", "interaction_id", "itr")) # now it's okay
 
 # produce results table
-final_table_by_iter <- df_removed_flagged %>%
-  group_by(itr) %>%
+final_table_by_iter_layer <- df_removed_flagged %>%
+  group_by(itr, test_layer) %>%
   summarise(
     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
     FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
@@ -1423,15 +1432,19 @@ final_table_by_iter <- df_removed_flagged %>%
     possibly_missing_links = sum(original_binary == 0 & obs_elsewhere & predicted_bin_sigm == 1),
     .groups = "drop"
   ) %>%
-  tidyr::pivot_longer(-itr, names_to = "Category", values_to = "Count") %>%
-  arrange(itr, Category)
+  tidyr::pivot_longer(
+    cols = -c(itr, test_layer),
+    names_to = "Category", values_to = "Count") %>%
+  arrange(test_layer, itr, Category)
 
-# summary table
-final_table_summary <- final_table_by_iter %>%
+# summary table # changed to per iteration per island. in this table we sum all then turn to proportions (don't average)
+final_table_summary <- final_table_by_iter_layer %>%
   group_by(Category) %>%
   summarise(
-    mean = mean(Count), sd = sd(Count),
-    min = min(Count), max = max(Count),
+    total = sum(Count),
+    min   = min(Count),
+    max   = max(Count),
+    sd    = sd(Count),
     .groups = "drop"
   ) %>%
   arrange(Category)
@@ -1476,8 +1489,8 @@ view(distinct(links_with_disagreement)) # in some cases we get different
 # so we need to average the predicted values of the iterations in df_categorized and only then binarize them
 # what is okay: in some cases a locally unique interaction in one island is a possibly missing link in another
 
-## ---- experiment: map for 1 island ----
-# 
+## ---- map for 1 island ----
+### ---- choose island ---- 
 # first find the island with island connectance
 df_categorized_con <- df_categorized %>% filter(itr == 1)
 
@@ -1510,50 +1523,84 @@ connectance_table <- observed_links %>%
 # View the test_layer with the highest connectance
 connectance_table # island 3 has the highest connectance
 
-df_categorized_island <- df_categorized %>% filter(train_layer == 3 & test_layer == 3) # proceed to map
 
-# another check 
-df_selected <- df_categorized %>%
-  filter(link_category %in% c("locally_unique_links", "unsupported_links"))
+# building a data frame for map
 
-interaction_counts <- df_selected %>%
-  count(link_category, interaction_id) %>%
-  arrange(link_category, desc(n))
+# Step 1: Compute average predicted probabilities per interaction per island across iterations
+avg_preds <- df_removed_flagged %>%
+  group_by(test_layer, interaction_id) %>%
+  summarise(
+    avg_pred_prob_sigm = mean(predicted_prob_sigm, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    avg_bin_sigm = as.integer(avg_pred_prob_sigm > best_discrete_threshold)
+  )
 
-interaction_counts %>%
-  group_by(link_category) %>%
-  slice_max(n, n = 10) %>%
-  ungroup() %>%
-  ggplot(aes(x = reorder(interaction_id, n), y = n, fill = link_category)) +
-  geom_col(show.legend = FALSE) +
-  facet_wrap(~link_category, scales = "free_y") +
-  coord_flip() +
-  labs(
-    title = "Top 10 Interactions per Link Category",
-    x = "Interaction ID",
-    y = "Frequency across iterations"
-  ) +
-  theme_minimal()
+# Step 2: Join back to full dataframe and replace predicted_bin_sigm
+df_removed_flagged_per_island <- df_removed_flagged %>%
+  select(-predicted_bin_sigm) %>%  # drop old version
+  left_join(avg_preds, by = c("test_layer", "interaction_id")) %>%
+  rename(predicted_bin_sigm = avg_bin_sigm)  # use thresholded avg
 
-# ---- map of link categories ----
+df_categorized_per_island <- df_removed_flagged_per_island %>%
+  mutate(
+    link_category = case_when(
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 1 ~ "locally_unique_links",
+      is_unique   & original_binary == 1 & predicted_bin_sigm == 0 ~ "unsupported_links",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 1 ~ "confirmed_links",
+      is_shared   & original_binary == 1 & predicted_bin_sigm == 0 ~ "cryptic_links",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 0 ~ "likely_forbidden",
+      is_all_zero & original_binary == 0 & predicted_bin_sigm == 1 ~ "spurious_links",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 0 ~ "feasible_links",
+      obs_elsewhere & original_binary == 0 & predicted_bin_sigm == 1 ~ "possibly_missing_links",
+      TRUE ~ "unclassified"
+    )
+  )
+# use this for map 
+
+# 
+# # another check 
+# df_selected <- df_categorized %>%
+#   filter(link_category %in% c("locally_unique_links", "unsupported_links"))
+# 
+# interaction_counts <- df_selected %>%
+#   count(link_category, interaction_id) %>%
+#   arrange(link_category, desc(n))
+
+# interaction_counts %>%
+#   group_by(link_category) %>%
+#   slice_max(n, n = 10) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = reorder(interaction_id, n), y = n, fill = link_category)) +
+#   geom_col(show.legend = FALSE) +
+#   facet_wrap(~link_category, scales = "free_y") +
+#   coord_flip() +
+#   labs(
+#     title = "Top 10 Interactions per Link Category",
+#     x = "Interaction ID",
+#     y = "Frequency across iterations"
+#   ) +
+#   theme_minimal()
+
 
 # First: compute per-interaction averages
 
-per_link_avg <- df_categorized %>%
-  group_by(interaction_id) %>%
-  summarise(
-    avg_pred_prob    = mean(predicted_prob_sigm, na.rm = TRUE),
-    avg_pred_binary  = mean(predicted_bin_sigm, na.rm = TRUE),
-    avg_original_bin = mean(original_binary, na.rm = TRUE),
-    .groups = "drop"
-  )
+# per_link_avg <- df_categorized %>%
+#   group_by(interaction_id) %>%
+#   summarise(
+#     avg_pred_prob    = mean(predicted_prob_sigm, na.rm = TRUE),
+#     avg_pred_binary  = mean(predicted_bin_sigm, na.rm = TRUE),
+#     avg_original_bin = mean(original_binary, na.rm = TRUE),
+#     .groups = "drop"
+#   )
+# 
+# # Then: join back to the full dataframe
+# df_categorized_with_avg <- df_categorized %>%
+#   left_join(per_link_avg, by = "interaction_id")
 
-# Then: join back to the full dataframe
-df_categorized_with_avg <- df_categorized %>%
-  left_join(per_link_avg, by = "interaction_id")
 
-
-#### ---- calculate overall degree per species ----
+### ---- calculate overall degree per species ----
 # filter only existing links
 df_filtered <- df %>%
   filter(itr == 1, original_links != 0) # filter existing interactions
@@ -1581,7 +1628,9 @@ overall_poll_degree <- df_filtered %>%
   group_by(node_to) %>% 
   summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
 
-df_categorized_with_avg <- df_categorized_with_avg %>%
+df_categorized_island <- df_categorized_per_island %>% filter(train_layer == 3 & test_layer == 3) # proceed to map
+
+df_categorized_with_avg <- df_categorized_island %>%
   # join pollinator degree by node_to
   left_join(overall_poll_degree, by = "node_to") %>%
   # join plant degree by node_from
@@ -1602,136 +1651,136 @@ poll_order <- df_categorized_with_avg %>%
 df_categorized_with_avg$node_from <- factor(df_categorized_with_avg$node_from, levels = plant_order)
 df_categorized_with_avg$node_to   <- factor(df_categorized_with_avg$node_to, levels = poll_order)
 
-map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = node_from)) +
-  # First layer: Locally unique links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_unique == TRUE & original_binary == 1 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "rosybrown1", high = "rosybrown1",
-                      name = "Locally unique",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: unsupported links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_unique == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tan1",
-                      name = "Unsupported links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # third layer: confirmed links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "forestgreen", high = "forestgreen",
-                      name = "Recurrent links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # cryptic links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "thistle", high = "thistle",
-                      name = "Cryptic links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # forbidden links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "thistle4", high = "thistle4",
-                      name = "Forbidden links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # spurious links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "gray85", high = "gray85",
-                      name = "Spurious links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # feasible links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 0),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
-                      name = "Feasible links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  new_scale_fill() +
-  
-  # missing links
-  geom_tile(
-    data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 1),
-    aes(fill = avg_pred_prob),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "salmon", high = "salmon",
-                      name = "Missing links",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_text(size = 3), 
-    axis.text.y = element_text(size = 10),
-    legend.text = element_text(size = 8),           # Shrinks label text
-    legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
-    legend.title = element_text(size = 9), 
-    legend.position = "right",         # Place legends to the right
-    legend.box = "vertical" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  })) +
-  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-map_link_classification
+# map_link_classification <- ggplot(df_categorized_with_avg, aes(x = node_to, y = node_from)) +
+#   # First layer: Locally unique links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_unique == TRUE & original_binary == 1 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "rosybrown1", high = "rosybrown1",
+#                       name = "Locally unique",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   # Reset fill scale so the next layer can have its own gradient
+#   new_scale_fill() +
+#   
+#   # Second layer: unsupported links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_unique == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "tan1", high = "tan1",
+#                       name = "Unsupported links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # third layer: confirmed links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "forestgreen", high = "forestgreen",
+#                       name = "Recurrent links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # cryptic links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_shared == TRUE  & original_binary == 1 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "thistle", high = "thistle",
+#                       name = "Cryptic links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # forbidden links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "thistle4", high = "thistle4",
+#                       name = "Forbidden links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # spurious links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(is_all_zero == TRUE & original_binary == 0 & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "gray85", high = "gray85",
+#                       name = "Spurious links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # feasible links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 0),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+#                       name = "Feasible links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   new_scale_fill() +
+#   
+#   # missing links
+#   geom_tile(
+#     data = df_categorized_with_avg %>% filter(original_binary == 0 & obs_elsewhere == TRUE & predicted_bin_sigm == 1),
+#     aes(fill = avg_pred_prob),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "salmon", high = "salmon",
+#                       name = "Missing links",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   
+#   # Final adjustments
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x = element_text(size = 3), 
+#     axis.text.y = element_text(size = 10),
+#     legend.text = element_text(size = 8),           # Shrinks label text
+#     legend.key.size = unit(0.3, "lines"),           # Shrinks the key boxes
+#     legend.title = element_text(size = 9), 
+#     legend.position = "right",         # Place legends to the right
+#     legend.box = "vertical" 
+#   ) + tme +
+#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   })) +
+#   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   }))
+# map_link_classification
 
-pdf( file = "map_link_classification_names.pdf", 
-     width = 12, # inches 
-     height = 7, 
-     family = "Helvetica") # or another installed font
-print(map_link_classification)
-dev.off()
+# pdf( file = "map_link_classification_names.pdf", 
+#      width = 12, # inches 
+#      height = 7, 
+#      family = "Helvetica") # or another installed font
+# print(map_link_classification)
+# dev.off()
 
 # forbidden <- df_categorized_with_avg %>% filter(link_category == "likely_forbidden")
 # 
 # forbidden_salvia <- forbidden %>% filter(node_from == "Salvia_aegyptiaca")
 # unique(forbidden_salvia$node_to)
 
-## ---- try to create an interactive plot ----
+### ---- plot map ----
 
 df_interactive <- df_categorized_with_avg %>%
   mutate(
@@ -1790,21 +1839,36 @@ df_interactive <- df_categorized_with_avg %>%
 df_interactive$node_from <- factor(df_interactive$node_from, levels = plant_order)
 df_interactive$node_to   <- factor(df_interactive$node_to, levels = poll_order)
 
+# legend
+df_interactive <- df_interactive %>%
+  mutate(
+    link_display = recode(
+      link_category,
+      "locally_unique_links"    = "Locally unique",
+      "unsupported_links"       = "Unsupported",
+      "confirmed_links"         = "Recurrent",     # <- rename confirmed_links
+      "cryptic_links"           = "Cryptic",
+      "likely_forbidden"         = "Likely forbidden",
+      "spurious_links"          = "Spurious",
+      "feasible_links"          = "Feasible",
+      "possibly_missing_links"           = "Probably missing"
+    )
+  )
 
 map_interactive <- ggplot(df_interactive, aes(
   x = node_to,
   y = node_from,
-  fill = link_class
-  # fill = link_class,
-  # text = paste("Interaction:", interaction_id,
-  #              "<br>Avg Prob:", round(avg_pred_prob, 3),
-  #              "<br>Class:", link_class)
+  fill = link_display
 )) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Set2") +
+  scale_fill_brewer(palette = "Set2", name = "Link category") +  # prettier legend title
   theme_minimal() +
-  theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5),
-        axis.text.y = element_text(size = 6)) +
+  theme(
+    axis.text.x = element_text(size = 9, angle = 90, vjust = 0.5),
+    axis.text.y = element_text(size = 9),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text  = element_text(size = 10)
+  ) +
   labs(x = "Pollinator", y = "Plant") +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
@@ -1813,21 +1877,22 @@ map_interactive <- ggplot(df_interactive, aes(
     bquote(italic(.(paste(y, collapse = " "))))
   }))
 
+
 map_interactive
 
-png(
-  filename = "map_categories.png",
-  width    = 12,
-  height   = 7,
-  units    = "in",
-  res      = 300,
-  family   = "Helvetica"
-)
-
-# --- your plotting code here ---
-print(map_interactive)
-
-dev.off()
+# png(
+#   filename = "map_categories.png",
+#   width    = 10,
+#   height   = 6,
+#   units    = "in",
+#   res      = 300,
+#   family   = "Helvetica"
+# )
+# 
+# # --- your plotting code here ---
+# print(map_interactive)
+# 
+# dev.off()
 
 
 ## ---- alluvial plot ----
@@ -1839,34 +1904,34 @@ library(ggplot2)
 library(ggalluvial)
 library(scales)
 
-# INPUT: final_table_summary with columns: Category, mean
+# INPUT: final_table_summary
 # If needed, reconstruct from final_table_by_iter:
 # final_table_summary <- final_table_by_iter %>% group_by(Category) %>%
 #   summarise(mean = mean(Count), .groups = "drop")
 
-# 1) Named vector of means (missing -> 0)
-cat_means <- final_table_summary %>%
-  transmute(Category, mean = coalesce(mean, 0)) %>%
+# 1) build flows based on proportions of total sums per island per iteration
+cat_totals <- final_table_summary %>%
+  transmute(Category, total = coalesce(total, 0)) %>%
   tibble::deframe()
 
-get_mean <- function(nm) if (nm %in% names(cat_means)) unname(cat_means[[nm]]) else 0
+get_total <- function(nm) if (nm %in% names(cat_totals)) unname(cat_totals[[nm]]) else 0
 
 # 2) Build flows: L1 (confusion) → L2 (validation) → L3 (subcategory)
 flows <- tibble::tribble(
   ~L1, ~L2,                   ~L3,                     ~value,
-  "TP","Validated elsewhere", "confirmed_links",        get_mean("confirmed_links"),
-  "TP","Not validated",       "locally_unique_links",   get_mean("locally_unique_links"),
-  "FN","Validated elsewhere", "cryptic_links",          get_mean("cryptic_links"),
-  "FN","Not validated",       "unsupported_links",      get_mean("unsupported_links"),
-  "FP","Validated elsewhere", "possibly_missing_links", get_mean("possibly_missing_links"),
-  "FP","Not validated",       "spurious_links",         get_mean("spurious_links"),
-  "TN","Validated elsewhere", "feasible_links",         get_mean("feasible_links"),
-  "TN","Not validated",       "likely_forbidden",       get_mean("likely_forbidden")
+  "TP","Validated elsewhere", "confirmed_links",        get_total("confirmed_links"),
+  "TP","Not validated",       "locally_unique_links",   get_total("locally_unique_links"),
+  "FN","Validated elsewhere", "cryptic_links",          get_total("cryptic_links"),
+  "FN","Not validated",       "unsupported_links",      get_total("unsupported_links"),
+  "FP","Validated elsewhere", "possibly_missing_links", get_total("possibly_missing_links"),
+  "FP","Not validated",       "spurious_links",         get_total("spurious_links"),
+  "TN","Validated elsewhere", "feasible_links",         get_total("feasible_links"),
+  "TN","Not validated",       "likely_forbidden",       get_total("likely_forbidden")
 ) %>%
   mutate(
-    total_confusion = get_mean("TP")+get_mean("FP")+get_mean("TN")+get_mean("FN"),
+    total_confusion = get_total("TP") + get_total("FP") + get_total("TN") + get_total("FN"),
     prop = ifelse(total_confusion > 0, value / total_confusion, 0),
-    alluvium_id = paste(L1, L3, sep = "⟂")  # stable flow id (TP→confirmed etc.)
+    alluvium_id = paste(L1, L3, sep = "⟂")
   )
 
 # Aesthetics — tweak these as you like
@@ -1948,7 +2013,7 @@ gg <- ggplot(
   scale_fill_manual(values = stratum_fill, guide = "none") +
   scale_y_continuous(labels = if (metric=="prop") percent_format(accuracy = 1) else label_number_si()) +
   labs(
-    title = if (metric=="prop") "Alluvial of mean proportions across iterations"
+    title = if (metric=="prop") "Alluvial of proportions across iterations and islands"
     else "Alluvial of mean counts across iterations",
     subtitle = "Confusion classes → Validation group → Subcategories",
     x = NULL, y = if (metric=="prop") "Proportion of interactions" else "Mean count"
@@ -2000,7 +2065,7 @@ gg <- ggplot(
     else label_number_si()
   ) +
   labs(
-    title    = if (metric=="prop") "Alluvial of mean proportions across iterations"
+    title    = if (metric=="prop") "Alluvial of proportions across iterations and islands"
     else "Alluvial of mean counts across iterations",
     subtitle = "Confusion classes → Validation group → Subcategories",
     x = NULL,
@@ -2245,27 +2310,27 @@ gg
 # gg <- gg + labs(title = NULL, subtitle = NULL)
 # gg
 
-pdf( file = "alluvial_canary.pdf", 
-     width = 12, # inches 
-     height = 7, 
-     family = "Helvetica") # or another installed font
-print(gg)
-dev.off()
+# pdf( file = "alluvial_canary.pdf", 
+#      width = 12, # inches 
+#      height = 7, 
+#      family = "Helvetica") # or another installed font
+# print(gg)
+# dev.off()
 
-png(
-  filename = "alluvial_canary.png",
-  width    = 12,
-  height   = 7,
-  units    = "in",
-  res      = 300,
-  family   = "Helvetica"
-)
-
-# --- your plotting code here ---
-print(gg)
-
-dev.off()
-
+# png(
+#   filename = "alluvial_canary.png",
+#   width    = 12,
+#   height   = 7,
+#   units    = "in",
+#   res      = 300,
+#   family   = "Helvetica"
+# )
+# 
+# # --- your plotting code here ---
+# print(gg)
+# 
+# dev.off()
+# 
 
 # no label version:
 
@@ -2558,19 +2623,19 @@ gg <- gg +
 gg
 
 
-png(
-  filename = "alluvial_canary_blank.png",
-  width    = 14,
-  height   = 7,
-  units    = "in",
-  res      = 300,
-  family   = "Helvetica"
-)
-
-# --- your plotting code here ---
-print(gg)
-
-dev.off()
+# png(
+#   filename = "alluvial_canary_blank.png",
+#   width    = 14,
+#   height   = 7,
+#   units    = "in",
+#   res      = 300,
+#   family   = "Helvetica"
+# )
+# 
+# # --- your plotting code here ---
+# print(gg)
+# 
+# dev.off()
 
 
 # ---- certainty in missing links analysis ----
