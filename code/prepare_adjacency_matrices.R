@@ -1,10 +1,13 @@
 ## ---- Prepare adjacency matrices for link prediction ----
-# Reads MB-LDB sheet from DryadMetabarcodingData.xlsx and produces one binary
-# adjacency matrix (plants x pollinators) per location x method combination.
-# Methods: "observation" (visual, Observation column) and
-#          "metabarcoding" (pollen DNA, Taxon1-Taxon9 columns, LDB database).
+# Reads MB-LDB and MB-RDB sheets from DryadMetabarcodingData.xlsx and produces
+# one binary adjacency matrix (plants x pollinators) per location x method
+# combination, plus combined metaweb matrices.
+# Methods: "observation" (visual, Observation column) — same in both sheets,
+#           saved once without a database suffix.
+#          "metabarcoding" (pollen DNA, Taxon1-Taxon9) — saved separately for
+#           LDB and RDB with suffixes _LDB / _RDB.
 # Months and sexes are collapsed within each location (distinct pairs only).
-# Output: CSV files in results/adjacency_matrices/
+# Output: CSV files in data/adjacency_matrices/
 
 library(readxl)
 library(dplyr)
@@ -15,15 +18,6 @@ library(stringr)
 raw_path <- "data/raw_data/DryadMetabarcodingData.xlsx"
 out_dir  <- "data/adjacency_matrices"
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-
-# ---- load data ----
-dat <- read_excel(raw_path, sheet = "MB-LDB")
-
-# pollinator label: Genus + Species only (sex and month collapsed downstream)
-dat <- dat %>%
-  mutate(pollinator = str_trim(paste(Genus, Species)))
-
-locations <- unique(dat$Location)
 
 # ---- get distinct plant-pollinator pairs from a long-format data frame ----
 get_pairs <- function(df, plant_col, poll_col) {
@@ -111,55 +105,72 @@ sanity_check <- function(mat, pairs, csv_path, label) {
   invisible(NULL)
 }
 
-# ---- method 1: visual observation ----
-obs_long <- dat %>%
+# ---- load data ----
+dat_ldb <- read_excel(raw_path, sheet = "MB-LDB") %>%
+  mutate(pollinator = str_trim(paste(Genus, Species)))
+
+dat_rdb <- read_excel(raw_path, sheet = "MB-RDB") %>%
+  mutate(pollinator = str_trim(paste(Genus, Species)))
+
+locations <- unique(dat_ldb$Location)
+
+# ---- method 1: visual observation (identical in both sheets — save once) ----
+obs_long <- dat_ldb %>%
   select(pollinator, Location, plant = Observation)
 
-# ---- method 2: metabarcoding (LDB) ----
-mb_long <- dat %>%
-  select(pollinator, Location,
-         Taxon1, Taxon2, Taxon3, Taxon4, Taxon5,
-         Taxon6, Taxon7, Taxon8, Taxon9) %>%
-  pivot_longer(cols      = starts_with("Taxon"),
-               names_to  = "taxon_col",
-               values_to = "plant") %>%
-  select(pollinator, Location, plant)
-
-# ---- build, save, and check one CSV per location x method ----
 for (loc in locations) {
-
   pairs_obs <- get_pairs(filter(obs_long, Location == loc), "plant", "pollinator")
   mat_obs   <- build_adj(pairs_obs)
   csv_obs   <- file.path(out_dir, paste0(loc, "_observation.csv"))
   write.csv(mat_obs, file = csv_obs, row.names = TRUE)
   sanity_check(mat_obs, pairs_obs, csv_obs, paste(loc, "observation"))
-
-  pairs_mb <- get_pairs(filter(mb_long, Location == loc), "plant", "pollinator")
-  mat_mb   <- build_adj(pairs_mb)
-  csv_mb   <- file.path(out_dir, paste0(loc, "_metabarcoding.csv"))
-  write.csv(mat_mb, file = csv_mb, row.names = TRUE)
-  sanity_check(mat_mb, pairs_mb, csv_mb, paste(loc, "metabarcoding"))
-
-  cat("Saved", loc,
-      "| obs:", nrow(mat_obs), "plants x", ncol(mat_obs), "pollinators",
-      "| mb:",  nrow(mat_mb),  "plants x", ncol(mat_mb),  "pollinators\n\n")
+  cat("Saved", loc, "observation |",
+      nrow(mat_obs), "plants x", ncol(mat_obs), "pollinators\n\n")
 }
 
-# ---- metaweb: all locations combined, one matrix per method ----
+# metaweb observation
 pairs_meta_obs <- get_pairs(obs_long, "plant", "pollinator")
 mat_meta_obs   <- build_adj(pairs_meta_obs)
 csv_meta_obs   <- file.path(out_dir, "metaweb_observation.csv")
 write.csv(mat_meta_obs, file = csv_meta_obs, row.names = TRUE)
 sanity_check(mat_meta_obs, pairs_meta_obs, csv_meta_obs, "metaweb observation")
+cat("Saved metaweb observation |",
+    nrow(mat_meta_obs), "plants x", ncol(mat_meta_obs), "pollinators\n\n")
 
-pairs_meta_mb <- get_pairs(mb_long, "plant", "pollinator")
-mat_meta_mb   <- build_adj(pairs_meta_mb)
-csv_meta_mb   <- file.path(out_dir, "metaweb_metabarcoding.csv")
-write.csv(mat_meta_mb, file = csv_meta_mb, row.names = TRUE)
-sanity_check(mat_meta_mb, pairs_meta_mb, csv_meta_mb, "metaweb metabarcoding")
+# ---- method 2: metabarcoding (LDB and RDB) ----
+databases <- list(LDB = dat_ldb, RDB = dat_rdb)
 
-cat("Saved metaweb",
-    "| obs:", nrow(mat_meta_obs), "plants x", ncol(mat_meta_obs), "pollinators",
-    "| mb:",  nrow(mat_meta_mb),  "plants x", ncol(mat_meta_mb),  "pollinators\n\n")
+for (db_name in names(databases)) {
+  dat_db <- databases[[db_name]]
+
+  mb_long <- dat_db %>%
+    select(pollinator, Location,
+           Taxon1, Taxon2, Taxon3, Taxon4, Taxon5,
+           Taxon6, Taxon7, Taxon8, Taxon9) %>%
+    pivot_longer(cols      = starts_with("Taxon"),
+                 names_to  = "taxon_col",
+                 values_to = "plant") %>%
+    select(pollinator, Location, plant)
+
+  for (loc in locations) {
+    pairs_mb <- get_pairs(filter(mb_long, Location == loc), "plant", "pollinator")
+    mat_mb   <- build_adj(pairs_mb)
+    csv_mb   <- file.path(out_dir, paste0(loc, "_metabarcoding_", db_name, ".csv"))
+    write.csv(mat_mb, file = csv_mb, row.names = TRUE)
+    sanity_check(mat_mb, pairs_mb, csv_mb, paste(loc, "metabarcoding", db_name))
+    cat("Saved", loc, "metabarcoding", db_name, "|",
+        nrow(mat_mb), "plants x", ncol(mat_mb), "pollinators\n\n")
+  }
+
+  # metaweb metabarcoding
+  pairs_meta_mb <- get_pairs(mb_long, "plant", "pollinator")
+  mat_meta_mb   <- build_adj(pairs_meta_mb)
+  csv_meta_mb   <- file.path(out_dir, paste0("metaweb_metabarcoding_", db_name, ".csv"))
+  write.csv(mat_meta_mb, file = csv_meta_mb, row.names = TRUE)
+  sanity_check(mat_meta_mb, pairs_meta_mb, csv_meta_mb,
+               paste("metaweb metabarcoding", db_name))
+  cat("Saved metaweb metabarcoding", db_name, "|",
+      nrow(mat_meta_mb), "plants x", ncol(mat_meta_mb), "pollinators\n\n")
+}
 
 cat("Done. Files written to:", out_dir, "\n")
