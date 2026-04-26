@@ -14,12 +14,13 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 
-# ---- paths ----
+### ---- pollination ----
+### ---- paths ----
 raw_path <- "data/raw_data/DryadMetabarcodingData.xlsx"
 out_dir  <- "data/adjacency_matrices"
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# ---- get distinct plant-pollinator pairs from a long-format data frame ----
+### ---- get distinct plant-pollinator pairs from a long-format data frame ----
 get_pairs <- function(df, plant_col, poll_col) {
   df %>%
     select(plant = all_of(plant_col), pollinator = all_of(poll_col)) %>%
@@ -27,7 +28,7 @@ get_pairs <- function(df, plant_col, poll_col) {
     distinct()
 }
 
-# ---- build binary adjacency matrix from distinct pairs ----
+### ---- build binary adjacency matrix from distinct pairs ----
 build_adj <- function(pairs) {
   plants      <- sort(unique(pairs$plant))
   pollinators <- sort(unique(pairs$pollinator))
@@ -44,7 +45,7 @@ build_adj <- function(pairs) {
   as.data.frame(mat)
 }
 
-# ---- sanity checks ----
+### ---- sanity checks ----
 sanity_check <- function(mat, pairs, csv_path, label) {
   pass <- TRUE
   pfx  <- paste0("[", label, "]")
@@ -105,7 +106,7 @@ sanity_check <- function(mat, pairs, csv_path, label) {
   invisible(NULL)
 }
 
-# ---- load data ----
+### ---- load data ----
 dat_ldb <- read_excel(raw_path, sheet = "MB-LDB") %>%
   mutate(pollinator = str_trim(paste(Genus, Species)))
 
@@ -114,7 +115,7 @@ dat_rdb <- read_excel(raw_path, sheet = "MB-RDB") %>%
 
 locations <- unique(dat_ldb$Location)
 
-# ---- method 1: visual observation (identical in both sheets — save once) ----
+### ---- method 1: visual observation (identical in both sheets — save once) ----
 obs_long <- dat_ldb %>%
   select(pollinator, Location, plant = Observation)
 
@@ -137,7 +138,7 @@ sanity_check(mat_meta_obs, pairs_meta_obs, csv_meta_obs, "metaweb observation")
 cat("Saved metaweb observation |",
     nrow(mat_meta_obs), "plants x", ncol(mat_meta_obs), "pollinators\n\n")
 
-# ---- method 2: metabarcoding (LDB and RDB) ----
+### ---- method 2: metabarcoding (LDB and RDB) ----
 databases <- list(LDB = dat_ldb, RDB = dat_rdb)
 
 for (db_name in names(databases)) {
@@ -174,3 +175,55 @@ for (db_name in names(databases)) {
 }
 
 cat("Done. Files written to:", out_dir, "\n")
+
+# ---- Frugint ----
+# FrugInt frugivory networks — binary adjacency matrices (plants × animals)
+# Networks:
+#   frugint_MN2024_HatoRaton  — mist-netting, lat > 37.1 (Hato Ratón)
+#   frugint_MN2024_South      — mist-netting, lat < 37.1 (southern Pistacia site)
+#   frugint_MN2024_metaweb    — both MN_2024 Pistacia sites combined
+#   frugint_BCvisit_Pistacia  — barcoding visits, Pistacia habitat (all pooled)
+#   frugint_BCseed_Pistacia   — barcoding seeds, Pistacia habitat (all method2 pooled)
+
+library(readr)
+
+frugint_path <- "data/raw_data/frugint/"
+
+mn24 <- read_csv(paste0(frugint_path, "MN_2024.csv"), show_col_types = FALSE) %>%
+  filter(grepl("Pistacia", vegetation)) %>%
+  mutate(latitude = as.numeric(latitude))
+
+bcv <- read_csv(paste0(frugint_path, "BC_visit.csv"), show_col_types = FALSE) %>%
+  filter(grepl("Pistacia", vegetation))
+
+bcs <- read_csv(paste0(frugint_path, "BC_seed.csv"), show_col_types = FALSE) %>%
+  filter(grepl("Pistacia", vegetation))
+
+# frugint uses plantSp / animalSp — reuse existing get_pairs / build_adj / sanity_check
+frugint_networks <- list(
+  frugint_MN2024_HatoRaton = mn24 %>% filter(latitude > 37.1),
+  frugint_MN2024_South     = mn24 %>% filter(latitude < 37.1),
+  frugint_MN2024_metaweb   = mn24,
+  frugint_BCvisit_Pistacia = bcv,
+  frugint_BCseed_Pistacia  = bcs
+)
+
+for (net_name in names(frugint_networks)) {
+  df_net <- frugint_networks[[net_name]]
+
+  pairs <- get_pairs(df_net, "plantSp", "animalSp")
+
+  if (nrow(pairs) == 0) {
+    cat("SKIP", net_name, "— no interactions after filtering\n\n")
+    next
+  }
+
+  mat     <- build_adj(pairs)
+  csv_out <- file.path(out_dir, paste0(net_name, ".csv"))
+  write.csv(mat, file = csv_out, row.names = TRUE)
+  sanity_check(mat, pairs, csv_out, net_name)
+  cat("Saved", net_name, "|",
+      nrow(mat), "plants x", ncol(mat), "animals\n\n")
+}
+
+cat("FrugInt matrices written to:", out_dir, "\n")
