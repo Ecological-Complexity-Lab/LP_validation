@@ -1,15 +1,4 @@
 ## ---- Raw data diagnostics ----
-# Section 1: Species overlap across locations (LDB vs RDB)
-#   Reads both MB-LDB and MB-RDB sheets from DryadMetabarcodingData.xlsx,
-#   extracts observed plant-pollinator pairs per location and method
-#   using the same logic as prepare_adjacency_matrices.R, and runs
-#   species overlap diagnostics to investigate community structure.
-#
-# Section 2: EUPPollNet multi-location multi-method study search
-#   Reads the EUPPollNet database (Interaction_data.rds + Metadata.csv) and
-#   identifies studies that (a) sampled the same site across multiple visits or
-#   (b) belong to a cluster of studies sharing a geographic location — with at
-#   least two different sampling methods represented in that cluster.
 
 library(readxl)
 library(dplyr)
@@ -18,6 +7,11 @@ library(stringr)
 library(ggplot2)
 library(patchwork)
 library(scales)
+
+# ---- Section 1: Dryad metabarcoding — species overlap across locations (LDB vs RDB) ----
+# Reads MB-LDB and MB-RDB sheets from DryadMetabarcodingData.xlsx, extracts
+# plant-pollinator pairs per location and method, and runs species overlap
+# diagnostics to investigate community structure.
 
 raw_path  <- "data/raw_data/DryadMetabarcodingData.xlsx"
 locations <- c("Zumwalt", "Starkey", "Threemile")
@@ -244,11 +238,10 @@ for (db in c("LDB", "RDB")) {
 # not enough overlap between communities!! :(((
 # the sites are within different habitats.
 
-# =============================================================================
-# SECTION 2: EUPPollNet — find studies with multiple sites AND multiple methods
-# Goal: identify Study_id entries that have ≥ 2 distinct Network_id values
-# AND ≥ 2 distinct Sampling_method values (from Metadata).
-# =============================================================================
+# ---- Section 2: EUPPollNet — geographic search for multi-method study pairs ----
+# Finds pairs of studies (different Study_id) that are geographically close
+# and use different sampling methods. Each study uses one method; proximity
+# is computed as pairwise Haversine distance between individual Network_ids.
 
 eup_int_path  <- "data/raw_data/euppollnet/Interaction_data.rds"
 eup_meta_path <- "data/raw_data/euppollnet/Metadata.csv"
@@ -392,10 +385,8 @@ if (nrow(close_pairs) > 0) {
   }
 }
 
-# =============================================================================
-# SECTION 2b: Detailed inspection of a specific study pair
+## ---- Section 2b: EUPPollNet — detailed inspection of a study pair ----
 # Set INSPECT_A and INSPECT_B to any two Study_ids from the results above.
-# =============================================================================
 
 INSPECT_A <- "40_Knight"
 INSPECT_B <- "44_Knight"
@@ -473,15 +464,13 @@ inspect_pair(eup, INSPECT_A, INSPECT_B) # 20_Hoiss had a bunch of treatments in 
 # 40_Knight, 44_Knight - really few interactions overlap :( but the networks are large enough.
 # 44_Knight is unpublished data so whether treatments were applied is unknown
 
-# =============================================================================
-# SECTION 3: FrugInt — geographic overview and candidate network identification
-# Datasets: MN_1983, MN_2024, BC_seed (Pistacia only), BC_visit (Pistacia only)
-# 4 candidate networks for subsequent analysis:
-#   (1) MN_2024 @ Hato Ratón   (37.171, -6.332) — mist-netting
-#   (2) MN_2024 @ Southern site (36.965, -6.446) — mist-netting
-#   (3) BC_seed  @ Pistacia     (centroid ~1.2 km from network 2) — barcoding seeds
-#   (4) BC_visit @ Pistacia     (centroid ~2.2 km from network 2) — barcoding visits
-# =============================================================================
+# ---- Section 3: FrugInt — geographic overview and candidate network identification ----
+# Datasets: MN_2024 (mist-netting, 2 sites), BC_seed and BC_visit (Pistacia only).
+# Candidate networks for subsequent analysis:
+#   (1) MN_2024 @ Hato Ratón    (37.171, -6.332) — mist-netting
+#   (2) MN_2024 @ Southern site  (36.965, -6.446) — mist-netting
+#   (3) BC_seed  @ Pistacia      (centroid ~1.2 km from network 2) — barcoding seeds
+#   (4) BC_visit @ Pistacia      (centroid ~2.2 km from network 2) — barcoding visits
 
 library(readr)
 
