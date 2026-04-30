@@ -308,14 +308,14 @@ classify_by_location <- function(df_all, method_name) {
 
         # observed in ≥2 locations (including this one)
         is_shared     & original_binary == 1 & predicted_bin == 1 ~ "recurrent_links",
-        is_shared     & original_binary == 1 & predicted_bin == 0 ~ "cryptic_links",
+        is_shared     & original_binary == 1 & predicted_bin == 0 ~ "model_elusive_links",
 
         # never observed at any location
         is_all_zero   & original_binary == 0 & predicted_bin == 0 ~ "likely_forbidden",
-        is_all_zero   & original_binary == 0 & predicted_bin == 1 ~ "spurious_links",
+        is_all_zero   & original_binary == 0 & predicted_bin == 1 ~ "unconfirmed_links",
 
         # absent here but observed elsewhere
-        obs_elsewhere & original_binary == 0 & predicted_bin == 0 ~ "feasible_links",
+        obs_elsewhere & original_binary == 0 & predicted_bin == 0 ~ "locally_absent_links",
         obs_elsewhere & original_binary == 0 & predicted_bin == 1 ~ "possibly_missing_links",
 
         TRUE ~ "unclassified"
@@ -355,11 +355,11 @@ col_validation <- c("Observed elsewhere"     = "sandybrown",
 col_subcats    <- c(
   "recurrent_links"        = "coral3",
   "locally_unique_links"   = "thistle3",
-  "cryptic_links"          = "coral",
+  "model_elusive_links"          = "coral",
   "unsupported_links"      = "thistle1",
   "possibly_missing_links" = "coral2",
-  "spurious_links"         = "thistle",
-  "feasible_links"         = "coral1",
+  "unconfirmed_links"         = "thistle",
+  "locally_absent_links"         = "coral1",
   "likely_forbidden"       = "thistle2"
 )
 stratum_fill <- c(col_confusion, col_validation, col_subcats)
@@ -367,10 +367,10 @@ stratum_fill <- c(col_confusion, col_validation, col_subcats)
 order_confusion  <- c("TP", "FP", "TN", "FN")
 order_validation <- c("Not observed elsewhere", "Observed elsewhere")
 order_subtypes   <- c(
-  "locally_unique_links",   "spurious_links",
+  "locally_unique_links",   "unconfirmed_links",
   "likely_forbidden",       "unsupported_links",
   "recurrent_links",        "possibly_missing_links",
-  "feasible_links",         "cryptic_links"
+  "locally_absent_links",         "model_elusive_links"
 )
 
 metric          <- "prop"   # "value" for raw counts, "prop" for proportions
@@ -612,7 +612,7 @@ gg_frugint
 # ============================================================================
 # ---- FrugInt — additional-method validation of spurious and forbidden links ----
 # Extends the 3-axis alluvial with a 4th column (additional method evidence).
-# For spurious_links and likely_forbidden only, links are split into:
+# For unconfirmed_links and likely_forbidden only, links are split into:
 #   "confirmed"   — interaction observed (ground_truth == 1) in the additional method
 #   "unconfirmed" — no evidence from the additional method
 # All other subtypes flow to a single "Other categories" stratum on axis 4.
@@ -646,19 +646,18 @@ cat(sprintf("\nAdditional method (BC seed Pistacia matrix) — observed interact
 make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
                                     validation_label = "Additional method") {
 
-  order_L4 <- c(
-    "Spurious — confirmed",
-    "Spurious — unconfirmed",
-    "Forbidden — confirmed",
-    "Forbidden — unconfirmed",
-    "Other categories"
-  )
+  # axis 4: one confirmed + one unconfirmed stratum per category, interleaved
+  # so each axis-3 flow visually splits within its own category band.
+  # Confirmed strata inherit the category's axis-3 color; unconfirmed = grey88.
+  order_L4 <- as.vector(rbind(
+    paste0(order_subtypes, " — confirmed"),
+    paste0(order_subtypes, " — unconfirmed")
+  ))
   col_L4 <- c(
-    "Spurious — confirmed"    = "#c0392b",
-    "Spurious — unconfirmed"  = "#f1948a",
-    "Forbidden — confirmed"   = "#7d3c98",
-    "Forbidden — unconfirmed" = "#d2b4de",
-    "Other categories"        = "grey78"
+    setNames(unname(col_subcats[order_subtypes]),
+             paste0(order_subtypes, " — confirmed")),
+    setNames(rep("grey88", length(order_subtypes)),
+             paste0(order_subtypes, " — unconfirmed"))
   )
   stratum_fill_4    <- c(stratum_fill, col_L4)
   axis4_label       <- validation_label
@@ -669,13 +668,8 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
     filter(link_category != "unclassified", confusion != "UNK") %>%
     mutate(
       add_obs = interaction_id %in% add_obs_ids,
-      L4 = case_when(
-        link_category == "spurious_links"   &  add_obs ~ "Spurious — confirmed",
-        link_category == "spurious_links"   & !add_obs ~ "Spurious — unconfirmed",
-        link_category == "likely_forbidden" &  add_obs ~ "Forbidden — confirmed",
-        link_category == "likely_forbidden" & !add_obs ~ "Forbidden — unconfirmed",
-        TRUE ~ "Other categories"
-      )
+      L4      = paste0(link_category,
+                       ifelse(add_obs, " — confirmed", " — unconfirmed"))
     ) %>%
     count(confusion, validation, link_category, L4, name = "value") %>%
     mutate(
@@ -785,7 +779,7 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
       plot.title         = element_text(face = "bold"),
       plot.subtitle      = element_text(color = "grey30"),
       plot.caption       = element_text(color = "grey50", size = 8, hjust = 0),
-      plot.margin        = margin(20, 160, 20, 20)
+      plot.margin        = margin(20, 220, 20, 20)
     )
 }
 
@@ -846,11 +840,11 @@ classify_by_method <- function(df_single, add_obs_ids,
       link_category = case_when(
         original_binary == 1 & predicted_bin == 1 &  obs_in_method ~ "recurrent_links",
         original_binary == 1 & predicted_bin == 1 & !obs_in_method ~ "locally_unique_links",
-        original_binary == 1 & predicted_bin == 0 &  obs_in_method ~ "cryptic_links",
+        original_binary == 1 & predicted_bin == 0 &  obs_in_method ~ "model_elusive_links",
         original_binary == 1 & predicted_bin == 0 & !obs_in_method ~ "unsupported_links",
         original_binary == 0 & predicted_bin == 1 &  obs_in_method ~ "possibly_missing_links",
-        original_binary == 0 & predicted_bin == 1 & !obs_in_method ~ "spurious_links",
-        original_binary == 0 & predicted_bin == 0 &  obs_in_method ~ "feasible_links",
+        original_binary == 0 & predicted_bin == 1 & !obs_in_method ~ "unconfirmed_links",
+        original_binary == 0 & predicted_bin == 0 &  obs_in_method ~ "locally_absent_links",
         original_binary == 0 & predicted_bin == 0 & !obs_in_method ~ "likely_forbidden",
         TRUE ~ "unclassified"
       ),
@@ -957,9 +951,9 @@ spatial_breakdown <- df_frugint_cat %>%
     corroboration = ifelse(stringr::str_starts(validation, "Observed"),
                            "With corroboration", "Without corroboration"),
     bc_confirmed  = case_when(
-      link_category %in% c("spurious_links", "likely_forbidden") &
+      link_category %in% c("unconfirmed_links", "likely_forbidden") &
           (interaction_id %in% add_method_obs_ids)  ~ "confirmed",
-      link_category %in% c("spurious_links", "likely_forbidden") &
+      link_category %in% c("unconfirmed_links", "likely_forbidden") &
         !(interaction_id %in% add_method_obs_ids)   ~ "unconfirmed",
       TRUE ~ NA_character_
     ),
@@ -971,8 +965,8 @@ metaweb_breakdown <- df_metaweb_cat %>%
   mutate(
     corroboration = ifelse(obs_in_method, "With corroboration", "Without corroboration"),
     bc_confirmed  = case_when(
-      link_category %in% c("spurious_links", "likely_forbidden") &  obs_in_method  ~ "confirmed",
-      link_category %in% c("spurious_links", "likely_forbidden") & !obs_in_method  ~ "unconfirmed",
+      link_category %in% c("unconfirmed_links", "likely_forbidden") &  obs_in_method  ~ "confirmed",
+      link_category %in% c("unconfirmed_links", "likely_forbidden") & !obs_in_method  ~ "unconfirmed",
       TRUE ~ NA_character_
     ),
     analysis = "Metaweb (BC seed)"
@@ -981,7 +975,7 @@ metaweb_breakdown <- df_metaweb_cat %>%
 # Verification: rows vs unique interaction_ids for spatial spurious/forbidden
 cat("\n--- Verification: spatial per-location rows vs unique interaction_ids ---\n")
 df_frugint_cat %>%
-  filter(link_category %in% c("spurious_links", "likely_forbidden"), confusion != "UNK") %>%
+  filter(link_category %in% c("unconfirmed_links", "likely_forbidden"), confusion != "UNK") %>%
   group_by(link_category) %>%
   summarise(
     n_rows          = n(),
@@ -993,7 +987,7 @@ df_frugint_cat %>%
 # Verification: metaweb spurious/forbidden should have 0 BC-seed-confirmed (by construction)
 cat("\n--- Verification: metaweb spurious/forbidden — BC seed confirmed count (expect 0) ---\n")
 df_metaweb_cat %>%
-  filter(link_category %in% c("spurious_links", "likely_forbidden"), confusion != "UNK") %>%
+  filter(link_category %in% c("unconfirmed_links", "likely_forbidden"), confusion != "UNK") %>%
   group_by(link_category) %>%
   summarise(n_confirmed = sum(obs_in_method), .groups = "drop") %>% print()
 
