@@ -37,6 +37,8 @@ cat(sprintf("Methods                   : %s\n",
             paste(sort(unique(df$Method)), collapse = ", ")))
 cat(sprintf("Habitat patches           : %s\n",
             paste(sort(unique(df$habitat)), collapse = ", ")))
+cat(sprintf("community patches           : %s\n",
+            paste(sort(unique(df$COMMUNITY)), collapse = ", "))) # check
 cat("\n")
 
 
