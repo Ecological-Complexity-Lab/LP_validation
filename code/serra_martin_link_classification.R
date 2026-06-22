@@ -15,18 +15,18 @@ library(ggalluvial)
 library(scales)
 
 ## ---- 1. Alluvial aesthetics (matching cross_location_cross_method.R) ----
-col_confusion <- c("TP" = "lightsteelblue",  "FP" = "lightsteelblue2",
+col_confusion <- c("TP" = "lightsteelblue1",  "FP" = "lightsteelblue",
                    "TN" = "rosybrown",        "FN" = "rosybrown2")
 col_validation <- c("Observed elsewhere"     = "sandybrown",
                     "Not observed elsewhere" = "thistle3")
 col_subcats <- c(
-  "recurrent"        = "coral3",
+  "recurrent"        = "coral",
   "locally_unique"   = "thistle3",
-  "model_elusive"    = "coral",
-  "low support"      = "thistle",
-  "possibly_missing" = "coral2",
+  "model_elusive"    = "coral2",
+  "weak support"      = "thistle",
+  "possibly_missing" = "coral1",
   "phantom"          = "thistle",
-  "locally_absent"   = "coral1",
+  "locally_absent"   = "coral3",
   "likely_forbidden" = "thistle2"
 )
 stratum_fill <- c(col_confusion, col_validation, col_subcats)
@@ -35,7 +35,7 @@ order_confusion  <- c("TP", "FP", "TN", "FN")
 order_validation <- c("Not observed elsewhere", "Observed elsewhere")
 order_subtypes   <- c(
   "locally_unique",   "phantom",
-  "likely_forbidden", "low support",
+  "likely_forbidden", "weak support",
   "recurrent",        "possibly_missing",
   "locally_absent",   "model_elusive"
 )
@@ -75,7 +75,7 @@ classify_by_location <- function(df_all, method_name) {
     mutate(
       link_category = case_when(
         is_unique     & original_binary == 1 & predicted_bin == 1 ~ "locally_unique",
-        is_unique     & original_binary == 1 & predicted_bin == 0 ~ "low support",
+        is_unique     & original_binary == 1 & predicted_bin == 0 ~ "weak support",
         is_shared     & original_binary == 1 & predicted_bin == 1 ~ "recurrent",
         is_shared     & original_binary == 1 & predicted_bin == 0 ~ "model_elusive",
         is_all_zero   & original_binary == 0 & predicted_bin == 0 ~ "likely_forbidden",
@@ -102,20 +102,20 @@ classify_by_location <- function(df_all, method_name) {
 
 make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
                                     validation_label = "Additional method") {
-  # "low support" and "likely_forbidden" split by cross-method evidence;
+  # "weak support" and "likely_forbidden" split by cross-method evidence;
   # "phantom" and all other subtypes pass through to L4 unchanged.
   order_L4 <- c(
     "locally_unique",
     "phantom",
-    "low support — Have evidence", "low support — No evidence",
+    "weak support — Have evidence", "weak support — No evidence",
     "recurrent", "possibly_missing", "locally_absent", "model_elusive",
     "likely_forbidden — Have evidence", "likely_forbidden — No evidence"
   )
   col_L4 <- c(
     "locally_unique"                   = unname(col_subcats["locally_unique"]),
     "phantom"                          = unname(col_subcats["phantom"]),
-    "low support — Have evidence"      = "plum2",    # low support → more saturated
-    "low support — No evidence"        = "lavender", # low support → lighter/greyer
+    "weak support — Have evidence"      = "plum2",    # weak support → more saturated
+    "weak support — No evidence"        = "lavender", # weak support → lighter/greyer
     "recurrent"                        = unname(col_subcats["recurrent"]),
     "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
     "locally_absent"                   = unname(col_subcats["locally_absent"]),
@@ -133,8 +133,8 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
     mutate(
       add_obs = interaction_id %in% add_obs_ids,
       L4 = dplyr::case_when(
-        link_category == "low support"      & add_obs  ~ "low support — Have evidence",
-        link_category == "low support"      & !add_obs ~ "low support — No evidence",
+        link_category == "weak support"      & add_obs  ~ "weak support — Have evidence",
+        link_category == "weak support"      & !add_obs ~ "weak support — No evidence",
         link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
         link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
         TRUE ~ link_category
@@ -330,8 +330,22 @@ cat(sprintf("\nHighest-connectance site: %s (%s) — connectance = %.3f\n",
             top_site, top_method, top_row$connectance))
 
 ## ---- 8. Map for highest-connectance site ----
+# Level order mirrors the Sankey axis-4 grouping (used by both maps).
+map_display_levels <- c(
+  "Locally unique",
+  "Recurrent",
+  "Phantom — Have evidence", "Phantom — No evidence",
+  "Possibly missing",
+  "Weak support — Have evidence", "Weak support — No evidence",
+  "Model elusive",
+  "Likely forbidden — Have evidence", "Likely forbidden — No evidence",
+  "Locally absent"
+)
+
 df_site_cat <- (if (top_method == "obs") df_obs_categorized else df_rpi_categorized) %>%
   filter(location == top_site)
+
+add_obs_ids_top <- if (top_method == "obs") add_obs_for_obs else add_obs_for_rpi
 
 # Order species by overall degree across all sites under this method
 overall_poll_degree <- df_all %>%
@@ -348,16 +362,20 @@ df_map <- df_site_cat %>%
   left_join(overall_poll_degree,  by = "higher_level") %>%
   left_join(overall_plant_degree, by = "lower_level") %>%
   mutate(
-    link_display = recode(link_category,
-      "locally_unique"   = "Locally unique",
-      "low support"      = "Low support",
-      "recurrent"        = "Recurrent",
-      "model_elusive"    = "Model elusive",
-      "likely_forbidden" = "Likely forbidden",
-      "phantom"      = "Phantom",
-      "locally_absent"   = "Locally absent",
-      "possibly_missing" = "Possibly missing"
-    )
+    add_obs = interaction_id %in% add_obs_ids_top,
+    link_display = factor(case_when(
+      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
+      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "locally_unique"   ~ "Locally unique",
+      link_category == "recurrent"        ~ "Recurrent",
+      link_category == "model_elusive"    ~ "Model elusive",
+      link_category == "locally_absent"   ~ "Locally absent",
+      link_category == "possibly_missing" ~ "Possibly missing"
+    ), levels = map_display_levels)
   )
 
 plant_order <- df_map %>%
@@ -379,7 +397,7 @@ df_map <- df_map %>%
 map_interactive <- ggplot(df_map, aes(x = higher_level, y = lower_level,
                                       fill = link_display)) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Set2", name = "Link category") +
+  scale_fill_brewer(palette = "Paired", name = "Link category") +
   theme_minimal() +
   theme(
     axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
@@ -421,6 +439,8 @@ cat(sprintf("\nMost species-rich site: %s (%s) — %d species\n",
 df_site_cat_rich <- (if (rich_method == "obs") df_obs_categorized else df_rpi_categorized) %>%
   filter(location == rich_site)
 
+add_obs_ids_rich <- if (rich_method == "obs") add_obs_for_obs else add_obs_for_rpi
+
 overall_poll_degree_rich <- df_all %>%
   filter(method == rich_method, ground_truth == 1) %>%
   group_by(higher_level) %>%
@@ -435,16 +455,20 @@ df_map_rich <- df_site_cat_rich %>%
   left_join(overall_poll_degree_rich,  by = "higher_level") %>%
   left_join(overall_plant_degree_rich, by = "lower_level") %>%
   mutate(
-    link_display = recode(link_category,
-      "locally_unique"   = "Locally unique",
-      "low support"      = "Low support",
-      "recurrent"        = "Recurrent",
-      "model_elusive"    = "Model elusive",
-      "likely_forbidden" = "Likely forbidden",
-      "phantom"      = "Phantom",
-      "locally_absent"   = "Locally absent",
-      "possibly_missing" = "Possibly missing"
-    )
+    add_obs = interaction_id %in% add_obs_ids_rich,
+    link_display = factor(case_when(
+      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
+      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "locally_unique"   ~ "Locally unique",
+      link_category == "recurrent"        ~ "Recurrent",
+      link_category == "model_elusive"    ~ "Model elusive",
+      link_category == "locally_absent"   ~ "Locally absent",
+      link_category == "possibly_missing" ~ "Possibly missing"
+    ), levels = map_display_levels)
   )
 
 plant_order_rich <- df_map_rich %>%
@@ -466,7 +490,7 @@ df_map_rich <- df_map_rich %>%
 map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
                                     fill = link_display)) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Set2", name = "Link category") +
+  scale_fill_brewer(palette = "Paired", name = "Link category") +
   theme_minimal() +
   theme(
     axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
@@ -484,23 +508,51 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich
 
-# pdf(file   = "results/figures/map_richest_site.pdf",
-#     width  = 14,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# map_rich
-# dev.off()
+pdf(file   = "results/figures/map_richest_site.pdf",
+    width  = 14,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+map_rich
+dev.off()
+
+# ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
+#        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)
 
 ## ---- 10. Sankey alluvial — ggsankey ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
 library(ggsankey)
+# showtext + systemfonts: finds .otf fonts that extrafont misses.
+library(showtext)
+local({
+  fam <- tryCatch(
+    systemfonts::system_fonts() |>
+      dplyr::filter(grepl("Amasis MT Pro", family, ignore.case = TRUE)),
+    error = function(e) data.frame(path = character(0), style = character(0))
+  )
+  if (nrow(fam) == 0) {
+    message("Amasis MT Pro not found. Available families containing 'Amasis': ",
+            paste(unique(systemfonts::system_fonts()$family[grepl("amasis", systemfonts::system_fonts()$family, ignore.case = TRUE)]), collapse = ", "))
+    return(invisible(NULL))
+  }
+  message("Amasis MT Pro found: ", paste(unique(fam$family), collapse = ", "))
+  pick <- function(pat) {
+    m <- fam |> dplyr::filter(grepl(pat, style, ignore.case = TRUE)) |> dplyr::slice(1)
+    if (nrow(m)) m$path else fam$path[1]
+  }
+  sysfonts::font_add("AmasisMTPro",
+                     regular = pick("Regular|Book|Roman|Light|Medium"),
+                     bold    = pick("Bold"))
+  showtext::showtext_auto()
+})
 
 make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
-                                   validation_label = "Additional method") {
+                                   validation_label = "Additional method",
+                                   show_labels = TRUE) {
 
   # ---- axis 4 ordering and colors --------------------------------------------
-  # The fourth axis shows 10 final categories: low support and likely_forbidden
+  # The fourth axis shows 10 final categories: weak support and likely_forbidden
   # are each split into "Have evidence" (seen by the other method) and
   # "No evidence" (not corroborated). All other categories pass through unchanged.
   # L4 categories grouped by confusion pair (TP→, FP→, FN→, TN→) so that
@@ -510,25 +562,35 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     "recurrent",
     "phantom — Have evidence", "phantom — No evidence",
     "possibly_missing",
-    "low support — Have evidence", "low support — No evidence",
+    "weak support — Have evidence", "weak support — No evidence",
     "model_elusive",
     "likely_forbidden — Have evidence", "likely_forbidden — No evidence",
     "locally_absent"
   )
 
-  # "Have evidence" variants: saturated plum tones.
-  # "No evidence" variants: medium thistle tones, consistent with the FN/TN family.
+  # locally_unique / phantom / weak support / likely_forbidden:
+  #   muted blue-lavender gradient, top (lightest) → bottom (darkest).
+  #   Hue ~262° keeps them visually distinct from the pink-purple thistle tones
+  #   of the validation axis.  locally_unique lightness ≈ thistle3 (the
+  #   "Not observed elsewhere" bar) so the top of this group matches that axis.
+  # "Have evidence" variants: aquamarine (marks cross-method corroboration).
+  # All other L4 pass-throughs inherit their L3 colours.
+  lav <- c(locally_unique    = "#C3BAD5",   # lightest — top of diagram
+            phantom           = "#AFA2C4",
+            `weak support`    = "#9B8BB4",
+            likely_forbidden  = "#8878A4")   # medium-dark — not too heavy
+
   col_L4 <- c(
-    "locally_unique"                   = unname(col_subcats["locally_unique"]),
+    "locally_unique"                   = unname(lav["locally_unique"]),
     "recurrent"                        = unname(col_subcats["recurrent"]),
-    "phantom — Have evidence"          = "plum1",
-    "phantom — No evidence"            = "thistle",
+    "phantom — Have evidence"          = "aquamarine",
+    "phantom — No evidence"            = unname(lav["phantom"]),
     "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
-    "low support — Have evidence"      = "plum2",
-    "low support — No evidence"        = "thistle2",
+    "weak support — Have evidence"      = "aquamarine2",
+    "weak support — No evidence"        = unname(lav["weak support"]),
     "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden — Have evidence" = "plum3",
-    "likely_forbidden — No evidence"   = "thistle3",
+    "likely_forbidden — Have evidence" = "aquamarine3",
+    "likely_forbidden — No evidence"   = unname(lav["likely_forbidden"]),
     "locally_absent"                   = unname(col_subcats["locally_absent"])
   )
 
@@ -549,8 +611,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       L4 = dplyr::case_when(
         link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
         link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
-        link_category == "low support"      & add_obs  ~ "low support — Have evidence",
-        link_category == "low support"      & !add_obs ~ "low support — No evidence",
+        link_category == "weak support"      & add_obs  ~ "weak support — Have evidence",
+        link_category == "weak support"      & !add_obs ~ "weak support — No evidence",
         link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
         link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
         TRUE ~ link_category
@@ -575,9 +637,9 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     "likely_forbidden"                 =  7L,
     "likely_forbidden — No evidence"   =  8L,
     "likely_forbidden — Have evidence" =  9L,
-    "low support"                      = 10L,
-    "low support — No evidence"        = 11L,
-    "low support — Have evidence"      = 12L,
+    "weak support"                      = 10L,
+    "weak support — No evidence"        = 11L,
+    "weak support — Have evidence"      = 12L,
     "phantom"                          = 13L,
     "phantom — No evidence"            = 14L,
     "phantom — Have evidence"          = 15L,
@@ -629,7 +691,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     #   Axis 1: TP, FP, FN, TN
     #   Axis 2: Observed elsewhere, Not observed elsewhere
     #   Axis 3: recurrent / possibly_missing / model_elusive / locally_absent
-    #           (Observed group), then locally_unique / phantom / low support /
+    #           (Observed group), then locally_unique / phantom / weak support /
     #           likely_forbidden (Not observed group)
     dplyr::mutate(
       .rank = c(
@@ -637,8 +699,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
         TN = 10, FN = 20, FP = 30, TP = 40,
         likely_forbidden = 10, "likely_forbidden — No evidence" = 11,
                                "likely_forbidden — Have evidence" = 12,
-        "low support" = 20, "low support — No evidence" = 21,
-                            "low support — Have evidence" = 22,
+        "weak support" = 20, "weak support — No evidence" = 21,
+                            "weak support — Have evidence" = 22,
         phantom = 30, "phantom — No evidence" = 31,
                       "phantom — Have evidence" = 32,
         locally_unique = 40,
@@ -652,8 +714,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
         TN = 10, FN = 20, FP = 30, TP = 40,
         likely_forbidden = 10, "likely_forbidden — No evidence" = 11,
                                "likely_forbidden — Have evidence" = 12,
-        "low support" = 20, "low support — No evidence" = 21,
-                            "low support — Have evidence" = 22,
+        "weak support" = 20, "weak support — No evidence" = 21,
+                            "weak support — Have evidence" = 22,
         phantom = 30, "phantom — No evidence" = 31,
                       "phantom — Have evidence" = 32,
         locally_unique = 40,
@@ -691,20 +753,20 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     "Observed elsewhere"               = unname(col_validation["Observed elsewhere"]),
     "Not observed elsewhere"           = unname(col_validation["Not observed elsewhere"]),
     # Axis 3 — Link category (also covers singleton Axis 4 nodes of the same name)
-    "locally_unique"                   = unname(col_subcats["locally_unique"]),
+    "locally_unique"                   = unname(lav["locally_unique"]),
     "recurrent"                        = unname(col_subcats["recurrent"]),
-    "phantom"                          = unname(col_subcats["phantom"]),
+    "phantom"                          = unname(lav["phantom"]),
     "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
-    "low support"                      = unname(col_subcats["low support"]),
+    "weak support"                      = unname(lav["weak support"]),
     "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden"                 = "aquamarine3",
+    "likely_forbidden"                 = unname(lav["likely_forbidden"]),
     "locally_absent"                   = unname(col_subcats["locally_absent"]),
     # Axis 4 — Additional method subcategories (split nodes only)
     "phantom — Have evidence"          = unname(col_L4["phantom — Have evidence"]),
     "phantom — No evidence"            = unname(col_L4["phantom — No evidence"]),
-    "low support — Have evidence"      = unname(col_L4["low support — Have evidence"]),
-    "low support — No evidence"        = unname(col_L4["low support — No evidence"]),
-    "likely_forbidden — Have evidence" = "aquamarine4",
+    "weak support — Have evidence"      = unname(col_L4["weak support — Have evidence"]),
+    "weak support — No evidence"        = unname(col_L4["weak support — No evidence"]),
+    "likely_forbidden — Have evidence" = unname(col_L4["likely_forbidden — Have evidence"]),
     "likely_forbidden — No evidence"   = unname(col_L4["likely_forbidden — No evidence"])
   )
 
@@ -724,17 +786,32 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
   p_probe <- ggplot(df_sankey,
                     aes(x = x, next_x = next_x, node = node_id,
                         next_node = next_node_id, value = value, fill = node)) +
-    geom_sankey(space = 8) +
-    geom_sankey_label(aes(label = node_id), space = 8)
+    geom_sankey(space = 18) +
+    geom_sankey_label(aes(label = node_id), space = 18)
 
   # The ggsankey `node` aesthetic (= node_id integer) survives ggplot_build
   # unchanged and uniquely identifies each bar.  Use it as the join key so we
   # don't depend on label or fill column names, which vary across ggsankey versions.
-  probe_y <- ggplot_build(p_probe)$data[[2]] %>%
+  probe_layer <- ggplot_build(p_probe)$data[[2]]
+
+  probe_y <- probe_layer %>%
     dplyr::transmute(
       x_int   = as.integer(round(n_x)),
       node_id = as.integer(node),
       y       = (ymin + ymax) / 2
+    )
+
+  # White-gap mask: geom_tile accepts factor x (same as the discrete scale),
+  # so it places tiles at exact axis positions without coordinate remapping.
+  # width is in "1 unit per inter-axis gap" space; height uses the bar extents.
+  bar_half     <- 0.002   # half of node.width (0.004 / 2)
+  gap_side     <- 0.013   # white padding on each side, in axis-spacing units
+  mask_tile_df <- probe_layer %>%
+    dplyr::transmute(
+      x      = axis_levels[as.integer(round(n_x))],
+      y_mid  = (ymin + ymax) / 2,
+      height = ymax - ymin,
+      width  = 2 * (bar_half + gap_side)
     )
 
   label_df <- node_totals %>%
@@ -745,35 +822,51 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
                           n_node, ' (', pct_node, '%)")')
     ) %>%
     dplyr::left_join(probe_y, by = c("x_int", "node_id")) %>%
-    dplyr::arrange(x, node_id)
+    dplyr::arrange(x, node_id) %>%
+    # axis 4 pass-through nodes (same name as axis 3) need no separate label
+    dplyr::filter(x_int < 4L | grepl("—", node))
 
   # ---- build the plot --------------------------------------------------------
   ggplot(df_sankey,
          aes(x = x, next_x = next_x, node = node_id, next_node = next_node_id,
              value = value, fill = node)) +
-    geom_sankey(flow.alpha = flow_alpha, node.color = "white",
-                node.width = 0.008, space = 8, smooth = 8) +
-    geom_text(
+    # Gap trick: draw flows + bars, overlay white tiles (from mask_tile_df) that
+    # cover the ribbon endpoints, then redraw the colored bars on top.
+    # geom_tile accepts a factor x matching the discrete scale — unlike geom_rect
+    # whose numeric xmin/xmax fall through to NA on a discrete x-scale.
+    geom_sankey(flow.alpha = flow_alpha, node.color = NA,
+                node.width = 0.004, space = 18, smooth = 8) +
+    geom_tile(
+      data        = mask_tile_df,
+      mapping     = aes(x = x, y = y_mid, width = width, height = height),
+      fill        = "white",
+      color       = NA,
+      inherit.aes = FALSE
+    ) +
+    geom_sankey(flow.alpha = 0, node.color = NA,
+                node.width = 0.004, space = 18, smooth = 8) +
+    # ---- LABELS: set show_labels = FALSE in the function call to hide --------
+    (if (show_labels) geom_text(
       data        = label_df,
       mapping     = aes(x = x, y = y, label = node_label),
       parse       = TRUE,
-      nudge_x     = 0.05,
+      nudge_x     = 0.08,
       hjust       = 0,
       size        = 3,
-      color       = "grey30",
+      color       = "grey15",
       inherit.aes = FALSE
-    ) +
+    ) else NULL) +
     scale_fill_manual(values = node_colors, na.value = "grey80", guide = "none") +
-    scale_x_discrete(expand = expansion(add = c(0.3, 2.0))) +
-    labs(
-      title    = paste("Link classification — Sankey —", method_label),
-      subtitle = paste("Within-network evaluation → Contextual evidence →",
-                       "Link category →", axis4_label),
-      x = NULL, y = NULL
-    ) +
-    theme_sankey(base_size = 12) +
+    # ---- X EXPANSION: reduce right margin when labels are hidden -------------
+    scale_x_discrete(expand = expansion(add = if (show_labels) c(0.3, 2.0) else c(0.3, 0.3))) +
+    # ---- TITLES: set show_labels = FALSE to suppress title and axis text ----
+    labs(title = if (show_labels) paste("Link classification — Sankey —", method_label) else NULL,
+         subtitle = if (show_labels) paste("Within-network evaluation → Contextual evidence →",
+                                           "Link category →", axis4_label) else NULL,
+         x = NULL, y = NULL) +
+    theme_sankey(base_size = 12, base_family = "AmasisMTPro") +
     theme(
-      axis.text.x   = element_text(size = 11, face = "bold"),
+      axis.text.x   = if (show_labels) element_text(size = 11, face = "bold") else element_blank(),
       plot.title    = element_text(face = "bold"),
       plot.subtitle = element_text(color = "grey30"),
       plot.margin   = margin(20, 20, 20, 20)
@@ -788,13 +881,28 @@ gg_obs_sankey <- make_sankey_validated(
 )
 gg_obs_sankey
 
-# pdf(file   = "results/figures/sankey_obs_validated_with_cameras.pdf",
-#     width  = 12,    # inches
-#     height = 6,
-#     family = "Helvetica"   # or another installed font
-# )
-# gg_obs_sankey
-# dev.off()
+ggsave("results/figures/sankey_obs_validated_with_cameras.pdf",
+       plot = gg_obs_sankey, width = 14, height = 6, device = cairo_pdf)
+showtext::showtext_opts(dpi = 300)
+ggsave("results/figures/sankey_obs_validated_with_cameras.png",
+       plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+showtext::showtext_opts(dpi = 96)  # reset to screen dpi for viewer
+
+# ---- unlabelled version (show_labels = FALSE) --------------------------------
+gg_obs_sankey_clean <- make_sankey_validated(
+  df_obs_categorized,
+  add_obs_ids      = add_obs_for_obs,
+  method_label     = "Direct observation (obs)",
+  validation_label = "Raspberry Pi camera (rpi)",
+  show_labels      = FALSE             # <-- toggle here
+)
+gg_obs_sankey_clean
+showtext::showtext_opts(dpi = 300)
+ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
+       plot = gg_obs_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
+       plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+showtext::showtext_opts(dpi = 96)
 
 gg_rpi_sankey <- make_sankey_validated(
   df_rpi_categorized,
@@ -803,3 +911,25 @@ gg_rpi_sankey <- make_sankey_validated(
   validation_label = "Direct observation (obs)"
 )
 gg_rpi_sankey
+ggsave("results/figures/sankey_rpi_validated_with_obs.pdf",
+       plot = gg_rpi_sankey, width = 14, height = 6, device = cairo_pdf)
+showtext::showtext_opts(dpi = 300)
+ggsave("results/figures/sankey_rpi_validated_with_obs.png",
+       plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+showtext::showtext_opts(dpi = 96)
+
+# ---- unlabelled version (show_labels = FALSE) --------------------------------
+gg_rpi_sankey_clean <- make_sankey_validated(
+  df_rpi_categorized,
+  add_obs_ids      = add_obs_for_rpi,
+  method_label     = "Raspberry Pi camera (rpi)",
+  validation_label = "Direct observation (obs)",
+  show_labels      = FALSE             # <-- toggle here
+)
+gg_rpi_sankey_clean
+showtext::showtext_opts(dpi = 300)
+ggsave("results/figures/sankey_rpi_validated_with_obs_clean.pdf",
+       plot = gg_rpi_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
+       plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+showtext::showtext_opts(dpi = 96)
