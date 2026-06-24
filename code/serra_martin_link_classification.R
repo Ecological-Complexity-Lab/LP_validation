@@ -520,6 +520,96 @@ dev.off()
 #        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)
 
+## ---- 9b. Map for richest rpi (camera) site, corroborated by observations ----
+# Same logic as section 9 but pinned to method == "rpi" so the richest camera
+# site is shown regardless of whether obs or rpi wins the global comparison.
+# Have evidence / No evidence: an interaction is corroborated when it also
+# appears in the obs ground truth (add_obs_for_rpi).
+rich_row_rpi   <- richness_table %>%
+  dplyr::filter(method == "rpi") %>%
+  dplyr::slice_max(n_species, n = 1)
+rich_site_rpi  <- rich_row_rpi$location
+
+cat(sprintf("\nRichest rpi site: %s — %d species\n",
+            rich_site_rpi, rich_row_rpi$n_species))
+
+df_site_cat_rpi_rich <- df_rpi_categorized %>%
+  dplyr::filter(location == rich_site_rpi)
+
+overall_poll_degree_rpi_rich <- df_all %>%
+  dplyr::filter(method == "rpi", ground_truth == 1) %>%
+  dplyr::group_by(higher_level) %>%
+  dplyr::summarise(overall_poll_degree = n_distinct(lower_level), .groups = "drop")
+
+overall_plant_degree_rpi_rich <- df_all %>%
+  dplyr::filter(method == "rpi", ground_truth == 1) %>%
+  dplyr::group_by(lower_level) %>%
+  dplyr::summarise(overall_plant_degree = n_distinct(higher_level), .groups = "drop")
+
+df_map_rpi_rich <- df_site_cat_rpi_rich %>%
+  dplyr::left_join(overall_poll_degree_rpi_rich,  by = "higher_level") %>%
+  dplyr::left_join(overall_plant_degree_rpi_rich, by = "lower_level") %>%
+  dplyr::mutate(
+    add_obs = interaction_id %in% add_obs_for_rpi,
+    link_display = factor(dplyr::case_when(
+      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
+      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "locally_unique"   ~ "Locally unique",
+      link_category == "recurrent"        ~ "Recurrent",
+      link_category == "model_elusive"    ~ "Model elusive",
+      link_category == "locally_absent"   ~ "Locally absent",
+      link_category == "possibly_missing" ~ "Possibly missing"
+    ), levels = map_display_levels)
+  )
+
+plant_order_rpi_rich <- df_map_rpi_rich %>%
+  dplyr::distinct(lower_level, overall_plant_degree) %>%
+  dplyr::arrange(desc(overall_plant_degree)) %>%
+  dplyr::pull(lower_level)
+
+poll_order_rpi_rich <- df_map_rpi_rich %>%
+  dplyr::distinct(higher_level, overall_poll_degree) %>%
+  dplyr::arrange(desc(overall_poll_degree)) %>%
+  dplyr::pull(higher_level)
+
+df_map_rpi_rich <- df_map_rpi_rich %>%
+  dplyr::mutate(
+    lower_level  = factor(lower_level,  levels = plant_order_rpi_rich),
+    higher_level = factor(higher_level, levels = poll_order_rpi_rich)
+  )
+
+map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
+                                             fill = link_display)) +
+  geom_tile(color = "white") +
+  scale_fill_brewer(palette = "Paired", name = "Link category") +
+  theme_minimal() +
+  theme(
+    axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
+    axis.text.y  = element_text(size = 9),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text  = element_text(size = 10)
+  ) +
+  labs(x = "Pollinator", y = "Plant",
+       title = sprintf("Richest camera site: %s — rpi classifications, obs corroboration",
+                       rich_site_rpi)) +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+map_rpi_rich
+
+ggsave("results/figures/map_richest_rpi_site.pdf",
+       plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
+ggsave("results/figures/map_richest_rpi_site.png",
+       plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
+
 ## ---- 10. Sankey alluvial — ggsankey ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
 library(ggsankey)
