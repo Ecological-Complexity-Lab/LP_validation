@@ -508,19 +508,24 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich
 
-pdf(file   = "results/figures/map_richest_site.pdf",
-    width  = 14,    # inches
-    height = 7,
-    family = "Helvetica"   # or another installed font
-)
-map_rich
-dev.off()
+# pdf(file   = "results/figures/map_richest_site.pdf",
+#     width  = 14,    # inches
+#     height = 7,
+#     family = "Helvetica"   # or another installed font
+# )
+# map_rich
+# dev.off()
 
 # ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
 #        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)
 
-## ---- 9b. Map for richest rpi (camera) site, corroborated by observations ----
+## ---- 9b. Interactive Sankey (Plotly) ----------------------------------------
+# Self-contained HTML — run the dedicated script from project root.
+# Requires: plotly, htmlwidgets  (install.packages(c("plotly","htmlwidgets")))
+source("interactive_sankey/make_sankey.R")
+
+## ---- 9c. Map for richest rpi (camera) site, corroborated by observations ----
 # Same logic as section 9 but pinned to method == "rpi" so the richest camera
 # site is shown regardless of whether obs or rpi wins the global comparison.
 # Have evidence / No evidence: an interaction is corroborated when it also
@@ -605,10 +610,10 @@ map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
 
 map_rpi_rich
 
-ggsave("results/figures/map_richest_rpi_site.pdf",
-       plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
-ggsave("results/figures/map_richest_rpi_site.png",
-       plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
+# ggsave("results/figures/map_richest_rpi_site.pdf",
+#        plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
+# ggsave("results/figures/map_richest_rpi_site.png",
+#        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
 
 ## ---- 10. Sankey alluvial — ggsankey ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
@@ -971,12 +976,12 @@ gg_obs_sankey <- make_sankey_validated(
 )
 gg_obs_sankey
 
-ggsave("results/figures/sankey_obs_validated_with_cameras.pdf",
-       plot = gg_obs_sankey, width = 14, height = 6, device = cairo_pdf)
-showtext::showtext_opts(dpi = 300)
-ggsave("results/figures/sankey_obs_validated_with_cameras.png",
-       plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
-showtext::showtext_opts(dpi = 96)  # reset to screen dpi for viewer
+# ggsave("results/figures/sankey_obs_validated_with_cameras.pdf",
+#        plot = gg_obs_sankey, width = 14, height = 6, device = cairo_pdf)
+# showtext::showtext_opts(dpi = 300)
+# ggsave("results/figures/sankey_obs_validated_with_cameras.png",
+#        plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)  # reset to screen dpi for viewer
 
 # ---- unlabelled version (show_labels = FALSE) --------------------------------
 gg_obs_sankey_clean <- make_sankey_validated(
@@ -987,12 +992,12 @@ gg_obs_sankey_clean <- make_sankey_validated(
   show_labels      = FALSE             # <-- toggle here
 )
 gg_obs_sankey_clean
-showtext::showtext_opts(dpi = 300)
-ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
-       plot = gg_obs_sankey_clean, width = 14, height = 6, device = cairo_pdf)
-ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
-       plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
-showtext::showtext_opts(dpi = 96)
+# showtext::showtext_opts(dpi = 300)
+# ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
+#        plot = gg_obs_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+# ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
+#        plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)
 
 gg_rpi_sankey <- make_sankey_validated(
   df_rpi_categorized,
@@ -1001,12 +1006,12 @@ gg_rpi_sankey <- make_sankey_validated(
   validation_label = "Direct observation (obs)"
 )
 gg_rpi_sankey
-ggsave("results/figures/sankey_rpi_validated_with_obs.pdf",
-       plot = gg_rpi_sankey, width = 14, height = 6, device = cairo_pdf)
-showtext::showtext_opts(dpi = 300)
-ggsave("results/figures/sankey_rpi_validated_with_obs.png",
-       plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
-showtext::showtext_opts(dpi = 96)
+# ggsave("results/figures/sankey_rpi_validated_with_obs.pdf",
+#        plot = gg_rpi_sankey, width = 14, height = 6, device = cairo_pdf)
+# showtext::showtext_opts(dpi = 300)
+# ggsave("results/figures/sankey_rpi_validated_with_obs.png",
+#        plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)
 
 # ---- unlabelled version (show_labels = FALSE) --------------------------------
 gg_rpi_sankey_clean <- make_sankey_validated(
@@ -1017,9 +1022,9 @@ gg_rpi_sankey_clean <- make_sankey_validated(
   show_labels      = FALSE             # <-- toggle here
 )
 gg_rpi_sankey_clean
-showtext::showtext_opts(dpi = 300)
-ggsave("results/figures/sankey_rpi_validated_with_obs_clean.pdf",
-       plot = gg_rpi_sankey_clean, width = 14, height = 6, device = cairo_pdf)
-ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
-       plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
-showtext::showtext_opts(dpi = 96)
+# showtext::showtext_opts(dpi = 300)
+# ggsave("results/figures/sankey_rpi_validated_with_obs_clean.pdf",
+#        plot = gg_rpi_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+# ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
+#        plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)
