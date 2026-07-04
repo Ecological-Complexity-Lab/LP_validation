@@ -73,12 +73,28 @@ node_colors_hex <- c(
   "#66CDAA", "#8878A4"                                 # L4 likely_forbidden have/no
 )
 
-# Serialise node definition WITHOUT positions — Plotly recomputes layout fresh
+# Fixed node positions: x pins each node to its axis column; y sets vertical
+# order (0 = top, 1 = bottom) to match the static R Sankey.
+# arrangement = "fixed" makes Plotly respect these coordinates exactly,
+# which also stabilises the layout when many categories are empty at high thresholds.
+evenly_y <- function(n) seq(0.02, 0.98, length.out = n)
+
+# Node order within each axis matches node_labels (top → bottom):
+# L1: TP, FP, FN, TN         (4 nodes, indices 0–3)
+# L2: Observed, Not observed  (2 nodes, indices 4–5)
+# L3: Recurrent … Likely forbidden (8 nodes, indices 6–13)
+# L4: Recurrent … LF—No evidence  (11 nodes, indices 14–24)
+node_x <- c(rep(0.01, 4), rep(0.34, 2), rep(0.67, 8), rep(0.99, 11))
+node_y <- c(evenly_y(4), evenly_y(2), evenly_y(8), evenly_y(11))
+
 node_def_r <- list(
   pad       = 15,
   thickness = 20,
   label     = node_labels,
-  color     = node_colors_hex
+  color     = node_colors_hex,
+  x         = node_x,
+  y         = node_y,
+  line      = list(color = "white", width = 2)  # <-- outline: change width to adjust thickness
 )
 
 hex_to_rgba <- function(hex, alpha = 0.45) {
@@ -193,7 +209,7 @@ init <- link_store[["obs_0.50"]]
 
 fig <- plot_ly(
   type        = "sankey",
-  arrangement = "snap",
+  arrangement = "fixed",
   node = node_def_r,
   link = list(
     source = init$source,
@@ -212,7 +228,7 @@ fig <- plot_ly(
       font = list(size = 13, color = "#444"),
       x = 0.01, xanchor = "left"
     ),
-    font          = list(family = "Segoe UI, system-ui, sans-serif", size = 11),
+    font          = list(family = "Segoe UI, system-ui, sans-serif", size = 16),
     paper_bgcolor = "#f7f7f5",
     plot_bgcolor  = "#f7f7f5",
     height        = 600,
@@ -268,7 +284,7 @@ function(el, data) {
   function applyHighlight(nodeIdx) {
     var upLinks   = getUpstreamLinkSet(nodeIdx);
     var newColors = currentLinks.color.map(function(c, i) {
-      return upLinks.has(i) ? setAlpha(c, 0.85) : 'rgba(210,210,210,0.04)';
+      return upLinks.has(i) ? setAlpha(c, 0.85) : 'rgba(210,210,210,0.18)';
     });
     Plotly.restyle(el, {'link.color': [newColors]});
   }
@@ -289,7 +305,7 @@ function(el, data) {
     // Use the clean node definition — Plotly recalculates layout from scratch
     Plotly.react(el, [{
       type: 'sankey',
-      arrangement: 'snap',
+      arrangement: 'fixed',
       node: nodeData,
       link: { source: ld.source, target: ld.target,
               value:  ld.value,  color:  ld.color }

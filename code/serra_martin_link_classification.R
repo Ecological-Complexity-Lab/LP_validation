@@ -644,107 +644,240 @@ local({
 
 make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
                                    validation_label = "Additional method",
-                                   show_labels = TRUE) {
+                                   show_labels = TRUE,
+                                   split_all = FALSE) {
 
-  # ---- axis 4 ordering and colors --------------------------------------------
-  # The fourth axis shows 10 final categories: weak support and likely_forbidden
-  # are each split into "Have evidence" (seen by the other method) and
-  # "No evidence" (not corroborated). All other categories pass through unchanged.
-  # L4 categories grouped by confusion pair (TP→, FP→, FN→, TN→) so that
-  # axis 3 → axis 4 ribbons stay within each confusion group and do not cross.
-  order_L4 <- c(
-    "locally_unique",
-    "recurrent",
-    "phantom — Have evidence", "phantom — No evidence",
-    "possibly_missing",
-    "weak support — Have evidence", "weak support — No evidence",
-    "model_elusive",
-    "likely_forbidden — Have evidence", "likely_forbidden — No evidence",
-    "locally_absent"
-  )
-
-  # locally_unique / phantom / weak support / likely_forbidden:
-  #   muted blue-lavender gradient, top (lightest) → bottom (darkest).
-  #   Hue ~262° keeps them visually distinct from the pink-purple thistle tones
-  #   of the validation axis.  locally_unique lightness ≈ thistle3 (the
-  #   "Not observed elsewhere" bar) so the top of this group matches that axis.
-  # "Have evidence" variants: aquamarine (marks cross-method corroboration).
-  # All other L4 pass-throughs inherit their L3 colours.
-  lav <- c(locally_unique    = "#C3BAD5",   # lightest — top of diagram
+  # ---- lavender gradient (locally_unique lightest → likely_forbidden darkest) -
+  lav <- c(locally_unique    = "#C3BAD5",
             phantom           = "#AFA2C4",
             `weak support`    = "#9B8BB4",
-            likely_forbidden  = "#8878A4")   # medium-dark — not too heavy
+            likely_forbidden  = "#8878A4")
 
-  col_L4 <- c(
-    "locally_unique"                   = unname(lav["locally_unique"]),
-    "recurrent"                        = unname(col_subcats["recurrent"]),
-    "phantom — Have evidence"          = "aquamarine",
-    "phantom — No evidence"            = unname(lav["phantom"]),
-    "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
-    "weak support — Have evidence"      = "aquamarine2",
-    "weak support — No evidence"        = unname(lav["weak support"]),
-    "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden — Have evidence" = "aquamarine3",
-    "likely_forbidden — No evidence"   = unname(lav["likely_forbidden"]),
-    "locally_absent"                   = unname(col_subcats["locally_absent"])
-  )
+  # ---- axis 4 ordering, colors, node IDs, and rank vectors -------------------
+  # split_all = FALSE (default): only phantom, weak support, likely_forbidden
+  #   are split into Have / No evidence; all other categories pass through.
+  # split_all = TRUE  (inspection): all 8 categories are split.
+  if (!split_all) {
+
+    order_L4 <- c(
+      "locally_unique",
+      "recurrent",
+      "phantom — Have evidence",         "phantom — No evidence",
+      "possibly_missing",
+      "weak support — Have evidence",    "weak support — No evidence",
+      "model_elusive",
+      "likely_forbidden — Have evidence","likely_forbidden — No evidence",
+      "locally_absent"
+    )
+
+    col_L4 <- c(
+      "locally_unique"                    = unname(lav["locally_unique"]),
+      "recurrent"                         = unname(col_subcats["recurrent"]),
+      "phantom — Have evidence"           = "aquamarine",
+      "phantom — No evidence"             = unname(lav["phantom"]),
+      "possibly_missing"                  = unname(col_subcats["possibly_missing"]),
+      "weak support — Have evidence"      = "aquamarine2",
+      "weak support — No evidence"        = unname(lav["weak support"]),
+      "model_elusive"                     = unname(col_subcats["model_elusive"]),
+      "likely_forbidden — Have evidence"  = "aquamarine3",
+      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
+      "locally_absent"                    = unname(col_subcats["locally_absent"])
+    )
+
+    node_id_vec <- c(
+      TN = 1L, FN = 2L, FP = 3L, TP = 4L,
+      "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
+      "likely_forbidden"                  =  7L,
+      "likely_forbidden — No evidence"    =  8L,
+      "likely_forbidden — Have evidence"  =  9L,
+      "weak support"                      = 10L,
+      "weak support — No evidence"        = 11L,
+      "weak support — Have evidence"      = 12L,
+      "phantom"                           = 13L,
+      "phantom — No evidence"             = 14L,
+      "phantom — Have evidence"           = 15L,
+      "locally_unique"                    = 16L,
+      "locally_absent"                    = 17L,
+      "model_elusive"                     = 18L,
+      "possibly_missing"                  = 19L,
+      "recurrent"                         = 20L
+    )
+
+    rank_vec <- c(
+      "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
+      TN = 10, FN = 20, FP = 30, TP = 40,
+      likely_forbidden = 10,
+        "likely_forbidden — No evidence" = 11, "likely_forbidden — Have evidence" = 12,
+      "weak support" = 20,
+        "weak support — No evidence" = 21, "weak support — Have evidence" = 22,
+      phantom = 30,
+        "phantom — No evidence" = 31, "phantom — Have evidence" = 32,
+      locally_unique = 40, locally_absent = 50,
+      model_elusive = 60, possibly_missing = 70, recurrent = 80
+    )
+
+    node_colors_l4 <- c(
+      "phantom — Have evidence"           = unname(col_L4["phantom — Have evidence"]),
+      "phantom — No evidence"             = unname(col_L4["phantom — No evidence"]),
+      "weak support — Have evidence"      = unname(col_L4["weak support — Have evidence"]),
+      "weak support — No evidence"        = unname(col_L4["weak support — No evidence"]),
+      "likely_forbidden — Have evidence"  = unname(col_L4["likely_forbidden — Have evidence"]),
+      "likely_forbidden — No evidence"    = unname(col_L4["likely_forbidden — No evidence"])
+    )
+
+  } else {
+    # split_all = TRUE: all 8 categories split — aquamarine3 marks "Have evidence"
+    # consistently across all warm and cool category families.
+    hev <- "aquamarine3"
+
+    order_L4 <- c(
+      "locally_unique — Have evidence",    "locally_unique — No evidence",
+      "recurrent — Have evidence",         "recurrent — No evidence",
+      "phantom — Have evidence",           "phantom — No evidence",
+      "possibly_missing — Have evidence",  "possibly_missing — No evidence",
+      "weak support — Have evidence",      "weak support — No evidence",
+      "model_elusive — Have evidence",     "model_elusive — No evidence",
+      "likely_forbidden — Have evidence",  "likely_forbidden — No evidence",
+      "locally_absent — Have evidence",    "locally_absent — No evidence"
+    )
+
+    col_L4 <- c(
+      "locally_unique — Have evidence"    = hev,
+      "locally_unique — No evidence"      = unname(lav["locally_unique"]),
+      "recurrent — Have evidence"         = hev,
+      "recurrent — No evidence"           = unname(col_subcats["recurrent"]),
+      "phantom — Have evidence"           = hev,
+      "phantom — No evidence"             = unname(lav["phantom"]),
+      "possibly_missing — Have evidence"  = hev,
+      "possibly_missing — No evidence"    = unname(col_subcats["possibly_missing"]),
+      "weak support — Have evidence"      = hev,
+      "weak support — No evidence"        = unname(lav["weak support"]),
+      "model_elusive — Have evidence"     = hev,
+      "model_elusive — No evidence"       = unname(col_subcats["model_elusive"]),
+      "likely_forbidden — Have evidence"  = hev,
+      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
+      "locally_absent — Have evidence"    = hev,
+      "locally_absent — No evidence"      = unname(col_subcats["locally_absent"])
+    )
+
+    # Axis-3 node IDs kept as-is (7–20); axis-4 split IDs start at 21.
+    node_id_vec <- c(
+      TN = 1L, FN = 2L, FP = 3L, TP = 4L,
+      "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
+      "likely_forbidden"                  =  7L,
+      "weak support"                      = 10L,
+      "phantom"                           = 13L,
+      "locally_unique"                    = 16L,
+      "locally_absent"                    = 17L,
+      "model_elusive"                     = 18L,
+      "possibly_missing"                  = 19L,
+      "recurrent"                         = 20L,
+      "likely_forbidden — No evidence"    = 21L,
+      "likely_forbidden — Have evidence"  = 22L,
+      "weak support — No evidence"        = 23L,
+      "weak support — Have evidence"      = 24L,
+      "phantom — No evidence"             = 25L,
+      "phantom — Have evidence"           = 26L,
+      "locally_unique — No evidence"      = 27L,
+      "locally_unique — Have evidence"    = 28L,
+      "locally_absent — No evidence"      = 29L,
+      "locally_absent — Have evidence"    = 30L,
+      "model_elusive — No evidence"       = 31L,
+      "model_elusive — Have evidence"     = 32L,
+      "possibly_missing — No evidence"    = 33L,
+      "possibly_missing — Have evidence"  = 34L,
+      "recurrent — No evidence"           = 35L,
+      "recurrent — Have evidence"         = 36L
+    )
+
+    rank_vec <- c(
+      "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
+      TN = 10, FN = 20, FP = 30, TP = 40,
+      likely_forbidden = 10,
+        "likely_forbidden — No evidence" = 11, "likely_forbidden — Have evidence" = 12,
+      "weak support" = 20,
+        "weak support — No evidence" = 21, "weak support — Have evidence" = 22,
+      phantom = 30,
+        "phantom — No evidence" = 31, "phantom — Have evidence" = 32,
+      locally_unique = 40,
+        "locally_unique — No evidence" = 41, "locally_unique — Have evidence" = 42,
+      locally_absent = 50,
+        "locally_absent — No evidence" = 51, "locally_absent — Have evidence" = 52,
+      model_elusive = 60,
+        "model_elusive — No evidence" = 61, "model_elusive — Have evidence" = 62,
+      possibly_missing = 70,
+        "possibly_missing — No evidence" = 71, "possibly_missing — Have evidence" = 72,
+      recurrent = 80,
+        "recurrent — No evidence" = 81, "recurrent — Have evidence" = 82
+    )
+
+    node_colors_l4 <- c(
+      "locally_unique — Have evidence"    = hev,
+      "locally_unique — No evidence"      = unname(lav["locally_unique"]),
+      "recurrent — Have evidence"         = hev,
+      "recurrent — No evidence"           = unname(col_subcats["recurrent"]),
+      "phantom — Have evidence"           = hev,
+      "phantom — No evidence"             = unname(lav["phantom"]),
+      "possibly_missing — Have evidence"  = hev,
+      "possibly_missing — No evidence"    = unname(col_subcats["possibly_missing"]),
+      "weak support — Have evidence"      = hev,
+      "weak support — No evidence"        = unname(lav["weak support"]),
+      "model_elusive — Have evidence"     = hev,
+      "model_elusive — No evidence"       = unname(col_subcats["model_elusive"]),
+      "likely_forbidden — Have evidence"  = hev,
+      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
+      "locally_absent — Have evidence"    = hev,
+      "locally_absent — No evidence"      = unname(col_subcats["locally_absent"])
+    )
+  }
 
   axis4_label <- paste0("Additional method: ", validation_label)
   axis_levels <- c("Within-network evaluation", "Contextual evidence",
                    "Link category", axis4_label)
 
   # ---- count links per unique path -------------------------------------------
-  # flows_tbl has one row per combination of (confusion × validation × subtype × L4).
-  # value = number of individual links (summed across all 6 sites) on that path.
-  # This is what you see in the diagram: e.g. TP = all correctly-predicted present
-  # links across every site for this sampling method.
   flows_tbl <- df_categorized %>%
     dplyr::filter(link_category != "unclassified", confusion != "UNK") %>%
     dplyr::mutate(
       add_obs = interaction_id %in% add_obs_ids,
-      # assign final L4 category based on cross-method evidence
-      L4 = dplyr::case_when(
-        link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
-        link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
-        link_category == "weak support"      & add_obs  ~ "weak support — Have evidence",
-        link_category == "weak support"      & !add_obs ~ "weak support — No evidence",
-        link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
-        link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
-        TRUE ~ link_category
-      )
+      L4 = if (!split_all) {
+        dplyr::case_when(
+          link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
+          link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
+          link_category == "weak support"     & add_obs  ~ "weak support — Have evidence",
+          link_category == "weak support"     & !add_obs ~ "weak support — No evidence",
+          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
+          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
+          TRUE ~ link_category
+        )
+      } else {
+        dplyr::case_when(
+          link_category == "locally_unique"   & add_obs  ~ "locally_unique — Have evidence",
+          link_category == "locally_unique"   & !add_obs ~ "locally_unique — No evidence",
+          link_category == "recurrent"        & add_obs  ~ "recurrent — Have evidence",
+          link_category == "recurrent"        & !add_obs ~ "recurrent — No evidence",
+          link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
+          link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
+          link_category == "possibly_missing" & add_obs  ~ "possibly_missing — Have evidence",
+          link_category == "possibly_missing" & !add_obs ~ "possibly_missing — No evidence",
+          link_category == "weak support"     & add_obs  ~ "weak support — Have evidence",
+          link_category == "weak support"     & !add_obs ~ "weak support — No evidence",
+          link_category == "model_elusive"    & add_obs  ~ "model_elusive — Have evidence",
+          link_category == "model_elusive"    & !add_obs ~ "model_elusive — No evidence",
+          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
+          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
+          link_category == "locally_absent"   & add_obs  ~ "locally_absent — Have evidence",
+          link_category == "locally_absent"   & !add_obs ~ "locally_absent — No evidence",
+          TRUE ~ link_category
+        )
+      }
     ) %>%
     dplyr::count(confusion, validation, link_category, L4, name = "value") %>%
     dplyr::mutate(L1 = confusion, L2 = validation, L3 = link_category, flow_color = L4)
 
-  # total links across all categories — denominator for percentage labels
   total_n <- sum(flows_tbl$value)
 
-  # ---- reshape to long format (one row per axis per path) --------------------
-  # pivot_longer turns the 10-path wide table into 40 rows (10 × 4 axes).
-  # lead() gives each row a pointer to the next axis's node so ggsankey can
-  # draw the ribbon connecting them.
-  # Integer stacking-order IDs: 1 = bottom of the diagram, highest = top.
-  # StatSankeyFlow sorts by the node aesthetic value; using integers ensures
-  # numerical (not alphabetical) ordering so bars stack in our desired order.
-  node_id_vec <- c(
-    TN = 1L, FN = 2L, FP = 3L, TP = 4L,
-    "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
-    "likely_forbidden"                 =  7L,
-    "likely_forbidden — No evidence"   =  8L,
-    "likely_forbidden — Have evidence" =  9L,
-    "weak support"                      = 10L,
-    "weak support — No evidence"        = 11L,
-    "weak support — Have evidence"      = 12L,
-    "phantom"                          = 13L,
-    "phantom — No evidence"            = 14L,
-    "phantom — Have evidence"          = 15L,
-    "locally_unique"                   = 16L,
-    "locally_absent"                   = 17L,
-    "model_elusive"                    = 18L,
-    "possibly_missing"                 = 19L,
-    "recurrent"                        = 20L
-  )
-
+  # ---- reshape to long format ------------------------------------------------
   df_sankey <- flows_tbl %>%
     dplyr::select(L1, L2, L3, L4, value) %>%
     dplyr::mutate(alluvium = dplyr::row_number()) %>%
@@ -752,8 +885,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     dplyr::group_by(alluvium) %>%
     dplyr::arrange(x_raw, .by_group = TRUE) %>%
     dplyr::mutate(
-      next_x_raw = dplyr::lead(x_raw),  # which axis comes next
-      next_node  = dplyr::lead(node)    # what category is at that next axis
+      next_x_raw = dplyr::lead(x_raw),
+      next_node  = dplyr::lead(node)
     ) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(
@@ -765,7 +898,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
                  L3 = "Link category",             L4 = axis4_label),
       x      = factor(x,      levels = axis_levels),
       next_x = factor(next_x, levels = axis_levels),
-      # TP/FP/TN/FN stay uppercase; all other names get sentence case
       node_clean = dplyr::if_else(
         node %in% c("TP", "FP", "TN", "FN"),
         node,
@@ -773,120 +905,52 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       )
     ) %>%
     dplyr::select(-alluvium, -x_raw, -next_x_raw) %>%
-    # collapse rows that share the same (source → destination) edge into one ribbon
     dplyr::group_by(x, node, next_x, next_node, node_clean) %>%
     dplyr::summarise(value = sum(value), .groups = "drop") %>%
-    # ---- control stacking order -------------------------------------------------
-    # ggsankey sorts nodes by the node aesthetic value (alphabetical for
-    # characters, ascending for numbers).  We add a numeric node_id column
-    # (1 = bottom, 20 = top) to force exact ordering — see node_id_vec below.
-    # These .rank / .nrank weights are NOT link counts; they are just sorting
-    # keys used to arrange rows consistently before that step.
-    # Desired top-to-bottom layout:
-    #   Axis 1: TP, FP, FN, TN
-    #   Axis 2: Observed elsewhere, Not observed elsewhere
-    #   Axis 3: recurrent / possibly_missing / model_elusive / locally_absent
-    #           (Observed group), then locally_unique / phantom / weak support /
-    #           likely_forbidden (Not observed group)
     dplyr::mutate(
-      .rank = c(
-        "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
-        TN = 10, FN = 20, FP = 30, TP = 40,
-        likely_forbidden = 10, "likely_forbidden — No evidence" = 11,
-                               "likely_forbidden — Have evidence" = 12,
-        "weak support" = 20, "weak support — No evidence" = 21,
-                            "weak support — Have evidence" = 22,
-        phantom = 30, "phantom — No evidence" = 31,
-                      "phantom — Have evidence" = 32,
-        locally_unique = 40,
-        locally_absent = 50,
-        model_elusive  = 60,
-        possibly_missing = 70,
-        recurrent = 80
-      )[node],
-      .nrank = c(
-        "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
-        TN = 10, FN = 20, FP = 30, TP = 40,
-        likely_forbidden = 10, "likely_forbidden — No evidence" = 11,
-                               "likely_forbidden — Have evidence" = 12,
-        "weak support" = 20, "weak support — No evidence" = 21,
-                            "weak support — Have evidence" = 22,
-        phantom = 30, "phantom — No evidence" = 31,
-                      "phantom — Have evidence" = 32,
-        locally_unique = 40,
-        locally_absent = 50,
-        model_elusive  = 60,
-        possibly_missing = 70,
-        recurrent = 80
-      )[next_node]
+      .rank  = rank_vec[node],
+      .nrank = rank_vec[next_node]
     ) %>%
     dplyr::group_by(x) %>%
     dplyr::arrange(.rank, .nrank, .by_group = TRUE) %>%
     dplyr::ungroup() %>%
     dplyr::select(-.rank, -.nrank) %>%
-    # Map each node name to its integer stacking ID (1 = bottom, 20 = top).
-    # The ggsankey stats sort by these integers numerically, giving the
-    # correct bottom-to-top bar/label order on every axis.
     dplyr::mutate(
       node_id      = node_id_vec[node],
       next_node_id = node_id_vec[next_node]
     )
 
-  # ---- color palette: one entry per node name ---------------------------------
-  # fill = node keeps every source-node's fill constant across its outgoing
-  # ribbons, which prevents ggsankey from inserting extra spacing between
-  # ribbons of the same node when they carry different fill values.
-  # Edit any entry here to recolor that node (bar + outgoing ribbon) everywhere
-  # it appears in the diagram.  Axis 4 split-nodes get their own entries.
+  # ---- color palette ---------------------------------------------------------
   node_colors <- c(
-    # Axis 1 — Within-network evaluation (confusion matrix)
-    "TP"                               = unname(col_confusion["TP"]),
-    "FP"                               = unname(col_confusion["FP"]),
-    "FN"                               = unname(col_confusion["FN"]),
-    "TN"                               = unname(col_confusion["TN"]),
-    # Axis 2 — Contextual evidence
-    "Observed elsewhere"               = unname(col_validation["Observed elsewhere"]),
-    "Not observed elsewhere"           = unname(col_validation["Not observed elsewhere"]),
-    # Axis 3 — Link category (also covers singleton Axis 4 nodes of the same name)
-    "locally_unique"                   = unname(lav["locally_unique"]),
-    "recurrent"                        = unname(col_subcats["recurrent"]),
-    "phantom"                          = unname(lav["phantom"]),
-    "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
-    "weak support"                      = unname(lav["weak support"]),
-    "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden"                 = unname(lav["likely_forbidden"]),
-    "locally_absent"                   = unname(col_subcats["locally_absent"]),
-    # Axis 4 — Additional method subcategories (split nodes only)
-    "phantom — Have evidence"          = unname(col_L4["phantom — Have evidence"]),
-    "phantom — No evidence"            = unname(col_L4["phantom — No evidence"]),
-    "weak support — Have evidence"      = unname(col_L4["weak support — Have evidence"]),
-    "weak support — No evidence"        = unname(col_L4["weak support — No evidence"]),
-    "likely_forbidden — Have evidence" = unname(col_L4["likely_forbidden — Have evidence"]),
-    "likely_forbidden — No evidence"   = unname(col_L4["likely_forbidden — No evidence"])
+    "TP"                     = unname(col_confusion["TP"]),
+    "FP"                     = unname(col_confusion["FP"]),
+    "FN"                     = unname(col_confusion["FN"]),
+    "TN"                     = unname(col_confusion["TN"]),
+    "Observed elsewhere"     = unname(col_validation["Observed elsewhere"]),
+    "Not observed elsewhere" = unname(col_validation["Not observed elsewhere"]),
+    "locally_unique"         = unname(lav["locally_unique"]),
+    "recurrent"              = unname(col_subcats["recurrent"]),
+    "phantom"                = unname(lav["phantom"]),
+    "possibly_missing"       = unname(col_subcats["possibly_missing"]),
+    "weak support"           = unname(lav["weak support"]),
+    "model_elusive"          = unname(col_subcats["model_elusive"]),
+    "likely_forbidden"       = unname(lav["likely_forbidden"]),
+    "locally_absent"         = unname(col_subcats["locally_absent"]),
+    node_colors_l4
   )
 
-  # ---- compute per-node counts and percentages for labels --------------------
-  # For each (axis, category), sum all flow values passing through that node
-  # to get how many links it represents and what share of the total that is.
+  # ---- node totals and label positions ---------------------------------------
   node_totals <- df_sankey %>%
     dplyr::group_by(x, node, node_clean) %>%
     dplyr::summarise(n_node = sum(value), .groups = "drop") %>%
     dplyr::mutate(pct_node = round(100 * n_node / total_n))
 
-  # StatSankeyText aligns labels with bars correctly but sorts nodes
-  # alphabetically — wrong order for our diagram.  Build a probe ggplot with
-  # geom_sankey_label and extract the bar-midpoint y-coordinates from
-  # ggplot_build(), keyed by node name.  Join these onto node_totals (sorted by
-  # node_id) so geom_text gets ggsankey's own positions in our desired order.
   p_probe <- ggplot(df_sankey,
                     aes(x = x, next_x = next_x, node = node_id,
                         next_node = next_node_id, value = value, fill = node)) +
     geom_sankey(space = 18) +
     geom_sankey_label(aes(label = node_id), space = 18)
 
-  # The ggsankey `node` aesthetic (= node_id integer) survives ggplot_build
-  # unchanged and uniquely identifies each bar.  Use it as the join key so we
-  # don't depend on label or fill column names, which vary across ggsankey versions.
   probe_layer <- ggplot_build(p_probe)$data[[2]]
 
   probe_y <- probe_layer %>%
@@ -896,11 +960,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       y       = (ymin + ymax) / 2
     )
 
-  # White-gap mask: geom_tile accepts factor x (same as the discrete scale),
-  # so it places tiles at exact axis positions without coordinate remapping.
-  # width is in "1 unit per inter-axis gap" space; height uses the bar extents.
-  bar_half     <- 0.002   # half of node.width (0.004 / 2)
-  gap_side     <- 0.013   # white padding on each side, in axis-spacing units
+  bar_half     <- 0.002
+  gap_side     <- 0.013
   mask_tile_df <- probe_layer %>%
     dplyr::transmute(
       x      = axis_levels[as.integer(round(n_x))],
@@ -918,17 +979,14 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     ) %>%
     dplyr::left_join(probe_y, by = c("x_int", "node_id")) %>%
     dplyr::arrange(x, node_id) %>%
-    # axis 4 pass-through nodes (same name as axis 3) need no separate label
+    # axis 4 pass-through nodes (same name as axis 3) need no separate label;
+    # in split_all mode every axis-4 node contains "—" so all are labelled.
     dplyr::filter(x_int < 4L | grepl("—", node))
 
   # ---- build the plot --------------------------------------------------------
   ggplot(df_sankey,
          aes(x = x, next_x = next_x, node = node_id, next_node = next_node_id,
              value = value, fill = node)) +
-    # Gap trick: draw flows + bars, overlay white tiles (from mask_tile_df) that
-    # cover the ribbon endpoints, then redraw the colored bars on top.
-    # geom_tile accepts a factor x matching the discrete scale — unlike geom_rect
-    # whose numeric xmin/xmax fall through to NA on a discrete x-scale.
     geom_sankey(flow.alpha = flow_alpha, node.color = NA,
                 node.width = 0.004, space = 18, smooth = 8) +
     geom_tile(
@@ -1028,3 +1086,24 @@ gg_rpi_sankey_clean
 # ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
 #        plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)
+
+# ---- inspection versions: all 8 categories split into Have / No evidence ----
+# split_all = TRUE adds Have evidence / No evidence at axis 4 for every category,
+# not just phantom / weak support / likely_forbidden.  For inspection only.
+gg_obs_sankey_full <- make_sankey_validated(
+  df_obs_categorized,
+  add_obs_ids      = add_obs_for_obs,
+  method_label     = "Direct observation (obs) — all categories",
+  validation_label = "Raspberry Pi camera (rpi)",
+  split_all        = TRUE
+)
+gg_obs_sankey_full
+
+gg_rpi_sankey_full <- make_sankey_validated(
+  df_rpi_categorized,
+  add_obs_ids      = add_obs_for_rpi,
+  method_label     = "Raspberry Pi camera (rpi) — all categories",
+  validation_label = "Direct observation (obs)",
+  split_all        = TRUE
+)
+gg_rpi_sankey_full
