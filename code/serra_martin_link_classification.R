@@ -336,7 +336,7 @@ map_display_levels <- c(
   "Recurrent",
   "Phantom — Have evidence", "Phantom — No evidence",
   "Possibly missing",
-  "Weak support — Have evidence", "Weak support — No evidence",
+  "Weak support",
   "Model elusive",
   "Likely forbidden — Have evidence", "Likely forbidden — No evidence",
   "Locally absent"
@@ -366,8 +366,7 @@ df_map <- df_site_cat %>%
     link_display = factor(case_when(
       link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
-      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
-      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "weak support"      ~ "Weak support",
       link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
       link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
       link_category == "locally_unique"   ~ "Locally unique",
@@ -459,8 +458,7 @@ df_map_rich <- df_site_cat_rich %>%
     link_display = factor(case_when(
       link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
-      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
-      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "weak support"      ~ "Weak support",
       link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
       link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
       link_category == "locally_unique"   ~ "Locally unique",
@@ -493,10 +491,10 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
   scale_fill_brewer(palette = "Paired", name = "Link category") +
   theme_minimal() +
   theme(
-    axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
-    axis.text.y  = element_text(size = 9),
-    legend.title = element_text(size = 12, face = "bold"),
-    legend.text  = element_text(size = 10)
+    axis.text.x  = element_text(size = 11, angle = 90, vjust = 0.5),
+    axis.text.y  = element_text(size = 11),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text  = element_text(size = 12)
   ) +
   labs(x = "Pollinator", y = "Plant") +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
@@ -508,17 +506,17 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich
 
-# pdf(file   = "results/figures/map_richest_site.pdf",
-#     width  = 14,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# map_rich
-# dev.off()
+pdf(file   = "results/figures/map_richest_site.pdf",
+    width  = 14,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+map_rich
+dev.off()
 
-# ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
-#        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
-# showtext::showtext_opts(dpi = 96)
+ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
+       plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
+showtext::showtext_opts(dpi = 96)
 
 ## ---- 9b. Interactive Sankey (Plotly) ----------------------------------------
 # Self-contained HTML — run the dedicated script from project root.
@@ -559,8 +557,7 @@ df_map_rpi_rich <- df_site_cat_rpi_rich %>%
     link_display = factor(dplyr::case_when(
       link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
-      link_category == "weak support"      & add_obs  ~ "Weak support — Have evidence",
-      link_category == "weak support"      & !add_obs ~ "Weak support — No evidence",
+      link_category == "weak support"      ~ "Weak support",
       link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
       link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
       link_category == "locally_unique"   ~ "Locally unique",
@@ -593,10 +590,10 @@ map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
   scale_fill_brewer(palette = "Paired", name = "Link category") +
   theme_minimal() +
   theme(
-    axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
-    axis.text.y  = element_text(size = 9),
-    legend.title = element_text(size = 12, face = "bold"),
-    legend.text  = element_text(size = 10)
+    axis.text.x  = element_text(size = 11, angle = 90, vjust = 0.5),
+    axis.text.y  = element_text(size = 11),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text  = element_text(size = 12)
   ) +
   labs(x = "Pollinator", y = "Plant",
        title = sprintf("Richest camera site: %s — rpi classifications, obs corroboration",
@@ -664,7 +661,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "recurrent",
       "phantom — Have evidence",         "phantom — No evidence",
       "possibly_missing",
-      "weak support — Have evidence",    "weak support — No evidence",
+      "weak support",
       "model_elusive",
       "likely_forbidden — Have evidence","likely_forbidden — No evidence",
       "locally_absent"
@@ -676,8 +673,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "phantom — Have evidence"           = "aquamarine",
       "phantom — No evidence"             = unname(lav["phantom"]),
       "possibly_missing"                  = unname(col_subcats["possibly_missing"]),
-      "weak support — Have evidence"      = "aquamarine2",
-      "weak support — No evidence"        = unname(lav["weak support"]),
+      "weak support"                      = unname(lav["weak support"]),
       "model_elusive"                     = unname(col_subcats["model_elusive"]),
       "likely_forbidden — Have evidence"  = "aquamarine3",
       "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
@@ -691,8 +687,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "likely_forbidden — No evidence"    =  8L,
       "likely_forbidden — Have evidence"  =  9L,
       "weak support"                      = 10L,
-      "weak support — No evidence"        = 11L,
-      "weak support — Have evidence"      = 12L,
       "phantom"                           = 13L,
       "phantom — No evidence"             = 14L,
       "phantom — Have evidence"           = 15L,
@@ -709,7 +703,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       likely_forbidden = 10,
         "likely_forbidden — No evidence" = 11, "likely_forbidden — Have evidence" = 12,
       "weak support" = 20,
-        "weak support — No evidence" = 21, "weak support — Have evidence" = 22,
       phantom = 30,
         "phantom — No evidence" = 31, "phantom — Have evidence" = 32,
       locally_unique = 40, locally_absent = 50,
@@ -719,8 +712,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     node_colors_l4 <- c(
       "phantom — Have evidence"           = unname(col_L4["phantom — Have evidence"]),
       "phantom — No evidence"             = unname(col_L4["phantom — No evidence"]),
-      "weak support — Have evidence"      = unname(col_L4["weak support — Have evidence"]),
-      "weak support — No evidence"        = unname(col_L4["weak support — No evidence"]),
       "likely_forbidden — Have evidence"  = unname(col_L4["likely_forbidden — Have evidence"]),
       "likely_forbidden — No evidence"    = unname(col_L4["likely_forbidden — No evidence"])
     )
@@ -844,8 +835,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
         dplyr::case_when(
           link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
           link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
-          link_category == "weak support"     & add_obs  ~ "weak support — Have evidence",
-          link_category == "weak support"     & !add_obs ~ "weak support — No evidence",
           link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
           link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
           TRUE ~ link_category
@@ -1107,3 +1096,148 @@ gg_rpi_sankey_full <- make_sankey_validated(
   split_all        = TRUE
 )
 gg_rpi_sankey_full
+
+## ---- 11. Summary: unobserved link breakdown ----
+# For a given sampling method, pooling all six sites:
+#
+# LINK-SITE RECORDS: the unit of observation.  Each record = one unique species-pair
+#   (interaction) assessed at one site under this method.  The same species pair
+#   can appear in up to six records (once per site), so the total number of
+#   link-site records is always larger than the number of unique species pairs.
+#
+# UNIQUE SPECIES INTERACTIONS: distinct species-pair combinations in the dataset,
+#   regardless of how many sites they were assessed at.  A pair that was assessed
+#   at all six sites contributes six link-site records but only one unique interaction.
+#
+# UNOBSERVED RECORDS are split by the model's prediction:
+#   FP (false positive)  — unobserved at this site, yet the model predicted present.
+#     · phantom          — never recorded at ANY site under this method
+#                          (the interaction may be genuinely impossible, or simply missed)
+#     · possibly_missing — recorded at ≥1 other site under this method,
+#                          but absent here (likely a detection gap)
+#   TN (true negative)   — unobserved at this site and the model correctly predicted absent.
+#     · likely_forbidden — never recorded at ANY site under this method
+#                          (the model concurs: the interaction is probably impossible)
+#     · locally_absent   — recorded at ≥1 other site under this method,
+#                          but model correctly predicts absence here (locally unsuitable)
+#
+# CROSS-METHOD EVIDENCE ("Have evidence"): the interaction_id appears as
+#   ground_truth == 1 in the orthogonal sampling method (cameras for obs, or
+#   vice versa).  "% corroborated" = Have evidence / category total.
+summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_name) {
+  df <- df_cat %>%
+    dplyr::filter(link_category != "unclassified", confusion != "UNK") %>%
+    dplyr::mutate(add_obs = interaction_id %in% add_obs_ids)
+
+  total   <- nrow(df)
+  n_obs   <- sum(df$original_binary == 1)
+  n_unobs <- total - n_obs
+  n_fp    <- sum(df$confusion == "FP")
+  n_tn    <- sum(df$confusion == "TN")
+
+  n_ids_total <- dplyr::n_distinct(df$interaction_id)
+  n_ids_never <- df %>%
+    dplyr::filter(is_all_zero) %>%
+    dplyr::pull(interaction_id) %>%
+    dplyr::n_distinct()
+  n_ids_seen  <- n_ids_total - n_ids_never
+
+  make_tbl <- function(confusion_label, n_denom) {
+    df %>%
+      dplyr::filter(confusion == confusion_label) %>%
+      dplyr::group_by(link_category) %>%
+      dplyr::summarise(
+        have_evidence = sum(add_obs),
+        no_evidence   = sum(!add_obs),
+        total_cat     = dplyr::n(),
+        .groups = "drop"
+      ) %>%
+      dplyr::mutate(
+        pct_of_group = sprintf("%.1f%%", 100 * total_cat  / n_denom),
+        pct_hev      = sprintf("%.1f%%", 100 * have_evidence / total_cat)
+      ) %>%
+      dplyr::arrange(dplyr::desc(total_cat))
+  }
+
+  fp_tbl <- make_tbl("FP", n_fp)
+  tn_tbl <- make_tbl("TN", n_tn)
+
+  print_tbl <- function(tbl, denom, denom_label) {
+    hdr <- sprintf("  %-20s  %7s  %-14s  %-16s  %s\n",
+                   "Category", "n",
+                   sprintf("%% of %s", denom_label),
+                   sprintf("Have evidence (%s)", other_method_name),
+                   "% corroborated")
+    cat(hdr)
+    cat(strrep("-", nchar(hdr) - 1L), "\n")
+    for (i in seq_len(nrow(tbl))) {
+      r <- tbl[i, ]
+      cat(sprintf("  %-20s  %7d  %-14s  %-16d  %s\n",
+                  r$link_category, r$total_cat, r$pct_of_group,
+                  r$have_evidence, r$pct_hev))
+    }
+    cat(strrep("-", nchar(hdr) - 1L), "\n")
+    cat(sprintf("  %-20s  %7d  %-14s  %d\n",
+                "Total", denom, "100.0%", sum(tbl$have_evidence)))
+  }
+
+  sep <- strrep("=", 72)
+  cat(sprintf("\n%s\n", sep))
+  cat(sprintf("  METHOD: %s\n", method_name))
+  cat(sprintf("%s\n", sep))
+
+  cat(sprintf("\n--- LINK-SITE RECORDS (each species pair x site = 1 record) ---\n\n"))
+  cat(sprintf("  Total link-site records:                          %d\n", total))
+  cat(sprintf("  Observed (ground truth = 1):                      %d  (%.1f%% of %d total records)\n",
+              n_obs,   100 * n_obs   / total, total))
+  cat(sprintf("  Unobserved (ground truth = 0):                    %d  (%.1f%% of %d total records)\n",
+              n_unobs, 100 * n_unobs / total, total))
+  cat(sprintf("    of which predicted present — FP:                %d  (%.1f%% of %d unobserved records)\n",
+              n_fp, 100 * n_fp / n_unobs, n_unobs))
+  cat(sprintf("    of which predicted absent  — TN:                %d  (%.1f%% of %d unobserved records)\n",
+              n_tn, 100 * n_tn / n_unobs, n_unobs))
+
+  cat(sprintf("\n--- UNIQUE SPECIES INTERACTIONS (pooled across all sites) ---\n\n"))
+  cat(sprintf("  Total unique species pairs in dataset:            %d\n", n_ids_total))
+  cat(sprintf("  Observed at ≥1 site (ground truth = 1 anywhere): %d  (%.1f%% of %d unique pairs)\n",
+              n_ids_seen,  100 * n_ids_seen  / n_ids_total, n_ids_total))
+  cat(sprintf("  Never observed at any site:                       %d  (%.1f%% of %d unique pairs)\n",
+              n_ids_never, 100 * n_ids_never / n_ids_total, n_ids_total))
+
+  cat(sprintf(
+    "\n--- UNOBSERVED & PREDICTED PRESENT (FP, n = %d records) ---\n", n_fp))
+  cat(sprintf(
+    "    phantom        = predicted present, never recorded at any site under %s\n",
+    method_name))
+  cat(sprintf(
+    "    possibly_missing = predicted present, recorded at ≥1 other site under %s\n\n",
+    method_name))
+  print_tbl(fp_tbl, n_fp, "FP")
+
+  cat(sprintf(
+    "\n--- UNOBSERVED & PREDICTED ABSENT (TN, n = %d records) ---\n", n_tn))
+  cat(sprintf(
+    "    likely_forbidden = predicted absent, never recorded at any site under %s\n",
+    method_name))
+  cat(sprintf(
+    "    locally_absent   = predicted absent, recorded at ≥1 other site under %s\n\n",
+    method_name))
+  print_tbl(tn_tbl, n_tn, "TN")
+  cat("\n")
+
+  invisible(list(fp = fp_tbl, tn = tn_tbl))
+}
+
+summarise_unobserved(
+  df_obs_categorized,
+  add_obs_ids      = add_obs_for_obs,
+  method_name      = "Direct observation (obs)",
+  other_method_name = "rpi"
+)
+
+summarise_unobserved(
+  df_rpi_categorized,
+  add_obs_ids      = add_obs_for_rpi,
+  method_name      = "Raspberry Pi camera (rpi)",
+  other_method_name = "obs"
+)
