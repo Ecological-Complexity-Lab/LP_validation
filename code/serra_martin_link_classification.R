@@ -656,6 +656,9 @@ map_rpi_rich
 # ggsave("results/figures/map_richest_rpi_site.png",
 #        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
 
+ggsave("results/figures/map_richest_rpi_site.png",
+       plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
+
 ## ---- 10. Sankey alluvial — ggsankey ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
 library(ggsankey)
