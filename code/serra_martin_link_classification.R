@@ -107,21 +107,21 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
   order_L4 <- c(
     "locally_unique",
     "phantom",
-    "weak support — Have evidence", "weak support — No evidence",
+    "weak support — have evidence", "weak support — no evidence",
     "recurrent", "possibly_missing", "locally_absent", "model_elusive",
-    "likely_forbidden — Have evidence", "likely_forbidden — No evidence"
+    "likely_forbidden — have evidence", "likely_forbidden — no evidence"
   )
   col_L4 <- c(
     "locally_unique"                   = unname(col_subcats["locally_unique"]),
     "phantom"                          = unname(col_subcats["phantom"]),
-    "weak support — Have evidence"      = "plum2",    # weak support → more saturated
-    "weak support — No evidence"        = "lavender", # weak support → lighter/greyer
+    "weak support — have evidence"      = "plum2",    # weak support → more saturated
+    "weak support — no evidence"        = "lavender", # weak support → lighter/greyer
     "recurrent"                        = unname(col_subcats["recurrent"]),
     "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
     "locally_absent"                   = unname(col_subcats["locally_absent"]),
     "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden — Have evidence" = "plum3",    # likely_forbidden → more saturated
-    "likely_forbidden — No evidence"   = "thistle1"  # likely_forbidden → lighter/washed-out
+    "likely_forbidden — have evidence" = "plum3",    # likely_forbidden → more saturated
+    "likely_forbidden — no evidence"   = "thistle1"  # likely_forbidden → lighter/washed-out
   )
   stratum_fill_4    <- c(stratum_fill, col_L4)
   axis4_label       <- validation_label
@@ -133,10 +133,10 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
     mutate(
       add_obs = interaction_id %in% add_obs_ids,
       L4 = dplyr::case_when(
-        link_category == "weak support"      & add_obs  ~ "weak support — Have evidence",
-        link_category == "weak support"      & !add_obs ~ "weak support — No evidence",
-        link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
-        link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
+        link_category == "weak support"      & add_obs  ~ "weak support — have evidence",
+        link_category == "weak support"      & !add_obs ~ "weak support — no evidence",
+        link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
+        link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
         TRUE ~ link_category
       )
     ) %>%
@@ -334,12 +334,32 @@ cat(sprintf("\nHighest-connectance site: %s (%s) — connectance = %.3f\n",
 map_display_levels <- c(
   "Locally unique",
   "Recurrent",
-  "Phantom — Have evidence", "Phantom — No evidence",
+  "Phantom — have evidence", "Phantom — no evidence",
   "Possibly missing",
   "Weak support",
   "Model elusive",
-  "Likely forbidden — Have evidence", "Likely forbidden — No evidence",
+  "Likely forbidden — have evidence", "Likely forbidden — no evidence",
   "Locally absent"
+)
+
+# Palette grouped by confusion quadrant; hue signals biological meaning,
+# lightness signals evidence.  Pairs sharing a hue (e.g. the two phantom or
+# the two forbidden labels) use light = have evidence, dark = no evidence.
+map_colors <- c(
+  # TP (correctly predicted present) — teal
+  "Locally unique"                    = "#76C7C0",  # light teal     (unique, TP)
+  "Recurrent"                         = "#1F7E72",  # deep teal      (shared, TP)
+  # FP (falsely predicted present) — warm coral/amber
+  "Phantom — have evidence"           = "#F9C8B0",  # light coral    (all-zero FP, corroborated)
+  "Phantom — no evidence"             = "#C05030",  # dark coral     (all-zero FP)
+  "Possibly missing"                  = "#DBA040",  # amber          (obs-elsewhere FP)
+  # FN (missed by model) — dusty rose
+  "Weak support"                      = "#E8A8B8",  # light rose     (unique, FN)
+  "Model elusive"                     = "#8A3050",  # deep rose      (shared, FN)
+  # TN (correctly predicted absent) — lilac/purple
+  "Likely forbidden — have evidence"  = "#D5C8F0",  # light lavender (all-zero TN, corroborated)
+  "Likely forbidden — no evidence"    = "#5E3DA0",  # dark purple    (all-zero TN)
+  "Locally absent"                    = "lightsteelblue"   # medium lilac   (obs-elsewhere TN)
 )
 
 df_site_cat <- (if (top_method == "obs") df_obs_categorized else df_rpi_categorized) %>%
@@ -364,11 +384,11 @@ df_map <- df_site_cat %>%
   mutate(
     add_obs = interaction_id %in% add_obs_ids_top,
     link_display = factor(case_when(
-      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
-      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -396,7 +416,7 @@ df_map <- df_map %>%
 map_interactive <- ggplot(df_map, aes(x = higher_level, y = lower_level,
                                       fill = link_display)) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Paired", name = "Link category") +
+  scale_fill_manual(values = map_colors, name = "Link category") +
   theme_minimal() +
   theme(
     axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5),
@@ -456,11 +476,11 @@ df_map_rich <- df_site_cat_rich %>%
   mutate(
     add_obs = interaction_id %in% add_obs_ids_rich,
     link_display = factor(case_when(
-      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
-      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -488,13 +508,13 @@ df_map_rich <- df_map_rich %>%
 map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
                                     fill = link_display)) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Paired", name = "Link category") +
+  scale_fill_manual(values = map_colors, name = "Link category") +
   theme_minimal() +
   theme(
-    axis.text.x  = element_text(size = 11, angle = 90, vjust = 0.5),
-    axis.text.y  = element_text(size = 11),
-    legend.title = element_text(size = 14, face = "bold"),
-    legend.text  = element_text(size = 12)
+    axis.text.x  = element_text(size = 13, angle = 90, vjust = 0.5),
+    axis.text.y  = element_text(size = 13),
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.text  = element_text(size = 14)
   ) +
   labs(x = "Pollinator", y = "Plant") +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
@@ -506,17 +526,41 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich
 
-pdf(file   = "results/figures/map_richest_site.pdf",
-    width  = 14,    # inches
-    height = 7,
-    family = "Helvetica"   # or another installed font
-)
-map_rich
-dev.off()
+# pdf(file   = "results/figures/map_richest_site.pdf",
+#     width  = 14,    # inches
+#     height = 7,
+#     family = "Helvetica"   # or another installed font
+# )
+# map_rich
+# dev.off()
+# 
+# ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
+#        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
+# showtext::showtext_opts(dpi = 96)
 
-ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
-       plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
-showtext::showtext_opts(dpi = 96)
+# without axis titles
+map_rich_blank <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
+                                    fill = link_display)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(values = map_colors, name = "Link category") +
+  theme_minimal() +
+  theme(
+    axis.text.x  = element_text(size = 13, angle = 90, vjust = 0.5),
+    axis.text.y  = element_text(size = 13),
+    axis.title = element_blank(),
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.text  = element_text(size = 14)
+  ) +
+  labs(x = "Pollinator", y = "Plant") +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+map_rich_blank
+
 
 ## ---- 9b. Interactive Sankey (Plotly) ----------------------------------------
 # Self-contained HTML — run the dedicated script from project root.
@@ -526,7 +570,7 @@ source("interactive_sankey/make_sankey.R")
 ## ---- 9c. Map for richest rpi (camera) site, corroborated by observations ----
 # Same logic as section 9 but pinned to method == "rpi" so the richest camera
 # site is shown regardless of whether obs or rpi wins the global comparison.
-# Have evidence / No evidence: an interaction is corroborated when it also
+# have evidence / no evidence: an interaction is corroborated when it also
 # appears in the obs ground truth (add_obs_for_rpi).
 rich_row_rpi   <- richness_table %>%
   dplyr::filter(method == "rpi") %>%
@@ -555,11 +599,11 @@ df_map_rpi_rich <- df_site_cat_rpi_rich %>%
   dplyr::mutate(
     add_obs = interaction_id %in% add_obs_for_rpi,
     link_display = factor(dplyr::case_when(
-      link_category == "phantom"          & add_obs  ~ "Phantom — Have evidence",
-      link_category == "phantom"          & !add_obs ~ "Phantom — No evidence",
+      link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
+      link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — Have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — No evidence",
+      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
+      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -587,7 +631,7 @@ df_map_rpi_rich <- df_map_rpi_rich %>%
 map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
                                              fill = link_display)) +
   geom_tile(color = "white") +
-  scale_fill_brewer(palette = "Paired", name = "Link category") +
+  scale_fill_manual(values = map_colors, name = "Link category") +
   theme_minimal() +
   theme(
     axis.text.x  = element_text(size = 11, angle = 90, vjust = 0.5),
@@ -652,31 +696,31 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
 
   # ---- axis 4 ordering, colors, node IDs, and rank vectors -------------------
   # split_all = FALSE (default): only phantom, weak support, likely_forbidden
-  #   are split into Have / No evidence; all other categories pass through.
+  #   are split into have / no evidence; all other categories pass through.
   # split_all = TRUE  (inspection): all 8 categories are split.
   if (!split_all) {
 
     order_L4 <- c(
       "locally_unique",
       "recurrent",
-      "phantom — Have evidence",         "phantom — No evidence",
+      "phantom — have evidence",         "phantom — no evidence",
       "possibly_missing",
       "weak support",
       "model_elusive",
-      "likely_forbidden — Have evidence","likely_forbidden — No evidence",
+      "likely_forbidden — have evidence","likely_forbidden — no evidence",
       "locally_absent"
     )
 
     col_L4 <- c(
       "locally_unique"                    = unname(lav["locally_unique"]),
       "recurrent"                         = unname(col_subcats["recurrent"]),
-      "phantom — Have evidence"           = "aquamarine",
-      "phantom — No evidence"             = unname(lav["phantom"]),
+      "phantom — have evidence"           = "aquamarine",
+      "phantom — no evidence"             = unname(lav["phantom"]),
       "possibly_missing"                  = unname(col_subcats["possibly_missing"]),
       "weak support"                      = unname(lav["weak support"]),
       "model_elusive"                     = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — Have evidence"  = "aquamarine3",
-      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
+      "likely_forbidden — have evidence"  = "aquamarine3",
+      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
       "locally_absent"                    = unname(col_subcats["locally_absent"])
     )
 
@@ -684,12 +728,12 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       TN = 1L, FN = 2L, FP = 3L, TP = 4L,
       "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
       "likely_forbidden"                  =  7L,
-      "likely_forbidden — No evidence"    =  8L,
-      "likely_forbidden — Have evidence"  =  9L,
+      "likely_forbidden — no evidence"    =  8L,
+      "likely_forbidden — have evidence"  =  9L,
       "weak support"                      = 10L,
       "phantom"                           = 13L,
-      "phantom — No evidence"             = 14L,
-      "phantom — Have evidence"           = 15L,
+      "phantom — no evidence"             = 14L,
+      "phantom — have evidence"           = 15L,
       "locally_unique"                    = 16L,
       "locally_absent"                    = 17L,
       "model_elusive"                     = 18L,
@@ -701,54 +745,54 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
       TN = 10, FN = 20, FP = 30, TP = 40,
       likely_forbidden = 10,
-        "likely_forbidden — No evidence" = 11, "likely_forbidden — Have evidence" = 12,
+        "likely_forbidden — no evidence" = 11, "likely_forbidden — have evidence" = 12,
       "weak support" = 20,
       phantom = 30,
-        "phantom — No evidence" = 31, "phantom — Have evidence" = 32,
+        "phantom — no evidence" = 31, "phantom — have evidence" = 32,
       locally_unique = 40, locally_absent = 50,
       model_elusive = 60, possibly_missing = 70, recurrent = 80
     )
 
     node_colors_l4 <- c(
-      "phantom — Have evidence"           = unname(col_L4["phantom — Have evidence"]),
-      "phantom — No evidence"             = unname(col_L4["phantom — No evidence"]),
-      "likely_forbidden — Have evidence"  = unname(col_L4["likely_forbidden — Have evidence"]),
-      "likely_forbidden — No evidence"    = unname(col_L4["likely_forbidden — No evidence"])
+      "phantom — have evidence"           = unname(col_L4["phantom — have evidence"]),
+      "phantom — no evidence"             = unname(col_L4["phantom — no evidence"]),
+      "likely_forbidden — have evidence"  = unname(col_L4["likely_forbidden — have evidence"]),
+      "likely_forbidden — no evidence"    = unname(col_L4["likely_forbidden — no evidence"])
     )
 
   } else {
-    # split_all = TRUE: all 8 categories split — aquamarine3 marks "Have evidence"
+    # split_all = TRUE: all 8 categories split — aquamarine3 marks "have evidence"
     # consistently across all warm and cool category families.
     hev <- "aquamarine3"
 
     order_L4 <- c(
-      "locally_unique — Have evidence",    "locally_unique — No evidence",
-      "recurrent — Have evidence",         "recurrent — No evidence",
-      "phantom — Have evidence",           "phantom — No evidence",
-      "possibly_missing — Have evidence",  "possibly_missing — No evidence",
-      "weak support — Have evidence",      "weak support — No evidence",
-      "model_elusive — Have evidence",     "model_elusive — No evidence",
-      "likely_forbidden — Have evidence",  "likely_forbidden — No evidence",
-      "locally_absent — Have evidence",    "locally_absent — No evidence"
+      "locally_unique — have evidence",    "locally_unique — no evidence",
+      "recurrent — have evidence",         "recurrent — no evidence",
+      "phantom — have evidence",           "phantom — no evidence",
+      "possibly_missing — have evidence",  "possibly_missing — no evidence",
+      "weak support — have evidence",      "weak support — no evidence",
+      "model_elusive — have evidence",     "model_elusive — no evidence",
+      "likely_forbidden — have evidence",  "likely_forbidden — no evidence",
+      "locally_absent — have evidence",    "locally_absent — no evidence"
     )
 
     col_L4 <- c(
-      "locally_unique — Have evidence"    = hev,
-      "locally_unique — No evidence"      = unname(lav["locally_unique"]),
-      "recurrent — Have evidence"         = hev,
-      "recurrent — No evidence"           = unname(col_subcats["recurrent"]),
-      "phantom — Have evidence"           = hev,
-      "phantom — No evidence"             = unname(lav["phantom"]),
-      "possibly_missing — Have evidence"  = hev,
-      "possibly_missing — No evidence"    = unname(col_subcats["possibly_missing"]),
-      "weak support — Have evidence"      = hev,
-      "weak support — No evidence"        = unname(lav["weak support"]),
-      "model_elusive — Have evidence"     = hev,
-      "model_elusive — No evidence"       = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — Have evidence"  = hev,
-      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
-      "locally_absent — Have evidence"    = hev,
-      "locally_absent — No evidence"      = unname(col_subcats["locally_absent"])
+      "locally_unique — have evidence"    = hev,
+      "locally_unique — no evidence"      = unname(lav["locally_unique"]),
+      "recurrent — have evidence"         = hev,
+      "recurrent — no evidence"           = unname(col_subcats["recurrent"]),
+      "phantom — have evidence"           = hev,
+      "phantom — no evidence"             = unname(lav["phantom"]),
+      "possibly_missing — have evidence"  = hev,
+      "possibly_missing — no evidence"    = unname(col_subcats["possibly_missing"]),
+      "weak support — have evidence"      = hev,
+      "weak support — no evidence"        = unname(lav["weak support"]),
+      "model_elusive — have evidence"     = hev,
+      "model_elusive — no evidence"       = unname(col_subcats["model_elusive"]),
+      "likely_forbidden — have evidence"  = hev,
+      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
+      "locally_absent — have evidence"    = hev,
+      "locally_absent — no evidence"      = unname(col_subcats["locally_absent"])
     )
 
     # Axis-3 node IDs kept as-is (7–20); axis-4 split IDs start at 21.
@@ -763,62 +807,62 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "model_elusive"                     = 18L,
       "possibly_missing"                  = 19L,
       "recurrent"                         = 20L,
-      "likely_forbidden — No evidence"    = 21L,
-      "likely_forbidden — Have evidence"  = 22L,
-      "weak support — No evidence"        = 23L,
-      "weak support — Have evidence"      = 24L,
-      "phantom — No evidence"             = 25L,
-      "phantom — Have evidence"           = 26L,
-      "locally_unique — No evidence"      = 27L,
-      "locally_unique — Have evidence"    = 28L,
-      "locally_absent — No evidence"      = 29L,
-      "locally_absent — Have evidence"    = 30L,
-      "model_elusive — No evidence"       = 31L,
-      "model_elusive — Have evidence"     = 32L,
-      "possibly_missing — No evidence"    = 33L,
-      "possibly_missing — Have evidence"  = 34L,
-      "recurrent — No evidence"           = 35L,
-      "recurrent — Have evidence"         = 36L
+      "likely_forbidden — no evidence"    = 21L,
+      "likely_forbidden — have evidence"  = 22L,
+      "weak support — no evidence"        = 23L,
+      "weak support — have evidence"      = 24L,
+      "phantom — no evidence"             = 25L,
+      "phantom — have evidence"           = 26L,
+      "locally_unique — no evidence"      = 27L,
+      "locally_unique — have evidence"    = 28L,
+      "locally_absent — no evidence"      = 29L,
+      "locally_absent — have evidence"    = 30L,
+      "model_elusive — no evidence"       = 31L,
+      "model_elusive — have evidence"     = 32L,
+      "possibly_missing — no evidence"    = 33L,
+      "possibly_missing — have evidence"  = 34L,
+      "recurrent — no evidence"           = 35L,
+      "recurrent — have evidence"         = 36L
     )
 
     rank_vec <- c(
       "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
       TN = 10, FN = 20, FP = 30, TP = 40,
       likely_forbidden = 10,
-        "likely_forbidden — No evidence" = 11, "likely_forbidden — Have evidence" = 12,
+        "likely_forbidden — no evidence" = 11, "likely_forbidden — have evidence" = 12,
       "weak support" = 20,
-        "weak support — No evidence" = 21, "weak support — Have evidence" = 22,
+        "weak support — no evidence" = 21, "weak support — have evidence" = 22,
       phantom = 30,
-        "phantom — No evidence" = 31, "phantom — Have evidence" = 32,
+        "phantom — no evidence" = 31, "phantom — have evidence" = 32,
       locally_unique = 40,
-        "locally_unique — No evidence" = 41, "locally_unique — Have evidence" = 42,
+        "locally_unique — no evidence" = 41, "locally_unique — have evidence" = 42,
       locally_absent = 50,
-        "locally_absent — No evidence" = 51, "locally_absent — Have evidence" = 52,
+        "locally_absent — no evidence" = 51, "locally_absent — have evidence" = 52,
       model_elusive = 60,
-        "model_elusive — No evidence" = 61, "model_elusive — Have evidence" = 62,
+        "model_elusive — no evidence" = 61, "model_elusive — have evidence" = 62,
       possibly_missing = 70,
-        "possibly_missing — No evidence" = 71, "possibly_missing — Have evidence" = 72,
+        "possibly_missing — no evidence" = 71, "possibly_missing — have evidence" = 72,
       recurrent = 80,
-        "recurrent — No evidence" = 81, "recurrent — Have evidence" = 82
+        "recurrent — no evidence" = 81, "recurrent — have evidence" = 82
     )
 
     node_colors_l4 <- c(
-      "locally_unique — Have evidence"    = hev,
-      "locally_unique — No evidence"      = unname(lav["locally_unique"]),
-      "recurrent — Have evidence"         = hev,
-      "recurrent — No evidence"           = unname(col_subcats["recurrent"]),
-      "phantom — Have evidence"           = hev,
-      "phantom — No evidence"             = unname(lav["phantom"]),
-      "possibly_missing — Have evidence"  = hev,
-      "possibly_missing — No evidence"    = unname(col_subcats["possibly_missing"]),
-      "weak support — Have evidence"      = hev,
-      "weak support — No evidence"        = unname(lav["weak support"]),
-      "model_elusive — Have evidence"     = hev,
-      "model_elusive — No evidence"       = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — Have evidence"  = hev,
-      "likely_forbidden — No evidence"    = unname(lav["likely_forbidden"]),
-      "locally_absent — Have evidence"    = hev,
-      "locally_absent — No evidence"      = unname(col_subcats["locally_absent"])
+      "locally_unique — have evidence"    = hev,
+      "locally_unique — no evidence"      = unname(lav["locally_unique"]),
+      "recurrent — have evidence"         = hev,
+      "recurrent — no evidence"           = unname(col_subcats["recurrent"]),
+      "phantom — have evidence"           = hev,
+      "phantom — no evidence"             = unname(lav["phantom"]),
+      "possibly_missing — have evidence"  = hev,
+      "possibly_missing — no evidence"    = unname(col_subcats["possibly_missing"]),
+      "weak support — have evidence"      = hev,
+      "weak support — no evidence"        = unname(lav["weak support"]),
+      "model_elusive — have evidence"     = hev,
+      "model_elusive — no evidence"       = unname(col_subcats["model_elusive"]),
+      "likely_forbidden — have evidence"  = hev,
+      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
+      "locally_absent — have evidence"    = hev,
+      "locally_absent — no evidence"      = unname(col_subcats["locally_absent"])
     )
   }
 
@@ -833,30 +877,30 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       add_obs = interaction_id %in% add_obs_ids,
       L4 = if (!split_all) {
         dplyr::case_when(
-          link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
-          link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
-          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
-          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
+          link_category == "phantom"          & add_obs  ~ "phantom — have evidence",
+          link_category == "phantom"          & !add_obs ~ "phantom — no evidence",
+          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
+          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
           TRUE ~ link_category
         )
       } else {
         dplyr::case_when(
-          link_category == "locally_unique"   & add_obs  ~ "locally_unique — Have evidence",
-          link_category == "locally_unique"   & !add_obs ~ "locally_unique — No evidence",
-          link_category == "recurrent"        & add_obs  ~ "recurrent — Have evidence",
-          link_category == "recurrent"        & !add_obs ~ "recurrent — No evidence",
-          link_category == "phantom"          & add_obs  ~ "phantom — Have evidence",
-          link_category == "phantom"          & !add_obs ~ "phantom — No evidence",
-          link_category == "possibly_missing" & add_obs  ~ "possibly_missing — Have evidence",
-          link_category == "possibly_missing" & !add_obs ~ "possibly_missing — No evidence",
-          link_category == "weak support"     & add_obs  ~ "weak support — Have evidence",
-          link_category == "weak support"     & !add_obs ~ "weak support — No evidence",
-          link_category == "model_elusive"    & add_obs  ~ "model_elusive — Have evidence",
-          link_category == "model_elusive"    & !add_obs ~ "model_elusive — No evidence",
-          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — Have evidence",
-          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — No evidence",
-          link_category == "locally_absent"   & add_obs  ~ "locally_absent — Have evidence",
-          link_category == "locally_absent"   & !add_obs ~ "locally_absent — No evidence",
+          link_category == "locally_unique"   & add_obs  ~ "locally_unique — have evidence",
+          link_category == "locally_unique"   & !add_obs ~ "locally_unique — no evidence",
+          link_category == "recurrent"        & add_obs  ~ "recurrent — have evidence",
+          link_category == "recurrent"        & !add_obs ~ "recurrent — no evidence",
+          link_category == "phantom"          & add_obs  ~ "phantom — have evidence",
+          link_category == "phantom"          & !add_obs ~ "phantom — no evidence",
+          link_category == "possibly_missing" & add_obs  ~ "possibly_missing — have evidence",
+          link_category == "possibly_missing" & !add_obs ~ "possibly_missing — no evidence",
+          link_category == "weak support"     & add_obs  ~ "weak support — have evidence",
+          link_category == "weak support"     & !add_obs ~ "weak support — no evidence",
+          link_category == "model_elusive"    & add_obs  ~ "model_elusive — have evidence",
+          link_category == "model_elusive"    & !add_obs ~ "model_elusive — no evidence",
+          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
+          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
+          link_category == "locally_absent"   & add_obs  ~ "locally_absent — have evidence",
+          link_category == "locally_absent"   & !add_obs ~ "locally_absent — no evidence",
           TRUE ~ link_category
         )
       }
@@ -1076,8 +1120,8 @@ gg_rpi_sankey_clean
 #        plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)
 
-# ---- inspection versions: all 8 categories split into Have / No evidence ----
-# split_all = TRUE adds Have evidence / No evidence at axis 4 for every category,
+# ---- inspection versions: all 8 categories split into have / no evidence ----
+# split_all = TRUE adds have evidence / no evidence at axis 4 for every category,
 # not just phantom / weak support / likely_forbidden.  For inspection only.
 gg_obs_sankey_full <- make_sankey_validated(
   df_obs_categorized,
@@ -1121,9 +1165,9 @@ gg_rpi_sankey_full
 #     · locally_absent   — recorded at ≥1 other site under this method,
 #                          but model correctly predicts absence here (locally unsuitable)
 #
-# CROSS-METHOD EVIDENCE ("Have evidence"): the interaction_id appears as
+# CROSS-METHOD EVIDENCE ("have evidence"): the interaction_id appears as
 #   ground_truth == 1 in the orthogonal sampling method (cameras for obs, or
-#   vice versa).  "% corroborated" = Have evidence / category total.
+#   vice versa).  "% corroborated" = have evidence / category total.
 summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_name) {
   df <- df_cat %>%
     dplyr::filter(link_category != "unclassified", confusion != "UNK") %>%
@@ -1166,7 +1210,7 @@ summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_
     hdr <- sprintf("  %-20s  %7s  %-14s  %-16s  %s\n",
                    "Category", "n",
                    sprintf("%% of %s", denom_label),
-                   sprintf("Have evidence (%s)", other_method_name),
+                   sprintf("have evidence (%s)", other_method_name),
                    "% corroborated")
     cat(hdr)
     cat(strrep("-", nchar(hdr) - 1L), "\n")
