@@ -561,6 +561,8 @@ map_rich_blank <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich_blank
 
+# ggsave("results/figures/map_rich_blank.svg",
+#        plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
 
 ## ---- 9b. Interactive Sankey (Plotly) ----------------------------------------
 # Self-contained HTML — run the dedicated script from project root.
@@ -655,10 +657,6 @@ map_rpi_rich
 #        plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
 # ggsave("results/figures/map_richest_rpi_site.png",
 #        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
-
-ggsave("results/figures/map_richest_rpi_site.png",
-       plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
-
 ## ---- 10. Sankey alluvial — ggsankey ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
 library(ggsankey)
