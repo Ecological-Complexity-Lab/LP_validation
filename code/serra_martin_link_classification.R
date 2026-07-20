@@ -1,9 +1,9 @@
 # ---- Serra-Martin link classification and alluvial plots ----
 # Loads cross-site SVD prediction results, classifies predicted links via
-# spatial corroboration across 6 habitat patches, then validates each method's
+# spatial corroboration across 6 habitat patches, then corroborates each method's
 # classifications using evidence from the other sampling method.
 # Produces two 4-axis alluvial plots (one per method) and a tile map for
-# the highest-connectance site, following canary_link_classification.R.
+# the most species-rich site.
 
 source("code/common.R")
 library(dplyr)
@@ -14,7 +14,7 @@ library(ggplot2)
 library(ggalluvial)
 library(scales)
 
-## ---- 1. Alluvial aesthetics (matching cross_location_cross_method.R) ----
+## ---- Aesthetics (matching cross_location_cross_method.R) ----
 col_confusion <- c("TP" = "lightsteelblue1",  "FP" = "lightsteelblue",
                    "TN" = "rosybrown",        "FN" = "rosybrown2")
 col_validation <- c("Observed elsewhere"     = "sandybrown",
@@ -50,7 +50,7 @@ label_color_map <- c("Confusion"  = "mistyrose4",
                      "Validation" = "mistyrose4",
                      "Subtype"    = "mistyrose4")
 
-## ---- 2. Functions (from cross_location_cross_method.R) ----
+## ---- Functions ----
 classify_by_location <- function(df_all, method_name) {
   df_method <- df_all %>% filter(method == method_name)
 
@@ -257,7 +257,7 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
     )
 }
 
-## ---- 3. Load prediction CSVs ----
+## ---- Load prediction CSVs ----
 df_all <- read_csv(
   "results/predictions/serra_martin_loo_prediction_results.csv",
   show_col_types = FALSE
@@ -265,7 +265,7 @@ df_all <- read_csv(
   rename(location = focal_site, classification = prediction) %>%
   mutate(interaction_id = paste(higher_level, lower_level, sep = "___"))
 
-## ---- 4. Classify by location (spatial corroboration) ----
+## ---- Classify by location (contextual evidence) ----
 results_obs <- classify_by_location(df_all, "obs")
 results_rpi <- classify_by_location(df_all, "rpi")
 
@@ -275,7 +275,7 @@ summary_obs        <- results_obs$summary
 df_rpi_categorized <- results_rpi$categorized
 summary_rpi        <- results_rpi$summary
 
-## ---- 5. Cross-method validation ----
+## ---- Cross-method evidence ----
 # Additional evidence: interaction IDs with ground_truth == 1 in the other method
 add_obs_for_obs <- df_all %>%
   filter(method == "rpi", ground_truth == 1) %>%
@@ -290,7 +290,7 @@ cat(sprintf("Cross-method (rpi → obs validation): %d interaction IDs\n",
 cat(sprintf("Cross-method (obs → rpi validation): %d interaction IDs\n",
             length(add_obs_for_rpi)))
 
-## ---- 6. Alluvial plots ----
+## ---- Alluvial plots ----
 gg_obs_validated <- make_alluvial_validated(
   df_obs_categorized,
   add_obs_ids      = add_obs_for_obs, # these are validations using the orthogonal method (unique interactions that are ground_truth == 1 using cameras, in this case)
@@ -307,7 +307,7 @@ gg_rpi_validated <- make_alluvial_validated(
 )
 gg_rpi_validated
 
-## ---- 7. Highest-connectance site ----
+## ---- Highest-connectance site ----
 connectance_table <- df_all %>%
   group_by(location, method) %>%
   summarise(
@@ -329,7 +329,7 @@ top_method <- top_row$method
 cat(sprintf("\nHighest-connectance site: %s (%s) — connectance = %.3f\n",
             top_site, top_method, top_row$connectance))
 
-## ---- 8. Map for highest-connectance site ----
+### ---- Map for highest-connectance site ----
 # Level order mirrors the Sankey axis-4 grouping (used by both maps).
 map_display_levels <- c(
   "Locally unique",
@@ -434,7 +434,7 @@ map_interactive <- ggplot(df_map, aes(x = higher_level, y = lower_level,
 
 map_interactive
 
-## ---- 9. Map for most species-rich site ----
+## ---- Map for most species-rich site ----
 richness_table <- df_all %>%
   filter(ground_truth == 1) %>%
   group_by(location, method) %>%
@@ -564,12 +564,12 @@ map_rich_blank
 # ggsave("results/figures/map_rich_blank.svg",
 #        plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
 
-## ---- 9b. Interactive Sankey (Plotly) ----------------------------------------
+## ---- Interactive Sankey (Plotly) ----------------------------------------
 # Self-contained HTML — run the dedicated script from project root.
 # Requires: plotly, htmlwidgets  (install.packages(c("plotly","htmlwidgets")))
 source("interactive_sankey/make_sankey.R")
 
-## ---- 9c. Map for richest rpi (camera) site, corroborated by observations ----
+## ---- Map for richest rpi (camera) site, corroborated by observations ----
 # Same logic as section 9 but pinned to method == "rpi" so the richest camera
 # site is shown regardless of whether obs or rpi wins the global comparison.
 # have evidence / no evidence: an interaction is corroborated when it also
@@ -657,7 +657,8 @@ map_rpi_rich
 #        plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
 # ggsave("results/figures/map_richest_rpi_site.png",
 #        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
-## ---- 10. Sankey alluvial — ggsankey ----
+
+## ---- Final Sankey alluvial plot ----
 # install once: devtools::install_github("davidsjoberg/ggsankey")
 library(ggsankey)
 # showtext + systemfonts: finds .otf fonts that extrafont misses.
@@ -1075,7 +1076,7 @@ gg_obs_sankey
 #        plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)  # reset to screen dpi for viewer
 
-# ---- unlabelled version (show_labels = FALSE) --------------------------------
+# ---- Alluvial unlabelled version: observations data (show_labels = FALSE) --------------------------------
 gg_obs_sankey_clean <- make_sankey_validated(
   df_obs_categorized,
   add_obs_ids      = add_obs_for_obs,
@@ -1105,7 +1106,7 @@ gg_rpi_sankey
 #        plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
 # showtext::showtext_opts(dpi = 96)
 
-# ---- unlabelled version (show_labels = FALSE) --------------------------------
+# ---- Alluvial unlabelled version: camera data (show_labels = FALSE) --------------------------------
 gg_rpi_sankey_clean <- make_sankey_validated(
   df_rpi_categorized,
   add_obs_ids      = add_obs_for_rpi,
@@ -1142,7 +1143,7 @@ gg_rpi_sankey_full <- make_sankey_validated(
 )
 gg_rpi_sankey_full
 
-## ---- 11. Summary: unobserved link breakdown ----
+## ---- Summary: unobserved link breakdown ----
 # For a given sampling method, pooling all six sites:
 #
 # LINK-SITE RECORDS: the unit of observation.  Each record = one unique species-pair
