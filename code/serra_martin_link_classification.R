@@ -27,7 +27,7 @@ col_subcats <- c(
   "possibly_missing" = "coral1",
   "phantom"          = "thistle",
   "locally_absent"   = "coral3",
-  "likely_forbidden" = "thistle2"
+  "possibly_forbidden" = "thistle2"
 )
 stratum_fill <- c(col_confusion, col_validation, col_subcats)
 
@@ -35,7 +35,7 @@ order_confusion  <- c("TP", "FP", "TN", "FN")
 order_validation <- c("Not observed elsewhere", "Observed elsewhere")
 order_subtypes   <- c(
   "locally_unique",   "phantom",
-  "likely_forbidden", "weak support",
+  "possibly_forbidden", "weak support",
   "recurrent",        "possibly_missing",
   "locally_absent",   "model_elusive"
 )
@@ -78,7 +78,7 @@ classify_by_location <- function(df_all, method_name) {
         is_unique     & original_binary == 1 & predicted_bin == 0 ~ "weak support",
         is_shared     & original_binary == 1 & predicted_bin == 1 ~ "recurrent",
         is_shared     & original_binary == 1 & predicted_bin == 0 ~ "model_elusive",
-        is_all_zero   & original_binary == 0 & predicted_bin == 0 ~ "likely_forbidden",
+        is_all_zero   & original_binary == 0 & predicted_bin == 0 ~ "possibly_forbidden",
         is_all_zero   & original_binary == 0 & predicted_bin == 1 ~ "phantom",
         obs_elsewhere & original_binary == 0 & predicted_bin == 0 ~ "locally_absent",
         obs_elsewhere & original_binary == 0 & predicted_bin == 1 ~ "possibly_missing",
@@ -102,14 +102,14 @@ classify_by_location <- function(df_all, method_name) {
 
 make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
                                     validation_label = "Additional method") {
-  # "weak support" and "likely_forbidden" split by cross-method evidence;
+  # "weak support" and "possibly_forbidden" split by cross-method evidence;
   # "phantom" and all other subtypes pass through to L4 unchanged.
   order_L4 <- c(
     "locally_unique",
     "phantom",
     "weak support — have evidence", "weak support — no evidence",
     "recurrent", "possibly_missing", "locally_absent", "model_elusive",
-    "likely_forbidden — have evidence", "likely_forbidden — no evidence"
+    "possibly_forbidden — have evidence", "possibly_forbidden — no evidence"
   )
   col_L4 <- c(
     "locally_unique"                   = unname(col_subcats["locally_unique"]),
@@ -120,8 +120,8 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
     "possibly_missing"                 = unname(col_subcats["possibly_missing"]),
     "locally_absent"                   = unname(col_subcats["locally_absent"]),
     "model_elusive"                    = unname(col_subcats["model_elusive"]),
-    "likely_forbidden — have evidence" = "plum3",    # likely_forbidden → more saturated
-    "likely_forbidden — no evidence"   = "thistle1"  # likely_forbidden → lighter/washed-out
+    "possibly_forbidden — have evidence" = "plum3",    # possibly_forbidden → more saturated
+    "possibly_forbidden — no evidence"   = "thistle1"  # possibly_forbidden → lighter/washed-out
   )
   stratum_fill_4    <- c(stratum_fill, col_L4)
   axis4_label       <- validation_label
@@ -135,8 +135,8 @@ make_alluvial_validated <- function(df_categorized, add_obs_ids, method_label,
       L4 = dplyr::case_when(
         link_category == "weak support"      & add_obs  ~ "weak support — have evidence",
         link_category == "weak support"      & !add_obs ~ "weak support — no evidence",
-        link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
-        link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
+        link_category == "possibly_forbidden" & add_obs  ~ "possibly_forbidden — have evidence",
+        link_category == "possibly_forbidden" & !add_obs ~ "possibly_forbidden — no evidence",
         TRUE ~ link_category
       )
     ) %>%
@@ -338,7 +338,7 @@ map_display_levels <- c(
   "Possibly missing",
   "Weak support",
   "Model elusive",
-  "Likely forbidden — have evidence", "Likely forbidden — no evidence",
+  "Possibly forbidden — have evidence", "Possibly forbidden — no evidence",
   "Locally absent"
 )
 
@@ -357,8 +357,8 @@ map_colors <- c(
   "Weak support"                      = "#E8A8B8",  # light rose     (unique, FN)
   "Model elusive"                     = "#8A3050",  # deep rose      (shared, FN)
   # TN (correctly predicted absent) — lilac/purple
-  "Likely forbidden — have evidence"  = "#D5C8F0",  # light lavender (all-zero TN, corroborated)
-  "Likely forbidden — no evidence"    = "#5E3DA0",  # dark purple    (all-zero TN)
+  "Possibly forbidden — have evidence"  = "#D5C8F0",  # light lavender (all-zero TN, corroborated)
+  "Possibly forbidden — no evidence"    = "#5E3DA0",  # dark purple    (all-zero TN)
   "Locally absent"                    = "lightsteelblue"   # medium lilac   (obs-elsewhere TN)
 )
 
@@ -387,8 +387,8 @@ df_map <- df_site_cat %>%
       link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
+      link_category == "possibly_forbidden" & add_obs  ~ "Possibly forbidden — have evidence",
+      link_category == "possibly_forbidden" & !add_obs ~ "Possibly forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -479,8 +479,8 @@ df_map_rich <- df_site_cat_rich %>%
       link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
+      link_category == "possibly_forbidden" & add_obs  ~ "Possibly forbidden — have evidence",
+      link_category == "possibly_forbidden" & !add_obs ~ "Possibly forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -604,8 +604,8 @@ df_map_rpi_rich <- df_site_cat_rpi_rich %>%
       link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
       link_category == "weak support"      ~ "Weak support",
-      link_category == "likely_forbidden" & add_obs  ~ "Likely forbidden — have evidence",
-      link_category == "likely_forbidden" & !add_obs ~ "Likely forbidden — no evidence",
+      link_category == "possibly_forbidden" & add_obs  ~ "Possibly forbidden — have evidence",
+      link_category == "possibly_forbidden" & !add_obs ~ "Possibly forbidden — no evidence",
       link_category == "locally_unique"   ~ "Locally unique",
       link_category == "recurrent"        ~ "Recurrent",
       link_category == "model_elusive"    ~ "Model elusive",
@@ -690,14 +690,14 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
                                    show_labels = TRUE,
                                    split_all = FALSE) {
 
-  # ---- lavender gradient (locally_unique lightest → likely_forbidden darkest) -
+  # ---- lavender gradient (locally_unique lightest → possibly_forbidden darkest) -
   lav <- c(locally_unique    = "#C3BAD5",
             phantom           = "#AFA2C4",
             `weak support`    = "#9B8BB4",
-            likely_forbidden  = "#8878A4")
+            possibly_forbidden  = "#8878A4")
 
   # ---- axis 4 ordering, colors, node IDs, and rank vectors -------------------
-  # split_all = FALSE (default): only phantom, weak support, likely_forbidden
+  # split_all = FALSE (default): only phantom, weak support, possibly_forbidden
   #   are split into have / no evidence; all other categories pass through.
   # split_all = TRUE  (inspection): all 8 categories are split.
   if (!split_all) {
@@ -709,7 +709,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "possibly_missing",
       "weak support",
       "model_elusive",
-      "likely_forbidden — have evidence","likely_forbidden — no evidence",
+      "possibly_forbidden — have evidence","possibly_forbidden — no evidence",
       "locally_absent"
     )
 
@@ -721,17 +721,17 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "possibly_missing"                  = unname(col_subcats["possibly_missing"]),
       "weak support"                      = unname(lav["weak support"]),
       "model_elusive"                     = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — have evidence"  = "aquamarine3",
-      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
+      "possibly_forbidden — have evidence"  = "aquamarine3",
+      "possibly_forbidden — no evidence"    = unname(lav["possibly_forbidden"]),
       "locally_absent"                    = unname(col_subcats["locally_absent"])
     )
 
     node_id_vec <- c(
       TN = 1L, FN = 2L, FP = 3L, TP = 4L,
       "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
-      "likely_forbidden"                  =  7L,
-      "likely_forbidden — no evidence"    =  8L,
-      "likely_forbidden — have evidence"  =  9L,
+      "possibly_forbidden"                  =  7L,
+      "possibly_forbidden — no evidence"    =  8L,
+      "possibly_forbidden — have evidence"  =  9L,
       "weak support"                      = 10L,
       "phantom"                           = 13L,
       "phantom — no evidence"             = 14L,
@@ -746,8 +746,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     rank_vec <- c(
       "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
       TN = 10, FN = 20, FP = 30, TP = 40,
-      likely_forbidden = 10,
-        "likely_forbidden — no evidence" = 11, "likely_forbidden — have evidence" = 12,
+      possibly_forbidden = 10,
+        "possibly_forbidden — no evidence" = 11, "possibly_forbidden — have evidence" = 12,
       "weak support" = 20,
       phantom = 30,
         "phantom — no evidence" = 31, "phantom — have evidence" = 32,
@@ -758,8 +758,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     node_colors_l4 <- c(
       "phantom — have evidence"           = unname(col_L4["phantom — have evidence"]),
       "phantom — no evidence"             = unname(col_L4["phantom — no evidence"]),
-      "likely_forbidden — have evidence"  = unname(col_L4["likely_forbidden — have evidence"]),
-      "likely_forbidden — no evidence"    = unname(col_L4["likely_forbidden — no evidence"])
+      "possibly_forbidden — have evidence"  = unname(col_L4["possibly_forbidden — have evidence"]),
+      "possibly_forbidden — no evidence"    = unname(col_L4["possibly_forbidden — no evidence"])
     )
 
   } else {
@@ -774,7 +774,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "possibly_missing — have evidence",  "possibly_missing — no evidence",
       "weak support — have evidence",      "weak support — no evidence",
       "model_elusive — have evidence",     "model_elusive — no evidence",
-      "likely_forbidden — have evidence",  "likely_forbidden — no evidence",
+      "possibly_forbidden — have evidence",  "possibly_forbidden — no evidence",
       "locally_absent — have evidence",    "locally_absent — no evidence"
     )
 
@@ -791,8 +791,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "weak support — no evidence"        = unname(lav["weak support"]),
       "model_elusive — have evidence"     = hev,
       "model_elusive — no evidence"       = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — have evidence"  = hev,
-      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
+      "possibly_forbidden — have evidence"  = hev,
+      "possibly_forbidden — no evidence"    = unname(lav["possibly_forbidden"]),
       "locally_absent — have evidence"    = hev,
       "locally_absent — no evidence"      = unname(col_subcats["locally_absent"])
     )
@@ -801,7 +801,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     node_id_vec <- c(
       TN = 1L, FN = 2L, FP = 3L, TP = 4L,
       "Not observed elsewhere" = 5L, "Observed elsewhere" = 6L,
-      "likely_forbidden"                  =  7L,
+      "possibly_forbidden"                  =  7L,
       "weak support"                      = 10L,
       "phantom"                           = 13L,
       "locally_unique"                    = 16L,
@@ -809,8 +809,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "model_elusive"                     = 18L,
       "possibly_missing"                  = 19L,
       "recurrent"                         = 20L,
-      "likely_forbidden — no evidence"    = 21L,
-      "likely_forbidden — have evidence"  = 22L,
+      "possibly_forbidden — no evidence"    = 21L,
+      "possibly_forbidden — have evidence"  = 22L,
       "weak support — no evidence"        = 23L,
       "weak support — have evidence"      = 24L,
       "phantom — no evidence"             = 25L,
@@ -830,8 +830,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     rank_vec <- c(
       "Not observed elsewhere" = 10, "Observed elsewhere" = 20,
       TN = 10, FN = 20, FP = 30, TP = 40,
-      likely_forbidden = 10,
-        "likely_forbidden — no evidence" = 11, "likely_forbidden — have evidence" = 12,
+      possibly_forbidden = 10,
+        "possibly_forbidden — no evidence" = 11, "possibly_forbidden — have evidence" = 12,
       "weak support" = 20,
         "weak support — no evidence" = 21, "weak support — have evidence" = 22,
       phantom = 30,
@@ -861,8 +861,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
       "weak support — no evidence"        = unname(lav["weak support"]),
       "model_elusive — have evidence"     = hev,
       "model_elusive — no evidence"       = unname(col_subcats["model_elusive"]),
-      "likely_forbidden — have evidence"  = hev,
-      "likely_forbidden — no evidence"    = unname(lav["likely_forbidden"]),
+      "possibly_forbidden — have evidence"  = hev,
+      "possibly_forbidden — no evidence"    = unname(lav["possibly_forbidden"]),
       "locally_absent — have evidence"    = hev,
       "locally_absent — no evidence"      = unname(col_subcats["locally_absent"])
     )
@@ -881,8 +881,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
         dplyr::case_when(
           link_category == "phantom"          & add_obs  ~ "phantom — have evidence",
           link_category == "phantom"          & !add_obs ~ "phantom — no evidence",
-          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
-          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
+          link_category == "possibly_forbidden" & add_obs  ~ "possibly_forbidden — have evidence",
+          link_category == "possibly_forbidden" & !add_obs ~ "possibly_forbidden — no evidence",
           TRUE ~ link_category
         )
       } else {
@@ -899,8 +899,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
           link_category == "weak support"     & !add_obs ~ "weak support — no evidence",
           link_category == "model_elusive"    & add_obs  ~ "model_elusive — have evidence",
           link_category == "model_elusive"    & !add_obs ~ "model_elusive — no evidence",
-          link_category == "likely_forbidden" & add_obs  ~ "likely_forbidden — have evidence",
-          link_category == "likely_forbidden" & !add_obs ~ "likely_forbidden — no evidence",
+          link_category == "possibly_forbidden" & add_obs  ~ "possibly_forbidden — have evidence",
+          link_category == "possibly_forbidden" & !add_obs ~ "possibly_forbidden — no evidence",
           link_category == "locally_absent"   & add_obs  ~ "locally_absent — have evidence",
           link_category == "locally_absent"   & !add_obs ~ "locally_absent — no evidence",
           TRUE ~ link_category
@@ -969,7 +969,7 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
     "possibly_missing"       = unname(col_subcats["possibly_missing"]),
     "weak support"           = unname(lav["weak support"]),
     "model_elusive"          = unname(col_subcats["model_elusive"]),
-    "likely_forbidden"       = unname(lav["likely_forbidden"]),
+    "possibly_forbidden"       = unname(lav["possibly_forbidden"]),
     "locally_absent"         = unname(col_subcats["locally_absent"]),
     node_colors_l4
   )
@@ -1124,7 +1124,7 @@ gg_rpi_sankey_clean
 
 # ---- inspection versions: all 8 categories split into have / no evidence ----
 # split_all = TRUE adds have evidence / no evidence at axis 4 for every category,
-# not just phantom / weak support / likely_forbidden.  For inspection only.
+# not just phantom / weak support / possibly_forbidden.  For inspection only.
 gg_obs_sankey_full <- make_sankey_validated(
   df_obs_categorized,
   add_obs_ids      = add_obs_for_obs,
@@ -1143,7 +1143,7 @@ gg_rpi_sankey_full <- make_sankey_validated(
 )
 gg_rpi_sankey_full
 
-## ---- Summary: unobserved link breakdown ----
+# ---- Summary: unobserved link breakdown ----
 # For a given sampling method, pooling all six sites:
 #
 # LINK-SITE RECORDS: the unit of observation.  Each record = one unique species-pair
@@ -1162,7 +1162,7 @@ gg_rpi_sankey_full
 #     · possibly_missing — recorded at ≥1 other site under this method,
 #                          but absent here (likely a detection gap)
 #   TN (true negative)   — unobserved at this site and the model correctly predicted absent.
-#     · likely_forbidden — never recorded at ANY site under this method
+#     · possibly_forbidden — never recorded at ANY site under this method
 #                          (the model concurs: the interaction is probably impossible)
 #     · locally_absent   — recorded at ≥1 other site under this method,
 #                          but model correctly predicts absence here (locally unsuitable)
@@ -1263,7 +1263,7 @@ summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_
   cat(sprintf(
     "\n--- UNOBSERVED & PREDICTED ABSENT (TN, n = %d records) ---\n", n_tn))
   cat(sprintf(
-    "    likely_forbidden = predicted absent, never recorded at any site under %s\n",
+    "    possibly_forbidden = predicted absent, never recorded at any site under %s\n",
     method_name))
   cat(sprintf(
     "    locally_absent   = predicted absent, recorded at ≥1 other site under %s\n\n",
