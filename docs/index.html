@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive companions — Contextual evidence for classifying ecological interactions</title>
+<meta name="description" content="Two interactive companion tools to a framework for classifying predicted species interactions using contextual evidence from replicated ecological networks.">
+<meta property="og:title" content="Contextual evidence for classifying interactions — interactive companions">
+<meta property="og:description" content="Explore the eight-class link taxonomy: a Bayesian reading of classification confidence, and an interactive alluvial view of a Mediterranean plant–pollinator system.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --accent:#E07B39; --accent-d:#B4531A;
+    --text:#1f2933; --muted:#5b6472;
+    --card:#ffffff; --bg:#f5f6f8; --border:#e2e5ea;
+    --pos:#3B82C4; --neg:#C0607A;
+    /* link-taxonomy palette, shared with both apps */
+    --recurrent:#FF7256; --possibly-missing:#FF7256; --locally-absent:#CD5B45;
+    --phantom:#AFA2C4; --forbidden:#8878A4; --unique:#C3BAD5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:0 auto;padding:34px 20px 72px}
+
+  /* ---- site header ---- */
+  .sitehead{background:#fff;border-bottom:1px solid var(--border);
+    padding:13px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .sitehead a.lab{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+  .sitehead a.lab img{height:40px;width:auto;display:block}
+  .sitehead .gh{display:flex;align-items:center;gap:6px;font-size:12px;
+    color:var(--muted);text-decoration:none}
+  .sitehead .gh:hover{color:var(--text)}
+  .sitehead .gh svg{width:19px;height:19px;fill:currentColor}
+  @media(max-width:520px){.sitehead{padding:12px 18px}}
+
+  /* ---- masthead ---- */
+  .eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+    font-weight:650;margin:0 0 14px}
+  h1{font-size:31px;line-height:1.25;margin:0 0 14px;font-weight:750;letter-spacing:-.011em;max-width:20ch}
+  .authors{font-size:14px;color:var(--muted);margin:0 0 18px}
+  .lede{font-size:16px;color:var(--muted);margin:0;max-width:66ch}
+  .lede b{color:var(--text);font-weight:600}
+  .rule{height:1px;background:var(--border);margin:34px 0 30px}
+
+  /* ---- taxonomy strip ---- */
+  .strip{display:flex;gap:3px;margin:0 0 10px;height:7px;border-radius:4px;overflow:hidden;max-width:520px}
+  .strip i{flex:1;display:block}
+
+  /* ---- app cards ---- */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.cards{grid-template-columns:1fr}}
+  .app{background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:0;overflow:hidden;display:flex;flex-direction:column;
+    box-shadow:0 1px 2px rgba(20,30,50,.04);transition:box-shadow .16s,transform .16s,border-color .16s;
+    text-decoration:none;color:inherit}
+  .app:hover{box-shadow:0 10px 30px rgba(20,30,50,.11);transform:translateY(-2px);border-color:#d4d9e0}
+  .thumb{height:150px;background:#fbfcfd;border-bottom:1px solid var(--border);
+    display:block;width:100%;object-fit:contain;object-position:center;padding:9px}
+  .app-body{padding:17px 19px 19px;display:flex;flex-direction:column;flex:1}
+  .app h2{font-size:16.5px;margin:0 0 3px;font-weight:680;letter-spacing:-.005em}
+  .app .box{font-size:11.5px;color:var(--accent-d);font-weight:650;letter-spacing:.03em;
+    text-transform:uppercase;margin:0 0 9px}
+  .app p{font-size:13.5px;color:var(--muted);margin:0 0 14px;flex:1}
+  .app ul{margin:0 0 15px;padding:0;list-style:none}
+  .app li{font-size:12.5px;color:var(--muted);padding-left:15px;position:relative;margin-bottom:3px}
+  .app li::before{content:"";position:absolute;left:0;top:7px;width:5px;height:5px;
+    border-radius:50%;background:var(--accent);opacity:.55}
+  .go{font-size:13px;font-weight:650;color:var(--accent-d);display:inline-flex;align-items:center;gap:6px}
+  .go svg{transition:transform .16s}
+  .app:hover .go svg{transform:translateX(3px)}
+
+  /* ---- notes ---- */
+  .datarule{border:none;border-top:1px solid var(--border);margin:30px 0 20px}
+  .datanote{font-size:12.5px;color:var(--muted);line-height:1.7;margin:0}
+  .datanote a{color:var(--accent-d)}
+  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--border);
+    font-size:12.5px;color:var(--muted)}
+  footer p{margin:0 0 5px}
+  footer a{color:var(--muted)}
+  footer a:hover{color:var(--text)}
+</style>
+</head>
+<body>
+
+<header class="sitehead">
+  <a class="lab" href="https://ecomplab.com" target="_blank" rel="noopener">
+    <img src="ecomplab_logo.png" alt="Ecological Complexity Lab">
+  </a>
+  <a class="gh" href="https://github.com/Ecological-Complexity-Lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.29 9.42 7.86 10.95.57.1.78-.25.78-.55v-1.92c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.68 1.24 3.33.95.1-.74.4-1.24.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.17a10.95 10.95 0 0 1 2.87-.39c.97 0 1.95.13 2.87.39 2.18-1.48 3.14-1.17 3.14-1.17.63 1.59.23 2.76.11 3.05.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.15v3.19c0 .3.2.66.79.55C20.22 21.41 23.5 17.1 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+    GitHub
+  </a>
+</header>
+
+<div class="wrap">
+
+  <p class="eyebrow">Interactive companions</p>
+  <h1>Contextual evidence for classifying interactions and guiding their discovery</h1>
+  <p class="authors">Kesem Abramov, Shir Nehoray, Rami Puzis &amp; Shai Pilosof (2026)</p>
+  <p class="lede">Link prediction returns candidate interactions, not evidence that they exist. This framework
+  reads the variation <b>between replicated networks</b> as evidence, sorting predicted links into
+  <b>eight classes</b> that each carry a specific next action: sample more, switch method, or accept
+  what you have. These two tools let you explore that taxonomy directly.</p>
+
+  <div class="rule"></div>
+
+  <div class="cards">
+
+    <a class="app" href="link-taxonomy-uncertainty-explorer.html">
+      <img class="thumb" src="accumulation.png"
+           alt="Accumulation of confidence across replicate networks">
+      <div class="app-body">
+        <p class="box">Box 2</p>
+        <h2>Link taxonomy uncertainty explorer</h2>
+        <p>A Bayesian reading of the taxonomy. Class labels are claims about a link's hidden state, so
+        how much confidence does a given evidence pattern actually earn?</p>
+        <ul>
+          <li>Pick any of the eight classes on the taxonomy tree</li>
+          <li>Tune model, local and replicate error rates</li>
+          <li>Full posterior, likelihood table and phase space</li>
+          <li>Confidence accumulation across replicates</li>
+        </ul>
+        <span class="go">Open the explorer
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </span>
+      </div>
+    </a>
+
+    <a class="app" href="interactive_sankey_explorer.html">
+      <img class="thumb" src="alluvial.png"
+           alt="Alluvial diagram of predicted links across evidence classes">
+      <div class="app-body">
+        <p class="box">Box 3 · Cabrera island</p>
+        <h2>Interactive link classification</h2>
+        <p>The framework applied to a real plant–pollinator system: six sites, two sampling methods, and
+        1624 candidate interactions sorted into where effort is actually worth spending.</p>
+        <ul>
+          <li>Confusion matrix → contextual evidence → class → cross-method</li>
+          <li>Switch between direct observation and camera records</li>
+          <li>Move the classification threshold and watch classes shift</li>
+          <li>Click any band to isolate its path and counts</li>
+        </ul>
+        <span class="go">Open the diagram
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </span>
+      </div>
+    </a>
+
+  </div>
+
+  <hr class="datarule">
+
+  <p class="datanote">
+    Data: plant&ndash;pollinator interaction networks recorded at six sites on Cabrera island (Balearic
+    archipelago, western Mediterranean), monitored by direct field observation and automated cameras in
+    parallel at every site. That second, independent method is what makes it possible to test the
+    framework's recommendations rather than only state them. Interactions were predicted within each site
+    separately using rank-2 SVD matrix completion under a leave-one-out scheme, then classified against the
+    other five sites as contextual evidence. 23 plant species &times; 69 pollinator species across 6 sites.
+    Data originally published by
+    <a href="https://doi.org/10.1111/2041-210X.70165" target="_blank" rel="noopener">Serra-Marin et al.
+    (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., Borge-Holthoefer, J.,
+    Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of automated and manual
+    monitoring in comprehensive plant&ndash;pollinator communities. <em>Methods in Ecology and
+    Evolution</em>, 16, 2960&ndash;2978.
+  </p>
+
+  <footer>
+    <p>Companion tools to a perspective on classifying and corroborating predicted ecological interactions.</p>
+    <p><a href="https://ecomplab.com" target="_blank" rel="noopener">Ecological Complexity Lab</a> &middot;
+    Ben-Gurion University of the Negev &middot;
+    <a href="https://github.com/Ecological-Complexity-Lab" target="_blank" rel="noopener">GitHub</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
