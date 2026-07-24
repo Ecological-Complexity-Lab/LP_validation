@@ -18,9 +18,9 @@ Instructions for running the code and reproducing the results are in the reposit
 
 Both boxes ship with a standalone interactive explorer, live at <https://contextualevidence.ecomplab.com>.
 
-**Box 2 — link taxonomy & uncertainty.** The Bayesian reading of the link taxonomy: figure script, rendered figure, the interactive explorer, and a math/assumptions context doc, in [`box2_link_taxonomy/`](box2_link_taxonomy/).
+**Box 2 — link taxonomy & uncertainty.** The Bayesian reading of the link taxonomy: figure script, rendered figure, the interactive explorer, and a math/assumptions context doc.
 
-**Box 3 — link classification on Cabrera.** The framework applied to plant–pollinator networks at six sites: classification and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer, in [`box3_link_classification/`](box3_link_classification/).
+**Box 3 — link classification on Cabrera.** The framework applied to plant–pollinator networks at six sites: classification and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer.
 
 # :file_cabinet: Data:
 Detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Data).
