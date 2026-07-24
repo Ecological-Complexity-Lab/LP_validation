@@ -1,8 +1,10 @@
 # ---- Interactive Sankey (Plotly + htmlwidgets) --------------------------------
 # Single-trace approach: one Sankey trace is initialised; Plotly.react() swaps
 # link data on threshold / method change.  Node definition is embedded as clean
-# JSON (no Plotly-computed positions), so the layout is recalculated fresh each
-# time instead of inheriting stale coordinates from the previous render.
+# JSON (no stale Plotly-computed positions carried over), and arrangement =
+# "snap" lets Plotly re-derive each node's size/spacing from that update's
+# actual values, so the layout is recalculated fresh each time rather than
+# inheriting coordinates from the previous render.
 #
 # Run from project root: source("interactive_sankey/make_sankey.R")
 # Required: dplyr, readr, plotly, htmlwidgets, jsonlite
@@ -29,63 +31,78 @@ add_obs_for_rpi <- df_raw %>%
   filter(method == "obs", ground_truth == 1) %>%
   pull(interaction_id) %>% unique()
 
-# ---- Node definitions (25 nodes, 0-indexed) ----------------------------------
+# ---- Node definitions (30 nodes, 0-indexed) -----------------------------------
+# Category set, order, and colors mirror make_sankey_validated(split_all = TRUE)
+# in code/serra_martin_link_classification_clean.R (the "full" static Sankey),
+# so the interactive version shows the have-evidence/no-evidence split for all
+# 8 link categories, not just the 3 that are ambiguous by default.
 NODE_IDX <- c(
-  "L1_TP" = 0L, "L1_FP" = 1L, "L1_FN" = 2L, "L1_TN" = 3L,
-  "L2_Observed elsewhere"     = 4L,
-  "L2_Not observed elsewhere" = 5L,
-  "L3_recurrent"              = 6L,  "L3_possibly_missing"      = 7L,
-  "L3_model_elusive"          = 8L,  "L3_locally_absent"        = 9L,
-  "L3_locally_unique"         = 10L, "L3_phantom"               = 11L,
-  "L3_weak support"           = 12L, "L3_likely_forbidden"      = 13L,
-  "L4_recurrent"              = 14L, "L4_possibly_missing"      = 15L,
-  "L4_model_elusive"          = 16L, "L4_locally_absent"        = 17L,
-  "L4_locally_unique"         = 18L,
-  "L4_phantom — Have evidence"          = 19L,
-  "L4_phantom — No evidence"            = 20L,
-  "L4_weak support — Have evidence"     = 21L,
-  "L4_weak support — No evidence"       = 22L,
-  "L4_likely_forbidden — Have evidence" = 23L,
-  "L4_likely_forbidden — No evidence"   = 24L
+  "L1_TN" = 0L, "L1_FN" = 1L, "L1_FP" = 2L, "L1_TP" = 3L,
+  "L2_Not observed elsewhere" = 4L,
+  "L2_Observed elsewhere"     = 5L,
+  "L3_possibly_forbidden" = 6L,  "L3_weak support"    = 7L,
+  "L3_phantom"            = 8L,  "L3_locally_unique"  = 9L,
+  "L3_locally_absent"     = 10L, "L3_model_elusive"   = 11L,
+  "L3_possibly_missing"   = 12L, "L3_recurrent"       = 13L,
+  "L4_possibly_forbidden — no evidence"  = 14L, "L4_possibly_forbidden — have evidence"  = 15L,
+  "L4_weak support — no evidence"        = 16L, "L4_weak support — have evidence"        = 17L,
+  "L4_phantom — no evidence"             = 18L, "L4_phantom — have evidence"              = 19L,
+  "L4_locally_unique — no evidence"      = 20L, "L4_locally_unique — have evidence"      = 21L,
+  "L4_locally_absent — no evidence"      = 22L, "L4_locally_absent — have evidence"      = 23L,
+  "L4_model_elusive — no evidence"       = 24L, "L4_model_elusive — have evidence"       = 25L,
+  "L4_possibly_missing — no evidence"    = 26L, "L4_possibly_missing — have evidence"    = 27L,
+  "L4_recurrent — no evidence"           = 28L, "L4_recurrent — have evidence"           = 29L
 )
 
 node_labels <- c(
-  "TP", "FP", "FN", "TN",
-  "Observed elsewhere", "Not observed elsewhere",
-  "Recurrent", "Possibly missing", "Model elusive", "Locally absent",
-  "Locally unique", "Phantom", "Weak support", "Likely forbidden",
-  "Recurrent", "Possibly missing", "Model elusive", "Locally absent",
-  "Locally unique",
-  "Phantom — Have evidence",          "Phantom — No evidence",
-  "Weak support — Have evidence",     "Weak support — No evidence",
-  "Likely forbidden — Have evidence", "Likely forbidden — No evidence"
+  "TN", "FN", "FP", "TP",
+  "Not observed elsewhere", "Observed elsewhere",
+  "Possibly forbidden", "Weak support", "Phantom", "Locally unique",
+  "Locally absent", "Model elusive", "Possibly missing", "Recurrent",
+  "Possibly forbidden — no evidence",  "Possibly forbidden — have evidence",
+  "Weak support — no evidence",        "Weak support — have evidence",
+  "Phantom — no evidence",             "Phantom — have evidence",
+  "Locally unique — no evidence",      "Locally unique — have evidence",
+  "Locally absent — no evidence",      "Locally absent — have evidence",
+  "Model elusive — no evidence",       "Model elusive — have evidence",
+  "Possibly missing — no evidence",    "Possibly missing — have evidence",
+  "Recurrent — no evidence",           "Recurrent — have evidence"
 )
 
+# Hex equivalents of the R named/hex colors used by col_confusion, col_validation,
+# col_subcats and the split_all `lav`/`hev` palette in the static script.
 node_colors_hex <- c(
-  "#CAE1FF", "#B0C4DE", "#EEA9A9", "#BC8F8F",       # L1 confusion
-  "#F4A460", "#CDB5CD",                               # L2 evidence
-  "#FF7F50", "#FF7256", "#EE7056", "#CD5B45",         # L3 TP/FP group
-  "#C3BAD5", "#AFA2C4", "#9B8BB4", "#8878A4",         # L3 FN/TN group
-  "#FF7F50", "#FF7256", "#EE7056", "#CD5B45",         # L4 pass-throughs (TP/FP)
-  "#C3BAD5",                                           # L4 locally_unique
-  "#7FFFD4", "#AFA2C4",                               # L4 phantom have/no
-  "#76EEC6", "#9B8BB4",                               # L4 weak support have/no
-  "#66CDAA", "#8878A4"                                 # L4 likely_forbidden have/no
+  "#BC8F8F", "#EEB4B4", "#B0C4DE", "#CAE1FF",          # L1: TN, FN, FP, TP
+  "#CDB5CD", "#F4A460",                                 # L2: Not obs / Observed elsewhere
+  "#8878A4", "#9B8BB4", "#AFA2C4", "#C3BAD5",           # L3: possibly_forbidden, weak support, phantom, locally_unique
+  "#CD5B45", "#EE6A50", "#FF7256", "#FF7F50",           # L3: locally_absent, model_elusive, possibly_missing, recurrent
+  "#8878A4", "#66CDAA",                                 # L4: possibly_forbidden no/have
+  "#9B8BB4", "#66CDAA",                                 # L4: weak support no/have
+  "#AFA2C4", "#66CDAA",                                 # L4: phantom no/have
+  "#C3BAD5", "#66CDAA",                                 # L4: locally_unique no/have
+  "#CD5B45", "#66CDAA",                                 # L4: locally_absent no/have
+  "#EE6A50", "#66CDAA",                                 # L4: model_elusive no/have
+  "#FF7256", "#66CDAA",                                 # L4: possibly_missing no/have
+  "#FF7F50", "#66CDAA"                                  # L4: recurrent no/have
 )
 
-# Fixed node positions: x pins each node to its axis column; y sets vertical
-# order (0 = top, 1 = bottom) to match the static R Sankey.
-# arrangement = "fixed" makes Plotly respect these coordinates exactly,
-# which also stabilises the layout when many categories are empty at high thresholds.
+# x pins each node to its axis column; y is only a *starting hint* for vertical
+# order (0 = top, 1 = bottom), matching the static plot's category order.
+# arrangement = "snap" (see below) lets Plotly resolve actual node size/spacing
+# from real link values and nudge nodes to avoid overlap — with arrangement =
+# "fixed" (the previous approach), Plotly pins y exactly as given but still
+# sizes each node by its value, so once all 8 categories were split in two
+# (16 uneven L4 nodes), sparse/empty categories at high thresholds produced
+# overlapping or gappy nodes instead of a clean stack.
 evenly_y <- function(n) seq(0.02, 0.98, length.out = n)
 
 # Node order within each axis matches node_labels (top → bottom):
-# L1: TP, FP, FN, TN         (4 nodes, indices 0–3)
-# L2: Observed, Not observed  (2 nodes, indices 4–5)
-# L3: Recurrent … Likely forbidden (8 nodes, indices 6–13)
-# L4: Recurrent … LF—No evidence  (11 nodes, indices 14–24)
-node_x <- c(rep(0.01, 4), rep(0.34, 2), rep(0.67, 8), rep(0.99, 11))
-node_y <- c(evenly_y(4), evenly_y(2), evenly_y(8), evenly_y(11))
+# L1: TN, FN, FP, TP                              (4 nodes,  indices 0–3)
+# L2: Not observed elsewhere, Observed elsewhere   (2 nodes,  indices 4–5)
+# L3: possibly_forbidden … recurrent               (8 nodes,  indices 6–13)
+# L4: possibly_forbidden—no … recurrent—have       (16 nodes, indices 14–29)
+node_x <- c(rep(0.01, 4), rep(0.34, 2), rep(0.67, 8), rep(0.99, 16))
+node_y <- c(evenly_y(4), evenly_y(2), evenly_y(8), evenly_y(16))
 
 node_def_r <- list(
   pad       = 15,
@@ -131,20 +148,16 @@ classify_sankey <- function(df, method_name, threshold, add_obs_ids) {
         is_unique    & ground_truth == 1L & cls == 0L ~ "weak support",
         is_shared    & ground_truth == 1L & cls == 1L ~ "recurrent",
         is_shared    & ground_truth == 1L & cls == 0L ~ "model_elusive",
-        is_all_zero  & ground_truth == 0L & cls == 0L ~ "likely_forbidden",
+        is_all_zero  & ground_truth == 0L & cls == 0L ~ "possibly_forbidden",
         is_all_zero  & ground_truth == 0L & cls == 1L ~ "phantom",
         obs_elsewhere & ground_truth == 0L & cls == 0L ~ "locally_absent",
         obs_elsewhere & ground_truth == 0L & cls == 1L ~ "possibly_missing",
         TRUE ~ "unclassified"
       ),
       add_obs = interaction_id %in% add_obs_ids,
-      L4 = case_when(
-        link_category %in% c("phantom", "weak support", "likely_forbidden") & add_obs ~
-          paste0(link_category, " — Have evidence"),
-        link_category %in% c("phantom", "weak support", "likely_forbidden") & !add_obs ~
-          paste0(link_category, " — No evidence"),
-        TRUE ~ link_category
-      )
+      # All 8 categories are split into have/no evidence, matching
+      # make_sankey_validated(split_all = TRUE) in the static script.
+      L4 = paste0(link_category, if_else(add_obs, " — have evidence", " — no evidence"))
     ) %>%
     filter(link_category != "unclassified")
 }
@@ -209,7 +222,7 @@ init <- link_store[["obs_0.50"]]
 
 fig <- plot_ly(
   type        = "sankey",
-  arrangement = "fixed",
+  arrangement = "snap",
   node = node_def_r,
   link = list(
     source = init$source,
@@ -305,7 +318,7 @@ function(el, data) {
     // Use the clean node definition — Plotly recalculates layout from scratch
     Plotly.react(el, [{
       type: 'sankey',
-      arrangement: 'fixed',
+      arrangement: 'snap',
       node: nodeData,
       link: { source: ld.source, target: ld.target,
               value:  ld.value,  color:  ld.color }
