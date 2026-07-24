@@ -9,8 +9,8 @@
 # Controls
 #   - Sampling method toggle (obs / rpi); the "additional method" is the other one
 #   - Threshold slider for binarising predicted probabilities
-#   - Split mode: only the ambiguous categories (phantom, weak support,
-#     possibly forbidden) split at axis 4, or all eight categories
+#   - Cross-method evidence: only the flagged categories (phantom, possibly
+#     forbidden) split at axis 4, or all eight categories
 #
 # Interaction
 #   - Click any node or flow: everything outside the selected subgraph fades
@@ -18,8 +18,10 @@
 #     reports n, % of total, and % of the parent (upstream) category.
 #
 # Threshold range: probabilities are floored at 0.5 by the pre-sigmoid zero
-# floor, and above ~0.89 categories start emptying out. The slider is therefore
-# restricted to [0.50, 0.88], where all eight link classes stay populated for
+# floor, so nothing changes below it. At the upper end classes start emptying:
+# at 0.9 phantom is empty for both methods and possibly_missing is empty for
+# rpi, which makes the "% of parent" proportions undefined. With a 0.1 step the
+# slider therefore runs [0.5, 0.8], where all eight classes stay populated for
 # both methods (verified by sweep; see THRESH_MIN/THRESH_MAX below).
 #
 # Style follows possibly-missing-explorer: same CSS variables, card layout,
@@ -50,10 +52,10 @@ OUTPUT_HTML <- file.path(OUTPUT_DIR, "interactive_sankey_explorer.html")
 
 # Threshold grid precomputed into the app. Restricted to the range where every
 # link class stays non-empty for both methods (see header note).
-THRESH_MIN  <- 0.50
-THRESH_MAX  <- 0.88
-THRESH_STEP <- 0.01
-THRESH_DEFAULT <- 0.70
+THRESH_MIN  <- 0.5
+THRESH_MAX  <- 0.8
+THRESH_STEP <- 0.1
+THRESH_DEFAULT <- 0.7
 
 thresholds <- seq(THRESH_MIN, THRESH_MAX, by = THRESH_STEP)
 
@@ -73,9 +75,9 @@ col_subcats <- c(
   locally_unique   = "#C3BAD5",
   model_elusive    = "#E2705A",
   weak_support     = "#9B8BB4",
-  possibly_missing = "#E8A33D",
+  possibly_missing = "#FF7256",   # coral1, as in the static Sankey
   phantom          = "#AFA2C4",
-  locally_absent   = "#B0C4DE",
+  locally_absent   = "#CD5B45",   # coral3, as in the static Sankey
   possibly_forbidden = "#8878A4"
 )
 
@@ -99,21 +101,27 @@ cat_display <- c(
   phantom            = "Phantom",
   locally_absent     = "Locally absent",
   possibly_forbidden = "Possibly forbidden",
-  weak_support       = "Weak support",
+  weak_support       = "Weakly supported",
   model_elusive      = "Model elusive"
 )
 
 # Vertical ordering within each axis (small = top)
-rank_confusion <- c(TN = 10, FN = 20, FP = 30, TP = 40)
-rank_validation <- c(`Not observed elsewhere` = 10, `Observed elsewhere` = 20)
+# ggsankey draws rank 1 at the BOTTOM, so the rendered static figure reads
+# top-to-bottom as the reverse of rank_vec: TP, FP, FN, TN on axis 1;
+# "Observed elsewhere" on top of axis 2; recurrent at the top of axis 3.
+# Here rank 1 is the TOP, so these are the static rank_vec values negated,
+# which reproduces the static figure as it actually appears.
+rank_confusion <- c(TP = -40, FP = -30, FN = -20, TN = -10)
+rank_validation <- c(`Observed elsewhere` = -20, `Not observed elsewhere` = -10)
 rank_category <- c(
-  possibly_forbidden = 10, weak_support = 20, phantom = 30,
-  locally_unique = 40, locally_absent = 50, model_elusive = 60,
-  possibly_missing = 70, recurrent = 80
+  recurrent = -80, possibly_missing = -70, model_elusive = -60,
+  locally_absent = -50, locally_unique = -40, phantom = -30,
+  weak_support = -20, possibly_forbidden = -10
 )
 
-# Categories split into have / no evidence when split_all = FALSE
-ambiguous_cats <- c("phantom", "weak_support", "possibly_forbidden")
+# Categories the framework flags for cross-method corroboration: these split
+# into have / no evidence at axis 4 when split_all = FALSE.
+flagged_cats <- c("phantom", "possibly_forbidden")
 
 # ---- 4. Data ----
 
@@ -195,7 +203,7 @@ build_paths <- function(df_cat, split_all) {
         paste0(link_category, if_else(add_obs, "::have", "::none"))
       } else {
         if_else(
-          link_category %in% ambiguous_cats,
+          link_category %in% flagged_cats,
           paste0(link_category, if_else(add_obs, "::have", "::none")),
           link_category
         )
@@ -218,7 +226,7 @@ for (m in c("obs", "rpi")) {
     df_cat <- classify_at_threshold(df_method, thr, add_obs_ids[[m]])
 
     for (sa in c(FALSE, TRUE)) {
-      key <- paste(m, sprintf("%.2f", thr), if (sa) "all" else "amb", sep = "|")
+      key <- paste(m, sprintf("%.1f", thr), if (sa) "all" else "amb", sep = "|")
       payload_frames[[key]] <- build_paths(df_cat, split_all = sa)
     }
   }
@@ -238,7 +246,7 @@ if (nrow(empty_check) > 0) {
   warning("Some link classes are empty within the threshold range:")
   print(empty_check)
 } else {
-  cat(sprintf("Check passed: all 8 link classes populated across [%.2f, %.2f].\n",
+  cat(sprintf("Check passed: all 8 link classes populated across [%.1f, %.1f].\n",
               THRESH_MIN, THRESH_MAX))
 }
 
@@ -289,7 +297,10 @@ node_meta <- bind_rows(
       short = if_else(ev == "have", "Have evidence", "No evidence"),
       color = if_else(ev == "have", COL_HAVE_EVIDENCE,
                       if_else(cat %in% names(lav), lav[cat], col_subcats[cat])),
-      rank  = rank_category[cat] + if_else(ev == "have", 2, 1)
+      # rank_vec gives "have evidence" the higher value (e.g. phantom 32 vs
+      # 31), which renders it above "no evidence". Ranks are negative here and
+      # the smaller value sits on top, so "have" takes the more negative one.
+      rank  = rank_category[cat] - if_else(ev == "have", 2, 1)
     )
 ) %>%
   mutate(key = paste(axis, id, sep = "@"))
@@ -304,9 +315,9 @@ payload <- list(
     threshMax   = THRESH_MAX,
     threshStep  = THRESH_STEP,
     threshDefault = THRESH_DEFAULT,
-    thresholds  = sprintf("%.2f", thresholds),
+    thresholds  = sprintf("%.1f", thresholds),
     methodLabels = as.list(method_labels),
-    ambiguous   = ambiguous_cats,
+    flagged     = flagged_cats,
     catDisplay  = as.list(cat_display),
     axisLabels  = c("Within-network evaluation", "Contextual evidence",
                     "Link category", "Additional method")
@@ -378,9 +389,6 @@ html_template <- '<!DOCTYPE html>
   #sankey .nlab{font-size:11px;fill:#2c3542;pointer-events:none}
   #sankey .nlab .n{font-weight:400;fill:var(--muted)}
   .faded{opacity:.13}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
-  .legend span{display:inline-flex;align-items:center;gap:6px}
-  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
   /* readout */
   .stat{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-top:1px solid var(--border)}
   .stat:first-of-type{border-top:none;padding-top:2px}
@@ -407,7 +415,7 @@ html_template <- '<!DOCTYPE html>
   details.coll>summary{list-style:none;cursor:pointer;padding:14px 18px;font-size:14px;font-weight:600;
     display:flex;align-items:center;gap:8px;padding-right:46px}
   details.coll>summary::-webkit-details-marker{display:none}
-  details.coll>summary::before{content:"\\25B8";color:var(--muted);font-size:12px;
+  details.coll>summary::before{content:"▸";color:var(--muted);font-size:12px;
     transition:transform .15s;display:inline-block}
   details.coll[open]>summary::before{transform:rotate(90deg)}
   .coll-body{padding:0 18px 16px}
@@ -458,17 +466,17 @@ html_template <- '<!DOCTYPE html>
         <div class="desc" id="methodDesc">corroborated against the camera records</div>
       </div>
       <div class="ctrl">
-        <label><span>Classification threshold</span><span class="val" id="vThr">0.70</span></label>
+        <label><span>Classification threshold</span><span class="val" id="vThr">0.7</span></label>
         <input type="range" id="sThr" min="0" max="1" step="1" value="0">
         <div class="desc" id="thrDesc">predicted probability above which a link is called present</div>
       </div>
       <div class="ctrl">
-        <label><span>Axis 4 split</span></label>
+        <label><span>Cross-method evidence</span></label>
         <div class="seg-wrap" id="splitSeg">
-          <button class="seg active" data-split="amb">Ambiguous only</button>
+          <button class="seg active" data-split="amb">Flagged only</button>
           <button class="seg" data-split="all">All classes</button>
         </div>
-        <div class="desc">which classes split into have / no evidence</div>
+        <div class="desc">which classes are split by the independent method</div>
       </div>
     </div>
   </div>
@@ -479,7 +487,6 @@ html_template <- '<!DOCTYPE html>
     <p class="hint" id="selHint">Click any block or band to isolate it. Click the background to clear.</p>
     <svg id="sankey" viewBox="0 0 1120 620" preserveAspectRatio="xMidYMid meet"
          role="img" aria-label="Interactive Sankey of link classification"></svg>
-    <div class="legend" id="legend"></div>
   </div>
 
   <div class="card" id="readoutCard">
@@ -493,7 +500,7 @@ html_template <- '<!DOCTYPE html>
     <div class="coll-body">
       <table id="catTable"><thead><tr>
         <th class="name">Link class</th><th>n</th><th>% of total</th>
-        <th>Have evidence</th><th>% corroborated</th>
+        <th>Have evidence</th><th>% with cross-method evidence</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </details>
@@ -534,14 +541,14 @@ function nodeInfo(axis, id){
 // ---- state ----
 const state = {
   method: "obs",
-  thrIdx: Math.max(0, META.thresholds.indexOf(META.threshDefault.toFixed(2))),
+  thrIdx: Math.max(0, META.thresholds.indexOf(META.threshDefault.toFixed(1))),
   split: "amb",
   sel: null          // {type:"node", axis, id} | {type:"flow", axis, from, to}
 };
 
 // ---- layout constants ----
 const W = 1120, H = 620;
-const M = {top: 46, right: 250, bottom: 22, left: 18};
+const M = {top: 46, right: 168, bottom: 22, left: 18};
 const NODE_W = 11;
 const GAP = 7;                 // vertical gap between nodes on an axis
 const PLOT_H = H - M.top - M.bottom;
@@ -606,11 +613,11 @@ function buildLayout(paths){
     const agg = {};
     paths.forEach(p => {
       const from = [p.L1,p.L2,p.L3][ax], to = [p.L2,p.L3,p.L4][ax];
-      const k = from + "\\x01" + to;
+      const k = from + "" + to;
       agg[k] = (agg[k] || 0) + p.value;
     });
     const rows = Object.keys(agg).map(k => {
-      const [from, to] = k.split("\\x01");
+      const [from, to] = k.split("");
       return {axis:ax, from:from, to:to, value:agg[k]};
     });
 
@@ -700,10 +707,13 @@ function render(){
   // flows first, so nodes sit on top
   const gF = el("g", {}, svg);
   LAY.flows.forEach(r => {
+    // ggsankey draws ribbons with fill = node, i.e. the colour of the node the
+    // flow leaves. Match that: colour by the source, not the target.
+    const src  = nodeInfo(r.axis + 1, r.from);
     const info = nodeInfo(r.axis + 2, r.to);
     const on = act.flows.has(r.axis + "@" + r.from + ">" + r.to);
     const p = el("path", {
-      d: ribbon(r), fill: info.color, "fill-opacity": 0.62,
+      d: ribbon(r), fill: src.color, "fill-opacity": 0.62,
       class: "flow" + (hasSel && !on ? " faded" : "")
     }, gF);
     p.addEventListener("click", ev => {
@@ -738,13 +748,18 @@ function render(){
       });
       el("title", {}, rect).textContent = info.label + " : " + nd.value;
 
-      // label only where the band is tall enough, or on the last axis
-      if (nd.h >= 9 || ax === 3){
+      // On axis 4, only the split nodes get a label: a pass-through node
+      // repeats its axis-3 name verbatim, so labelling it duplicates the text
+      // for every class that is not split. Elsewhere, label whenever the band
+      // is tall enough to carry one.
+      const isSplit = id.indexOf("::") >= 0;
+      const showLab = (ax === 3) ? isSplit : (nd.h >= 9);
+      if (showLab){
         const t = el("text", {
           x: nd.x + NODE_W + 6, y: nd.y0 + nd.h/2 + 3.6,
           class: "nlab" + (hasSel && !on ? " faded" : "")
         }, gN);
-        const lab = (ax === 3 && id.indexOf("::") >= 0) ? info.short : info.label;
+        const lab = (ax === 3 && isSplit) ? info.short : info.label;
         t.textContent = lab + " ";
         const s = el("tspan", {class:"n"}, t);
         s.textContent = nd.value + " (" + pct(nd.value, LAY.total) + ")";
@@ -754,24 +769,10 @@ function render(){
 
   document.getElementById("totalNote").textContent =
     "— " + LAY.total.toLocaleString() + " records, " + META.nSites + " sites";
-  renderLegend();
   renderTable();
 }
 
 function pct(a, b){ return b ? (100*a/b).toFixed(1) + "%" : "–"; }
-
-function renderLegend(){
-  const box = document.getElementById("legend");
-  const order = ["recurrent","locally_unique","possibly_missing","phantom",
-                 "locally_absent","possibly_forbidden","weak_support","model_elusive"];
-  let h = order.map(c => {
-    const i = nodeInfo(3, c);
-    return `<span><i class="sw" style="background:${i.color}"></i>${i.label}</span>`;
-  }).join("");
-  h += `<span><i class="sw" style="background:${nodeInfo(4,"phantom::have").color}"></i>` +
-       `Have evidence (other method)</span>`;
-  box.innerHTML = h;
-}
 
 function renderTable(){
   const paths = LAY.paths;
@@ -787,7 +788,7 @@ function renderTable(){
   const tb = document.querySelector("#catTable tbody");
   tb.innerHTML = order.map(c => {
     const r = per[c] || {n:0, have:0};
-    const splitHere = state.split === "all" || META.ambiguous.indexOf(c) >= 0;
+    const splitHere = state.split === "all" || META.flagged.indexOf(c) >= 0;
     return `<tr class="${c === selCat ? "hl" : ""}">` +
       `<td class="name">${nodeInfo(3,c).label}</td>` +
       `<td>${r.n}</td><td>${pct(r.n, LAY.total)}</td>` +
@@ -853,10 +854,10 @@ function renderReadout(){
   // representative full path (the modal upstream route)
   const routes = {};
   kept.forEach(p => {
-    const k = [p.L1,p.L2,p.L3,p.L4].join("\\x01");
+    const k = [p.L1,p.L2,p.L3,p.L4].join("");
     routes[k] = (routes[k] || 0) + p.value;
   });
-  const topRoute = Object.keys(routes).sort((a,b)=>routes[b]-routes[a])[0].split("\\x01");
+  const topRoute = Object.keys(routes).sort((a,b)=>routes[b]-routes[a])[0].split("");
   const nRoutes = Object.keys(routes).length;
 
   let h = "";
@@ -892,7 +893,7 @@ function syncLabels(){
     "corroborated against " + META.methodLabels[other].toLowerCase() + " records";
   document.getElementById("thrDesc").textContent =
     "predicted probability above which a link is called present (range " +
-    META.threshMin.toFixed(2) + "–" + META.threshMax.toFixed(2) +
+    META.threshMin.toFixed(1) + "–" + META.threshMax.toFixed(1) +
     ", where all eight classes stay populated)";
 }
 
@@ -930,13 +931,15 @@ const INFO = {
        "<p><b>Threshold</b> rebinarises the leave-one-out predicted probabilities: a record is called " +
        "present when its probability exceeds the threshold. Raising it moves records from the " +
        "predicted-present classes into the predicted-absent ones.</p>" +
-       "<p>The slider is limited to <code>" + META.threshMin.toFixed(2) + "–" +
-       META.threshMax.toFixed(2) + "</code>. Probabilities are floored at 0.5 by the pre-sigmoid " +
+       "<p>The slider is limited to <code>" + META.threshMin.toFixed(1) + "–" +
+       META.threshMax.toFixed(1) + "</code>. Probabilities are floored at 0.5 by the pre-sigmoid " +
        "zero floor, so nothing changes below that; above the upper limit some classes empty out " +
        "entirely and their proportions become undefined.</p>" +
-       "<p><b>Axis 4 split</b> controls which classes are broken into have / no evidence. " +
-       "By default only phantom, weak support and possibly forbidden are split, since those are the " +
-       "classes where cross-method evidence is diagnostic.</p>"
+       "<p><b>Cross-method evidence</b> controls which classes are broken into have / no evidence. " +
+       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two classes the framework " +
+       "flags as needing an independent method rather than more of the same sampling effort. " +
+       "<b>All classes</b> splits every class, for inspecting how cross-method evidence lines up " +
+       "across the whole taxonomy at once.</p>"
   },
   sankey: {
     t: "Reading the diagram",
