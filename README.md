@@ -14,8 +14,13 @@ A surge of recent methods tackles incomplete ecological interaction data through
 # :computer: Code:
 Instructions for running the code and reproducing the results are in the repository Wiki under ["Code"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Code).
 
-# :bar_chart: Box 2 — link taxonomy & interactive explorer
-The Bayesian reading of the link taxonomy (Box 2) — figure script, rendered figure, the standalone interactive explorer, and a math/assumptions context doc — is in [`box2_link_taxonomy/`](box2_link_taxonomy/) (interactive also live at <https://contextualevidence.ecomplab.com>).
+# :bar_chart: Boxes 2 & 3 — interactive explorers
+
+Both boxes ship with a standalone interactive explorer, live at <https://contextualevidence.ecomplab.com>.
+
+**Box 2 — link taxonomy & uncertainty.** The Bayesian reading of the link taxonomy: figure script, rendered figure, the interactive explorer, and a math/assumptions context doc, in [`box2_link_taxonomy/`](box2_link_taxonomy/).
+
+**Box 3 — link classification on Cabrera.** The framework applied to plant–pollinator networks at six sites: classification and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer, in [`box3_link_classification/`](box3_link_classification/).
 
 # :file_cabinet: Data:
 Detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Data).
