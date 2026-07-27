@@ -16,7 +16,7 @@ Instructions for running the code and reproducing the results are in the reposit
 
 # :bar_chart: Boxes 2 & 3 — interactive explorers
 
-Both boxes ship with a standalone interactive explorer, live at <https://contextualevidence.ecomplab.com>.
+Both boxes ship with a standalone interactive explorer, live at <https://lpguide.ecomplab.com/>.
 
 **Box 2 — link taxonomy & uncertainty.** The Bayesian reading of the link taxonomy: figure script, rendered figure, the interactive explorer, and a math/assumptions context doc.
 
