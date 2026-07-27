@@ -3,7 +3,7 @@
 {
   "name": "Link taxonomy uncertainty explorer",
   "schemaVersion": 1,
-  "description": "Interactive explorer for the Box 2 Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree (Panel A); sliders for the three error rates (ε_Y model, ε_local sampling, ε_rep replicate) show the posterior confidence in the chosen category, the full 8-class posterior, a live likelihood table, and an accumulation-of-confidence curve (ρ slider, no false detections) showing the full posterior as replicates accumulate.",
+  "description": "Interactive explorer for the Box 2 Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree (Panel A); sliders for the three error rates (ε_Y model, ε_local sampling, ε_rep replicate) show the posterior confidence in the chosen category, the full 8-class posterior, a live likelihood table, an accumulation-of-confidence curve (ρ, f sliders) showing the full posterior as replicates accumulate, and an effort-to-confidence (rarefaction) panel that compares two lines — the chosen category (corroborated by presence) and its replicate counterpart (corroborated by absence) — giving R* (replicates needed to reach a target confidence) for each, the evidence rate in bits/replicate, the presence-vs-absence effort gap, and the crossover at which R* diverges.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -170,7 +170,7 @@
     </div>
   </details>
 
-  <details class="card coll" id="priorCard">
+  <details class="card coll" id="priorCard" open>
     <summary>Category prior (base rates) <span class="muted">— uniform by default; edit to break the symmetry</span></summary>
     <div class="coll-body">
       <p class="hint">With a uniform prior every category is equally likely before seeing evidence, so confidence in the
@@ -288,6 +288,65 @@
     limit, so this is the bar chart emerging as replicates accumulate. The dashed <b>ceiling = (1−ε_Y)(1−ε_local)</b>
     is the most confidence replicate evidence can ever buy: no amount of replicate data resolves the model (ε_Y) or
     local (ε_local) errors, so the chosen category can climb to that line but no further.</p>
+  </div>
+
+  <div class="card">
+    <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the accumulation curve read as sampling effort</span></h2>
+    <p class="hint">The same model as above, inverted: instead of "how confident am I after R replicates?", ask
+    "how many replicates of consistent evidence do I need to reach a target?" The two lines are the <b>chosen
+    category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Ŷ, O_local; opposite
+    O_rep). One is corroborated by <b>presence</b> (it keeps being seen elsewhere), the other by <b>absence</b> (it
+    keeps <i>not</i> being seen), so this contrasts how fast a link is confirmed by detections vs by absences. Pick any
+    category on the tree to re-pair; ρ and f are shared with the panel above.</p>
+    <div class="controls" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin:6px 0 16px">
+      <div class="ctrl">
+        <label><span>target confidence</span><span class="val" id="vTgt">50%</span></label>
+        <input type="range" id="sTgt" min="0.2" max="0.99" step="0.01" value="0.5">
+        <div class="desc">absolute posterior confidence to reach. The slider stops just below the ceiling
+        (1−ε_Y)(1−ε_local) = <span id="vCeil">–</span>, which no amount of replication can beat</div>
+      </div>
+      <div class="ctrl">
+        <label><span>ρ &nbsp;realization rate</span><span class="val" id="vRhoE">0.50</span></label>
+        <input type="range" id="sRhoE" min="0.05" max="1" step="0.05" value="0.5">
+        <div class="desc">shared with the panel above; sets p₁ = ρ(1−ε_local)</div>
+      </div>
+      <div class="ctrl">
+        <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFE">0.05</span></label>
+        <input type="range" id="sFE" min="0" max="0.3" step="0.01" value="0.05">
+        <div class="desc">shared with the panel above; sets p₀ = f</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
+        <div class="canvas-holder"><canvas id="effRare" style="height:320px"></canvas></div>
+        <div class="legend" id="effRareLegend"></div>
+      </div>
+      <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
+        <div class="stat">
+          <div class="big" id="effRstarA">–</div>
+          <div class="statmeta"><div class="statlabel"><b><span id="effNameA">possibly missing</span></b> <span id="effModeA" style="color:var(--muted);font-weight:400"></span> — R* replicates to the target, at <b><span id="effBitsA">–</span></b> bits/replicate.</div></div>
+        </div>
+        <div class="stat">
+          <div class="big" id="effRstarB">–</div>
+          <div class="statmeta"><div class="statlabel"><b><span id="effNameB">phantom</span></b> <span id="effModeB" style="color:var(--muted);font-weight:400"></span> — R* replicates to the target, at <b><span id="effBitsB">–</span></b> bits/replicate.</div></div>
+        </div>
+        <div class="stat">
+          <div class="mid" id="effSummary">–</div>
+          <div class="statmeta"><div class="statlabel"><b>effort gap</b> — how much more sampling the absence-corroborated link needs than the presence one. Crossover f* = <b><span id="effCross">–</span></b>, where both diverge.</div></div>
+        </div>
+      </div>
+    </div>
+    <p class="hint" id="effCap" style="margin:12px 0 0"></p>
+    <p class="notes" style="margin-top:8px">Both categories' confidence rises with consistent replicates toward the
+    shared <b>ceiling = (1−ε_Y)(1−ε_local)</b> — here the y axis is scaled so that ceiling <i>is</i> the top of the
+    plot, so a line reaching the top edge has extracted everything replicates can give. The y values are real
+    confidences, and so is the target: the orange line sits at the absolute confidence you asked for, and each
+    <b>R*</b> dot marks where a curve crosses it. The target slider stops at the ceiling — you cannot ask for more
+    than replication can buy, so tightening ε_Y or ε_local is what raises the bar. The presence-corroborated line is
+    steeper (fewer replicates); the absence-corroborated one lags. That gap
+    <i>is</i> the asymmetry: a detection is a rarer, more informative event than an absence, so presence resolves
+    faster for the same ρ and f. Both R* values diverge at the crossover f* = ρ(1−ε_local). This panel shares ρ and f
+    with the accumulation panel above.</p>
   </div>
 
   <div class="modal-back" id="modalBack">
@@ -570,11 +629,11 @@ function accumFrame(ctx,w,h,padR){
   ctx.fillText('ceiling '+(ceil*100).toFixed(0)+'%',padL+4,cyl-2);
   ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
   ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText('number of replicates R (consistent evidence)',padL+pw/2,padT+ph+22);
+  ctx.fillText('Number of replicates R (consistent evidence)',padL+pw/2,padT+ph+22);
   // y-axis title
   ctx.save();ctx.translate(15,padT+ph/2);ctx.rotate(-Math.PI/2);
   ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText('posterior probability  P(C | E)',0,0);ctx.restore();
+  ctx.fillText('Posterior probability  P(C | E)',0,0);ctx.restore();
   return {padL,padT,pw,ph,X,Y};
 }
 // Plot A — all 8 posteriors under the selected scenario, coloured by Hamming distance
@@ -618,10 +677,214 @@ function drawAccumAll(){
 // Plot B — the two focal lines: fast (positive) vs slow (negative) saturation
 function drawAccum(){ drawAccumAll(); }
 
+// =====================================================================
+// Effort to confidence (rarefaction) — idea #2. How many replicates R*
+// of consistent (corroborating) evidence to reach a target confidence in
+// the chosen category, and how R* diverges as the per-replicate signal
+// weakens toward the crossover f* = rho(1-eL).
+// =====================================================================
+let targetFrac=0.50;                                   // target confidence, absolute (not a fraction of the ceiling)
+function ceilVal(){return (1-state[0])*(1-state[1]);}  // (1-eY)(1-eL): replicates can never exceed this
+function crossover(){return rho*(1-state[1]);}         // f* = rho(1-eL): p1 = p0 here
+function targetAbs(){return targetFrac;}                // absolute confidence, NOT rescaled by the ceiling
+function targetReachable(){return targetAbs()<ceilVal();}
+// The target can never beat the ceiling, so the slider stops there: cap its max at the
+// last 0.01 step strictly below (1−ε_Y)(1−ε_local), and pull the value down with it.
+function syncTargetSlider(){
+  const el=document.getElementById('sTgt'), ceil=ceilVal();
+  let mx=Math.floor(ceil*100)/100;
+  if(mx>=ceil-1e-9) mx=Math.round((mx-0.01)*100)/100;   // exactly at the ceiling is only reached as R→∞
+  mx=Math.max(parseFloat(el.min),mx);
+  el.max=mx;
+  if(targetFrac>mx){
+    targetFrac=mx; el.value=mx;
+    document.getElementById('vTgt').textContent=(mx*100).toFixed(0)+'%';
+  }
+}
+// The two compared lines: the chosen category and its replicate counterpart
+// (same Yhat & O_local, opposite O_rep) — the other half of the same confusion
+// cell. One is corroborated by presence (detections), the other by absence.
+function counterpartIdx(){
+  const s=CLASSES[PMIDX].sig;
+  return CLASSES.findIndex(x=>x.sig[0]===s[0]&&x.sig[1]===s[1]&&x.sig[2]===(1-s[2]));
+}
+// Posterior of category `ci` given evidence = its own signature, under its own
+// corroborating scenario (detected every replicate if observed-elsewhere, else
+// empty every replicate), for continuous R and explicit f, rh.
+// Worked in log space with a log-sum-exp: R runs into the hundreds when the target
+// sits just under the ceiling, and the direct p^R products flush to zero there.
+function catConfAt(ci,R,f,rh){
+  const obs=CLASSES[ci].sig, p1=rh*(1-state[1]), p0=f, pr=PRIORnorm();
+  const k=(obs[2]===1)?R:0;
+  const xl=(n,v)=>n===0?0:n*Math.log(v);   // 0 exponent wins over a zero base
+  const logs=CLASSES.map((c,i)=>{
+    const fY=(obs[0]===c.sig[0])?(1-state[0]):state[0];
+    const fL=(obs[1]===c.sig[1])?(1-state[1]):state[1];
+    const p=(c.sig[2]===1)?p1:p0;
+    return Math.log(pr[i])+Math.log(fY)+Math.log(fL)+xl(k,p)+xl(R-k,1-p);
+  });
+  const m=Math.max(...logs);
+  if(!isFinite(m)) return 0;
+  const wt=logs.map(L=>Math.exp(L-m));
+  const Z=wt.reduce((a,b)=>a+b,0);
+  return Z>0?wt[ci]/Z:0;
+}
+// Smallest (continuous) R with category ci's confidence >= target; Inf if unreachable.
+function rstarCat(ci,f,rh){
+  const t=targetAbs();
+  if(f>=rh*(1-state[1])) return Infinity;              // signal no longer favours this category
+  if(catConfAt(ci,0,f,rh)>=t) return 0;
+  let lo=0, hi=1;
+  while(catConfAt(ci,hi,f,rh)<t){lo=hi; hi*=2; if(hi>1e5) return Infinity;}
+  for(let it=0;it<60;it++){const m=(lo+hi)/2; if(catConfAt(ci,m,f,rh)>=t)hi=m; else lo=m;}
+  return hi;
+}
+// Evidence rate for category ci: bits of ci-vs-counterpart log-odds per replicate.
+function rateCat(ci){
+  const p1=rho*(1-state[1]), p0=fRate;
+  const r=(CLASSES[ci].sig[2]===1)?(p1/p0):((1-p0)/(1-p1));
+  return Math.log2(r);
+}
+// generic plot frame (own x-range, titles); returns geometry + mappers
+function niceStep(xmax){
+  const raw=xmax/5, p=Math.pow(10,Math.floor(Math.log10(raw))), c=raw/p;
+  const s=c<1.5?1:c<3?2:c<7?5:10; return s*p;
+}
+function drawFrame(ctx,w,h,cfg){
+  const padL=cfg.padL||56, padR=cfg.padR||16, padT=cfg.padT||12, padB=cfg.padB||40;
+  const pw=w-padL-padR, ph=h-padT-padB;
+  const X=x=>padL+pw*(x/cfg.xmax), Y=y=>padT+(1-y/cfg.ymax)*ph;
+  ctx.clearRect(0,0,w,h);
+  ctx.font='10px system-ui';
+  const yt=cfg.yticks||4;
+  for(let g=0;g<=yt;g++){const gy=padT+ph*g/yt, val=cfg.ymax*(1-g/yt);
+    ctx.strokeStyle=GRID;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+pw,gy);ctx.stroke();
+    ctx.fillStyle=MUTED;ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(cfg.yfmt?cfg.yfmt(val):val.toFixed(2),padL-5,gy);}
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle=MUTED;
+  const xs=cfg.xstep||niceStep(cfg.xmax);
+  for(let x=0;x<=cfg.xmax+1e-9;x+=xs){ctx.fillText(cfg.xfmt?cfg.xfmt(x):(''+Math.round(x*100)/100),X(x),padT+ph+6);}
+  ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
+  ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(cfg.xlabel,padL+pw/2,padT+ph+22);
+  ctx.save();ctx.translate(15,padT+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cfg.ylabel,0,0);ctx.restore();
+  return {padL,padR,padT,padB,pw,ph,X,Y};
+}
+// Left panel: both categories' confidence vs R, with ceiling, target and R* markers.
+function drawEffRare(){
+  const {ctx,w,h}=setup(document.getElementById('effRare'));
+  const A=PMIDX, B=counterpartIdx();
+  const rA=rstarCat(A,fRate,rho), rB=rstarCat(B,fRate,rho);
+  const ceil=ceilVal(), t=targetAbs();
+  const rMax=Math.max(isFinite(rA)?rA:0, isFinite(rB)?rB:0);
+  const xmax=rMax>0?Math.max(15,Math.min(200,Math.ceil(rMax*1.6/5)*5)):40;
+  // y axis is scaled so its maximum IS the ceiling: the top of the frame is the
+  // hard limit replicates can never beat, so no separate ceiling line is needed.
+  const g=drawFrame(ctx,w,h,{xmax,ymax:ceil,
+    xlabel:'Replicates R of consistent (corroborating) evidence',
+    ylabel:'Confidence  P(category | E)',
+    yfmt:v=>(v*100).toFixed(0)+'%'});
+  // target — an absolute confidence, so it can sit above the ceiling; then it is off-scale and unreachable
+  const reach=t<ceil;
+  ctx.font='10px system-ui';
+  if(reach){
+    ctx.strokeStyle=ACCENT;ctx.setLineDash([2,3]);ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(g.padL,g.Y(t));ctx.lineTo(g.padL+g.pw,g.Y(t));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=ACCENT_D;ctx.textAlign='right';ctx.textBaseline='top';
+    ctx.fillText('target '+(t*100).toFixed(0)+'%',g.padL+g.pw-3,g.Y(t)+2);
+  } else {
+    ctx.fillStyle=ACCENT_D;ctx.textAlign='right';ctx.textBaseline='top';ctx.font='700 10.5px system-ui';
+    ctx.fillText('target '+(t*100).toFixed(0)+'% is above the ceiling — off scale, unreachable at any R',
+      g.padL+g.pw-3,g.padT+4);
+  }
+  // one line + its R* marker; the R* text is deferred so it can be placed clear of everything
+  const marks=[];
+  function line(ci,r){
+    const col=CATCOL[ci];
+    ctx.beginPath();
+    // clamp to the axis max: a non-uniform prior can nudge the limit past the ceiling
+    for(let i=0;i<=200;i++){const R=xmax*i/200,v=Math.min(catConfAt(ci,R,fRate,rho),ceil),px=g.X(R),py=g.Y(v);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
+    ctx.strokeStyle=col;ctx.lineWidth=2.6;ctx.lineJoin='round';ctx.stroke();
+    if(isFinite(r)&&r<=xmax){
+      const px=g.X(r),py=g.Y(t);
+      ctx.strokeStyle=col;ctx.setLineDash([3,3]);ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(px,g.padT+g.ph);ctx.lineTo(px,py);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,py,4.2,0,7);ctx.fill();
+      marks.push({x:px,text:'R*='+Math.ceil(r),col});
+    }
+  }
+  line(B,rB); line(A,rA);   // draw counterpart first, chosen on top
+  // R* labels sit at the foot of their dashed guide, offset to the right: the curves rise
+  // away above, so this strip is clear of both the lines and the guides. Two labels that
+  // would collide get stacked instead.
+  ctx.font='700 11px system-ui';ctx.textAlign='left';ctx.textBaseline='bottom';
+  const baseY=g.padT+g.ph-5;
+  let lastRight=-1e9, lastY=baseY;
+  marks.sort((a,b)=>a.x-b.x).forEach(m=>{
+    const tw=ctx.measureText(m.text).width;
+    const fitsRight=m.x+6+tw<=g.padL+g.pw-2;
+    const lx=fitsRight?m.x+6:Math.max(g.padL+3,m.x-6-tw);
+    const ly=(lx<lastRight+6)?lastY-14:baseY;      // overlaps the previous label — stack it
+    ctx.fillStyle=m.col;ctx.fillText(m.text,lx,ly);
+    lastRight=lx+tw; lastY=ly;
+  });
+  // legend lives outside the canvas so it can never sit on top of the curves
+  document.getElementById('effRareLegend').innerHTML=[A,B].map(ci=>{
+    const r=(ci===A?rA:rB);
+    const mode=CLASSES[ci].sig[2]===1?'presence':'absence';
+    const rtxt=isFinite(r)?('R*='+Math.ceil(r)):'R*=∞';
+    return `<span><i class="sw" style="background:${CATCOL[ci]}"></i>${CLASSES[ci].name} (${mode}) — ${rtxt}</span>`;
+  }).join('')
+    +`<span><i class="sw" style="background:${ACCENT}"></i>target ${(t*100).toFixed(0)}%${reach?'':' (above ceiling)'}</span>`
+    +`<span><i class="sw" style="background:${GRID};border:1px solid #cdd2d9"></i>axis max = ceiling ${(ceil*100).toFixed(0)}%</span>`;
+}
+function drawEffort(){
+  syncTargetSlider();          // the ceiling moves with ε_Y / ε_local, so re-cap before anything reads the target
+  const A=PMIDX, B=counterpartIdx();
+  const rA=rstarCat(A,fRate,rho), rB=rstarCat(B,fRate,rho);
+  const bA=rateCat(A), bB=rateCat(B);
+  // presence = the observed-elsewhere (z_rep=1) member; absence = the other
+  const presIdx=CLASSES[A].sig[2]===1?A:B, absIdx=presIdx===A?B:A;
+  const rPres=presIdx===A?rA:rB, rAbs=absIdx===A?rA:rB;
+  const bPres=presIdx===A?bA:bB, bAbs=absIdx===A?bA:bB;
+  function setLine(sfx,ci,r,b){
+    const el=document.getElementById('effRstar'+sfx);
+    el.textContent=isFinite(r)?Math.ceil(r):'∞'; el.style.color=CATCOL[ci];
+    document.getElementById('effName'+sfx).textContent=CLASSES[ci].name.toLowerCase();
+    document.getElementById('effMode'+sfx).textContent=CLASSES[ci].sig[2]===1?'(presence-corroborated)':'(absence-corroborated)';
+    document.getElementById('effBits'+sfx).textContent=isFinite(b)?b.toFixed(2):'∞';
+  }
+  setLine('A',A,rA,bA); setLine('B',B,rB,bB);
+  document.getElementById('effCross').textContent=crossover().toFixed(2);
+  document.getElementById('vCeil').textContent=(ceilVal()*100).toFixed(1)+'%';
+  const gap=(isFinite(rAbs)&&isFinite(rPres)&&rPres>0)?(rAbs/rPres):(isFinite(rPres)?Infinity:null);
+  document.getElementById('effSummary').textContent=gap==null?'–':(isFinite(gap)?gap.toFixed(1)+'×':'∞');
+  drawEffRare();
+  const cap=document.getElementById('effCap');
+  const presN=CLASSES[presIdx].name.toLowerCase(), absN=CLASSES[absIdx].name.toLowerCase();
+  if(!targetReachable()){
+    cap.innerHTML=`The target <b>${(targetAbs()*100).toFixed(0)}%</b> is above the ceiling `+
+      `<b>${(ceilVal()*100).toFixed(1)}%</b> = (1−ε_Y)(1−ε_local), so no number of replicates reaches it — both R* → ∞. `+
+      `Replicates only resolve the replicate-level question; to lift the ceiling itself you need an orthogonal method `+
+      `(lower ε_Y) or more local sampling (lower ε_local).`;
+  } else if(!isFinite(rPres)&&!isFinite(rAbs)){
+    cap.innerHTML=`With f = <b>${fRate.toFixed(2)}</b> at or above the crossover f* = <b>${crossover().toFixed(2)}</b>, `+
+      `neither line reaches the target — each replicate now favours the artifact, so both R* → ∞. `+
+      `Lower f (cleaner replicates) or raise ρ to push the crossover up.`;
+  } else {
+    cap.innerHTML=`Confirming <b>${presN}</b> by <b>presence</b> needs ~${isFinite(rPres)?Math.ceil(rPres):'∞'} replicate${Math.ceil(rPres)===1?'':'s'} at ${bPres.toFixed(2)} bits each; `+
+      `confirming <b>${absN}</b> by <b>absence</b> needs ~${isFinite(rAbs)?Math.ceil(rAbs):'∞'} at ${bAbs.toFixed(2)} bits — `+
+      `<b>${gap==null?'–':(isFinite(gap)?gap.toFixed(1)+'×':'∞')} the effort</b>. A detection is a rarer, more informative event than an absence, so presence resolves faster. `+
+      `Both share the same ceiling (${(ceilVal()*100).toFixed(0)}%); replicates only buy speed to it — to raise it, lower ε_Y or ε_local.`;
+  }
+}
+
 function drawAll(){
   drawBars();
   updateTable();
   drawAccum();
+  drawEffort();
   const pm=pmConf(state);
   const post=posterior(state);
   const feas=post.filter((_,i)=>feasIdx(i)).reduce((a,b)=>a+b,0);
@@ -642,10 +905,24 @@ function bind(id,vid,idx){
   s.addEventListener('input',()=>{state[idx]=parseFloat(s.value);v.textContent=state[idx].toFixed(2);drawAll();});
 }
 bind('sY','vY',0);bind('sL','vL',1);bind('sR','vR',2);
-// accumulation sliders: ρ and f
+// ρ and f are shared by the accumulation panel and the effort panel; keep both slider pairs in sync
 const sRhoA=document.getElementById('sRhoA'), sFA=document.getElementById('sFA');
-sRhoA.addEventListener('input',e=>{rho=parseFloat(e.target.value);document.getElementById('vRhoA').textContent=rho.toFixed(2);drawAccum();});
-sFA.addEventListener('input',e=>{fRate=parseFloat(e.target.value);document.getElementById('vFA').textContent=fRate.toFixed(2);drawAccum();});
+const sRhoE=document.getElementById('sRhoE'), sFE=document.getElementById('sFE');
+const sTgt=document.getElementById('sTgt');
+function setRho(v){rho=v;
+  sRhoA.value=v;document.getElementById('vRhoA').textContent=v.toFixed(2);
+  sRhoE.value=v;document.getElementById('vRhoE').textContent=v.toFixed(2);
+  drawAccum();drawEffort();}
+function setF(v){fRate=v;
+  sFA.value=v;document.getElementById('vFA').textContent=v.toFixed(2);
+  sFE.value=v;document.getElementById('vFE').textContent=v.toFixed(2);
+  drawAccum();drawEffort();}
+sRhoA.addEventListener('input',e=>setRho(parseFloat(e.target.value)));
+sFA.addEventListener('input',e=>setF(parseFloat(e.target.value)));
+sRhoE.addEventListener('input',e=>setRho(parseFloat(e.target.value)));
+sFE.addEventListener('input',e=>setF(parseFloat(e.target.value)));
+sTgt.addEventListener('input',e=>{targetFrac=parseFloat(e.target.value);
+  document.getElementById('vTgt').textContent=(targetFrac*100).toFixed(0)+'%';drawEffort();});
 // scenario toggle (all-categories plot)
 document.getElementById('scenToggle').addEventListener('click',e=>{
   const b=e.target.closest('.seg'); if(!b)return;
@@ -654,12 +931,15 @@ document.getElementById('scenToggle').addEventListener('click',e=>{
   drawAccumAll();
 });
 document.getElementById('reset').addEventListener('click',()=>{
-  state=[0.2,0.3,0.1]; rho=0.5; fRate=0.05;
+  state=[0.2,0.3,0.1]; rho=0.5; fRate=0.05; targetFrac=0.50;
   [['sY','vY',0],['sL','vL',1],['sR','vR',2]].forEach(([s,v,i])=>{
     document.getElementById(s).value=state[i];document.getElementById(v).textContent=state[i].toFixed(2);
   });
   sRhoA.value=rho;document.getElementById('vRhoA').textContent=rho.toFixed(2);
   sFA.value=fRate;document.getElementById('vFA').textContent=fRate.toFixed(2);
+  sRhoE.value=rho;document.getElementById('vRhoE').textContent=rho.toFixed(2);
+  sFE.value=fRate;document.getElementById('vFE').textContent=fRate.toFixed(2);
+  sTgt.value=targetFrac;document.getElementById('vTgt').textContent=(targetFrac*100).toFixed(0)+'%';
   drawAll();
 });
 document.getElementById('resetPrior').addEventListener('click',()=>{
@@ -754,7 +1034,37 @@ const INFO={
     buy. As R→∞ the replicate axis is fully resolved, but no amount of replicate data touches the model (ε_Y) or local
     (ε_local) errors — the four surviving categories' model-and-local factors sum to 1, so the chosen category limits
     to (1−ε_Y)(1−ε_local) and the rest is shared among its neighbours. It is the same value the headline confidence
-    would reach in the ε_rep→0 limit.</p>`}
+    would reach in the ε_rep→0 limit.</p>`},
+  effort:{title:'Effort to confidence — how many replicates?',html:`
+    <p>This panel reads the accumulation curve the other way round. Instead of "what is my confidence after R
+    replicates?", it asks: <b>how many replicates of consistent (corroborating) evidence do I need to reach a target
+    confidence?</b> That count is <b>R*</b> — a rarefaction curve for belief.</p>
+    <p><b>Two lines, one comparison.</b> They are the <b>chosen category</b> and its <b>replicate counterpart</b> — the
+    two halves of a single confusion cell (same Ŷ and O_local, opposite O_rep). One is corroborated by <b>presence</b>
+    (observed-elsewhere: it keeps being detected in replicates), the other by <b>absence</b> (not-observed-elsewhere:
+    it keeps being empty). Both climb to the <i>same</i> ceiling, so the only thing that differs is the speed — which
+    is exactly the point.</p>
+    <p>The target is an <b>absolute</b> confidence — 50% means P(category | E) = 0.50, not 50% of anything. The y
+    axis shows that same real confidence, but is cut off at the <b>ceiling</b> (1−ε_Y)(1−ε_local), the most that
+    replicate evidence can ever buy. The top edge of the plot is therefore the hard limit, and the target slider is
+    capped there too: an unreachable target is not something you can ask for. Lower ε_Y or ε_local and the ceiling,
+    the axis and the slider's range all move up together.</p>
+    <div class="formula">R* solves&nbsp; P(category | k, R) = target&nbsp; under each category's corroborating scenario
+      (detected every replicate for the presence line, empty every replicate for the absence line).</div>
+    <p>Each category and its counterpart differ only in the replicate term, so their log-odds grow <b>linearly</b> in R
+    with slope log(p₁/p₀) — the <b>evidence rate</b> in bits per replicate. A big rate ⇒ small R* (fast); a rate near
+    zero ⇒ huge R* (slow).</p>
+    <div class="formula">p₁ = ρ(1−ε_local) (per-replicate true detection),&nbsp; p₀ = f (false detection);&nbsp;
+      presence rate = log₂(p₁/p₀),&nbsp; absence rate = log₂((1−p₀)/(1−p₁))</div>
+    <p><b>Why presence beats absence.</b> A true detection is a relatively rare per-replicate event (p₁), so each one is
+    surprising and moves belief a lot; an absence is common, so each one barely nudges it. That is the quantitative
+    face of "absence of evidence is weak evidence of absence" — the <b>effort gap</b> between the two lines.</p>
+    <p><b>The crossover</b> f* = ρ(1−ε_local) is where p₁ = p₀: below it the evidence supports each category and R* is
+    finite; at or above it a detection is evidence for the <i>artifact</i> instead, confidence never reaches the target,
+    and <b>R* → ∞</b>. Push f towards f* with the slider and watch both R* values climb and then diverge.</p>
+    <p><b>The takeaway:</b> replicates only buy <i>speed</i> to the ceiling. If the ceiling itself is too low, no amount
+    of replication helps — you need an orthogonal method (lower ε_Y) or more local sampling (lower ε_local), which is
+    exactly the recommended action attached to each category in the taxonomy.</p>`}
 };
 const modalBack=document.getElementById('modalBack');
 function openModal(key){
