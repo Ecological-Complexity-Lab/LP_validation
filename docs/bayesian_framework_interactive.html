@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Link taxonomy uncertainty explorer",
+  "schemaVersion": 1,
+  "description": "Interactive explorer for the Box 2 Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree (Panel A); sliders for the three error rates (ε_Y model, ε_local sampling, ε_rep replicate) show the posterior confidence in the chosen category, the full 8-class posterior, a live likelihood table, and an accumulation-of-confidence curve (ρ slider, no false detections) showing the full posterior as replicates accumulate.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link taxonomy uncertainty explorer</title>
+<style>
+  :root{
+    --accent:#E07B39; --accent-d:#B4531A;
+    --text:#1f2933; --muted:#5b6472; --grid:#e5e8ec;
+    --card:#ffffff; --bg:#f5f6f8; --border:#e2e5ea;
+    --d1:#3B82C4; --d2:#9DBBD6; --d3:#C9CED4;
+    --pos:#3B82C4; --pos-d:#2A5E8F; --pos-l:#eaf1f8;
+    --neg:#C0607A; --neg-d:#9B4256; --neg-l:#f8ebef;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:22px;margin:0 0 4px;font-weight:700}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:820px}
+  .sub code{background:#eef0f3;padding:1px 5px;border-radius:4px;font-size:13px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .card h2{font-size:14px;margin:0 0 12px;font-weight:600;letter-spacing:.01em}
+  .controls{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media(max-width:720px){.controls{grid-template-columns:1fr}}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px}
+  .ctrl .val{color:var(--accent-d);font-variant-numeric:tabular-nums}
+  .ctrl .desc{font-size:12px;color:var(--muted);margin-top:4px;font-weight:400}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px}
+  .readout{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .big{font-size:44px;font-weight:750;color:var(--accent-d);font-variant-numeric:tabular-nums;line-height:1}
+  .biglabel{font-size:13px;color:var(--muted)}
+  .formula{font-size:13px;color:var(--muted);margin-top:8px;font-variant-numeric:tabular-nums}
+  .formula b{color:var(--text)}
+  .canvas-holder canvas{display:block;width:100%}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .notes{font-size:13px;color:var(--muted)}
+  .notes b{color:var(--text)}
+  .row2{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
+  @media(max-width:820px){.row2{grid-template-columns:1fr}}
+  .reset{margin-top:6px;font-size:12px;background:#eef0f3;border:1px solid var(--border);
+    border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+  .reset:hover{background:#e4e7ec}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--border);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  th{font-weight:600;color:var(--muted);font-size:11.5px}
+  td.name,th.name{text-align:left}
+  td.sig{color:var(--muted);font-size:11px}
+  tr.pm td{background:#fbeee2;font-weight:600;color:var(--accent-d)}
+  /* taxonomy selector */
+  #taxo{width:100%;height:auto;user-select:none}
+  #taxo text{font-family:system-ui,sans-serif}
+  #taxo .leaf{cursor:pointer}
+  #taxo .leaf rect{transition:fill .12s,stroke .12s}
+  .explain{font-size:12.5px;color:var(--muted);background:#f7f8fa;border:1px solid var(--border);
+    border-radius:8px;padding:10px 12px;margin-top:10px}
+  .explain b{color:var(--text)}
+  .explain code{background:#eef0f3;padding:1px 4px;border-radius:4px}
+  .hint{font-size:12px;color:var(--muted);margin:0 0 8px}
+  details.explain summary{cursor:pointer;font-weight:600;color:var(--text);margin:0}
+  details.explain[open] summary{margin-bottom:6px}
+  .prior-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 18px}
+  @media(max-width:820px){.prior-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.prior-grid{grid-template-columns:1fr}}
+  .pw label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px;gap:8px}
+  .pw label .pct{color:var(--accent-d);font-variant-numeric:tabular-nums;font-weight:600}
+  .pw.selp label{color:var(--accent-d)}
+  .pw input[type=range]{width:100%}
+  /* floating bars */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--bg);padding:14px 0 8px}
+  .topbar h1{margin:0}
+  .topbar.stuck{box-shadow:0 4px 14px rgba(20,30,50,.07);border-bottom:1px solid var(--border)}
+  .card.ratesbar{position:sticky;z-index:20}
+  .ratesbar.stuck{box-shadow:0 4px 16px rgba(20,30,50,.12)}
+  /* square phase-space heatmap */
+  .heat-holder{width:100%;max-width:440px;margin:0 auto}
+  .heat-holder canvas{display:block;width:100%;aspect-ratio:1/1;height:auto}
+  /* collapsible cards */
+  details.coll{padding:0;overflow:hidden}
+  details.coll>summary{list-style:none;cursor:pointer;padding:14px 18px;font-size:14px;font-weight:600;
+    display:flex;align-items:center;gap:8px}
+  details.coll>summary::-webkit-details-marker{display:none}
+  details.coll>summary::before{content:'▸';color:var(--muted);font-size:12px;transition:transform .15s;display:inline-block}
+  details.coll[open]>summary::before{transform:rotate(90deg)}
+  details.coll>summary .muted{font-weight:400;color:var(--muted)}
+  .coll-body{padding:0 18px 16px}
+  .coll-body .hint{margin-top:0}
+  /* stat rows */
+  .stat{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-top:1px solid var(--border)}
+  .stat:first-of-type{border-top:none;padding-top:4px}
+  .stat .big{min-width:112px}
+  .stat .mid{font-size:30px;font-weight:750;color:var(--accent-d);font-variant-numeric:tabular-nums;line-height:1;min-width:112px}
+  .statmeta{flex:1;min-width:0}
+  .statlabel{font-size:13px;color:var(--muted);line-height:1.45}
+  .statlabel b{color:var(--text)}
+  /* info buttons + modal */
+  .info{position:absolute;top:13px;right:15px;z-index:6;display:inline-flex;align-items:center;justify-content:center;
+    width:21px;height:21px;border-radius:50%;border:none;background:var(--accent);color:#fff;
+    font-size:12px;font-weight:700;cursor:pointer;line-height:1;font-style:italic;
+    font-family:Georgia,'Times New Roman',serif;padding:0;box-shadow:0 1px 3px rgba(20,30,50,.22);transition:background .12s}
+  .info:hover{background:var(--accent-d)}
+  /* anchor info buttons to the top-right corner of each panel / KPI row */
+  .card{position:relative}
+  details.coll{position:relative}
+  .stat{position:relative}
+  .card h2{padding-right:32px}
+  details.coll>summary{padding-right:46px}
+  .statmeta{padding-right:28px}
+  .modal-back{position:fixed;inset:0;background:rgba(20,28,44,.46);z-index:100;display:none;
+    align-items:center;justify-content:center;padding:24px}
+  .modal-back.open{display:flex}
+  .modal{background:var(--card);border-radius:14px;max-width:620px;width:100%;max-height:84vh;overflow:auto;
+    box-shadow:0 24px 60px rgba(15,23,42,.32);padding:20px 24px 24px}
+  .modal h3{margin:0 0 12px;font-size:17px;padding-right:36px}
+  .mbody{font-size:14px;color:var(--text);line-height:1.55}
+  .mbody p{margin:0 0 11px}
+  .mbody p:last-child{margin-bottom:0}
+  .mbody .formula{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums;
+    background:#f7f8fa;border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin:0 0 11px}
+  .mbody .formula b{color:var(--text)}
+  .mbody b{color:var(--text)}
+  .mbody .flag{background:#fbeee2;border:1px solid #f0d6bf;border-radius:8px;padding:9px 11px;margin:0 0 12px;color:var(--accent-d)}
+  .modal-close{position:absolute;top:18px;right:20px;border:none;background:#eef0f3;border-radius:8px;
+    width:30px;height:30px;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;z-index:1}
+  .modal-close:hover{background:#e2e5ea;color:var(--text)}
+  .modal-wrap{position:relative}
+  /* scenario toggle (segmented control) */
+  .seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+  .seg{border:none;background:#fff;padding:8px 15px;font-size:12.5px;color:var(--muted);cursor:pointer;
+    font-family:inherit;transition:background .12s,color .12s}
+  .seg+.seg{border-left:1px solid var(--border)}
+  .seg:hover{background:#f0f2f5}
+  .seg.active{background:var(--accent);color:#fff;font-weight:600}
+  .seg.active:hover{background:var(--accent-d)}
+  @media(max-width:520px){.seg-wrap{display:flex;width:100%}.seg{flex:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar" id="topbar">
+    <h1>How confident are we in a <span id="selName" style="color:var(--accent-d)">possibly&nbsp;missing</span> link?</h1>
+  </div>
+  <p class="sub">The Box&nbsp;2 Bayesian reading of the link taxonomy, in its simplest form (binary evidence, three fixed
+  error rates, uniform prior, independent errors). Pick a category on the taxonomy tree. Its error-free
+  signature <code id="sigCode">(Ŷ=1, O_local=0, O_rep=1)</code> becomes the observed evidence, and with a uniform prior
+  the posterior confidence in that label is <code>(1−ε_Y)(1−ε_local)(1−ε_rep)</code>. Drag the sliders — or the point in
+  the phase space — to see how each error rate moves it, and where the residual mass goes.</p>
+
+  <details class="card coll" id="catCard" open>
+    <summary>Pick a link category <button class="info" data-info="taxonomy" aria-label="About the taxonomy">i</button> <span class="muted">— the taxonomy of Fig. 1A; click any leaf</span></summary>
+    <div class="coll-body">
+      <div class="canvas-holder">
+        <svg id="taxo" viewBox="0 0 930 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Link taxonomy selector"></svg>
+      </div>
+    </div>
+  </details>
+
+  <details class="card coll" id="priorCard">
+    <summary>Category prior (base rates) <span class="muted">— uniform by default; edit to break the symmetry</span></summary>
+    <div class="coll-body">
+      <p class="hint">With a uniform prior every category is equally likely before seeing evidence, so confidence in the
+      chosen label depends only on the error rates — not on which category it is. Give some categories more prior
+      weight and the headline confidence starts to differ: a rarer category needs stronger evidence to reach the same
+      confidence. Weights are relative and are renormalised to sum to 1 (shown as %).</p>
+      <div class="prior-grid" id="priorGrid"></div>
+      <button class="reset" id="resetPrior">Reset to uniform (1/8 each)</button>
+      <div class="explain" style="margin-top:12px"><b>What makes a prior non-uniform?</b> Base rates come from what
+      you know before the three evidence checks. In a sparse network true non-interactions vastly outnumber
+      interactions, so the negative categories (e.g. <i>possibly forbidden</i>) carry more prior weight; a model with
+      known high precision makes <i>phantom</i> (false positives) rare; well-sampled, connected systems make
+      <i>possibly missing</i> less likely. In short: network sparsity, the model's precision/recall, and sampling
+      completeness are three major factors that set the priors.</div>
+    </div>
+  </details>
+
+  <div class="card ratesbar" id="ratesbar">
+    <h2>Error rates</h2>
+    <div class="controls">
+      <div class="ctrl">
+        <label><span>ε_Y &nbsp;model error</span><span class="val" id="vY">0.20</span></label>
+        <input type="range" id="sY" min="0" max="0.5" step="0.01" value="0.2">
+        <div class="desc">how often the model's verdict (Ŷ) is wrong</div>
+      </div>
+      <div class="ctrl">
+        <label><span>ε_local &nbsp;local miss</span><span class="val" id="vL">0.30</span></label>
+        <input type="range" id="sL" min="0" max="0.5" step="0.01" value="0.3">
+        <div class="desc">how often local sampling gets O_local wrong (misses a real link / spurious record)</div>
+      </div>
+      <div class="ctrl">
+        <label><span>ε_rep &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
+        <input type="range" id="sR" min="0" max="0.5" step="0.01" value="0.1">
+        <div class="desc">how often the replicate (elsewhere) evidence O_rep is wrong</div>
+      </div>
+    </div>
+    <button class="reset" id="reset">Reset to 0.20 / 0.30 / 0.10</button>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <h2>Posterior over all eight classes <button class="info" data-info="bars" aria-label="About this plot">i</button></h2>
+      <div class="canvas-holder"><canvas id="bars" style="height:300px"></canvas></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--accent)"></i><span id="legSel">possibly missing</span> (observed)</span>
+        <span><i class="sw" style="background:var(--d1)"></i>1 error away</span>
+        <span><i class="sw" style="background:var(--d2)"></i>2 errors away</span>
+        <span><i class="sw" style="background:var(--d3)"></i>3 errors away</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Key quantities <span style="font-weight:400;color:var(--muted)">— for the chosen category</span></h2>
+      <div class="stat">
+        <div class="big" id="pm">–</div>
+        <div class="statmeta">
+          <div class="statlabel"><b>Confidence in <span id="confName">possibly missing</span></b>
+          <button class="info" data-info="confidence" aria-label="About this quantity">i</button> — posterior probability
+          the <span id="confName2">possibly-missing</span> label is correct.</div>
+          <div class="formula" id="formula" style="margin-top:6px"></div>
+        </div>
+      </div>
+      <div class="stat">
+        <div class="big" id="feas">–</div>
+        <div class="statmeta">
+          <div class="statlabel"><b>P(truly feasible | evidence)</b>
+          <button class="info" data-info="feasible" aria-label="About this quantity">i</button> — the chance the
+          interaction can occur at all, whichever exact label is right.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Likelihood breakdown <button class="info" data-info="table" aria-label="About this table">i</button> <span style="font-weight:400;color:var(--muted)">— every cell updates with the sliders</span></h2>
+    <div style="overflow-x:auto">
+      <table id="tbl">
+        <thead><tr>
+          <th class="name">Class</th><th>signature</th>
+          <th>model</th><th>local</th><th>rep</th>
+          <th>P(E|C)</th><th>P(C|E)</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Posterior accumulation — all categories <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— full posterior as replicates accumulate</span></h2>
+    <div class="seg-wrap" id="scenToggle">
+      <button type="button" class="seg active" data-mode="det">Detected every replicate (k = R)</button>
+      <button type="button" class="seg" data-mode="emp">Empty every replicate (k = 0)</button>
+    </div>
+    <div class="controls" style="grid-template-columns:1fr 1fr;max-width:640px;margin:12px 0 14px">
+      <div class="ctrl">
+        <label><span>ρ &nbsp;realization rate</span><span class="val" id="vRhoA">0.50</span></label>
+        <input type="range" id="sRhoA" min="0.05" max="1" step="0.05" value="0.5">
+        <div class="desc">chance a <b>feasible</b> link is actually <b>realised</b> (occurs) in a given replicate.
+        A realised link is then detected with the same success as local sampling, 1−ε_local (a replicate is just
+        another local sample), so the per-replicate detection rate is p₁ = ρ(1−ε_local).</div>
+      </div>
+      <div class="ctrl">
+        <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFA">0.05</span></label>
+        <input type="range" id="sFA" min="0" max="0.3" step="0.01" value="0.05">
+        <div class="desc">chance a replicate reports the link when it is <b>not</b> truly there
+        (per-replicate false positive p₀ = f, e.g. misID or contamination).</div>
+      </div>
+    </div>
+    <div class="canvas-holder"><canvas id="accumAll" style="height:400px"></canvas></div>
+    <p class="hint" id="accumAllCap" style="margin:12px 0 0"></p>
+    <div class="legend" id="accumAllLegend"></div>
+    <p class="notes" style="margin-top:8px">The full posterior over all eight categories under the selected
+    consistent-evidence scenario, so the eight lines sum to 1 at every R. Each category has its own colour; the
+    <b>chosen</b> category and its <b>replicate counterpart</b> are drawn bold with markers.
+    Switch the scenario to see the mirror image — and note each plateau equals the bar-chart posterior in the ε_rep→0
+    limit, so this is the bar chart emerging as replicates accumulate. The dashed <b>ceiling = (1−ε_Y)(1−ε_local)</b>
+    is the most confidence replicate evidence can ever buy: no amount of replicate data resolves the model (ε_Y) or
+    local (ε_local) errors, so the chosen category can climb to that line but no further.</p>
+  </div>
+
+  <div class="modal-back" id="modalBack">
+    <div class="modal modal-wrap" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Close">×</button>
+      <h3 id="modalTitle"></h3>
+      <div class="mbody" id="modalBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ACCENT='#E07B39', ACCENT_D='#B4531A', TEXT='#1f2933', MUTED='#5b6472', GRID='#e5e8ec';
+const DCOL=['#E07B39','#3B82C4','#9DBBD6','#C9CED4'];
+// distinct per-category palette (ColorBrewer Dark2), indexed to CLASSES order
+const CATCOL=['#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666'];
+const POS='#3B82C4', POS_D='#2A5E8F', POS_L='#eaf1f8';
+const NEG='#C0607A', NEG_D='#9B4256', NEG_L='#f8ebef';
+
+// Eight categories in taxonomy order. sig = (Yhat, O_local, O_rep).
+const CLASSES=[
+  {name:'Locally unique',    sig:[1,1,0]},
+  {name:'Recurrent',         sig:[1,1,1]},
+  {name:'Phantom',           sig:[1,0,0]},
+  {name:'Possibly missing',  sig:[1,0,1]},
+  {name:'Possibly forbidden',sig:[0,0,0]},
+  {name:'Locally absent',    sig:[0,0,1]},
+  {name:'Weak support',      sig:[0,1,0]},
+  {name:'Model-elusive',     sig:[0,1,1]},
+];
+// editable prior: relative weights (default equal -> uniform), normalised on use
+let priorW=CLASSES.map(()=>1);
+function PRIORnorm(){const s=priorW.reduce((a,b)=>a+b,0)||1;return priorW.map(x=>x/s);}
+function priorIsUniform(){return priorW.every(x=>Math.abs(x-priorW[0])<1e-9);}
+function idxOf(name){return CLASSES.findIndex(c=>c.name===name);}
+
+// ---- selection state ----
+let selected='Possibly missing';
+let PMIDX=idxOf(selected);
+let OBS=CLASSES[PMIDX].sig.slice();
+
+let state=[0.2,0.3,0.1];   // eY, eL, eR
+let rho=0.5, fRate=0.05;
+
+function hamming(sig){let d=0;for(let i=0;i<3;i++)if(sig[i]!==OBS[i])d++;return d;}
+function colorFor(sig){return DCOL[hamming(sig)];}
+function like(sig,eps){let p=1;for(let i=0;i<3;i++)p*=(OBS[i]===sig[i])?(1-eps[i]):eps[i];return p;}
+function posterior(eps){
+  const pr=PRIORnorm();
+  const nums=CLASSES.map((c,i)=>like(c.sig,eps)*pr[i]);
+  const Z=nums.reduce((a,b)=>a+b,0);
+  return nums.map(x=>x/Z);
+}
+function pmConf(eps){return posterior(eps)[PMIDX];}
+// feasibility: realised somewhere (locally or in replicates)
+function feasIdx(i){const s=CLASSES[i].sig;return s[1]===1||s[2]===1;}
+
+// ---- taxonomy selector ----
+// leaf layout: 4 rows (TP,FP,TN,FN) x 2 cols (not-observed-elsewhere, observed-elsewhere)
+const ROWC=[56,108,212,264];
+const LEAVES=[
+  {cat:'Locally unique',    col:0,row:0,pos:1},
+  {cat:'Recurrent',         col:1,row:0,pos:1},
+  {cat:'Phantom',           col:0,row:1,pos:1},
+  {cat:'Possibly missing',  col:1,row:1,pos:1},
+  {cat:'Possibly forbidden',col:0,row:2,pos:0},
+  {cat:'Locally absent',    col:1,row:2,pos:0},
+  {cat:'Weak support',      col:0,row:3,pos:0},
+  {cat:'Model-elusive',     col:1,row:3,pos:0},
+];
+const COLX=[500,720], LW=200, LH=40;
+function conn(x1,y1,x2,y2){const mx=(x1+x2)/2;return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#cfd5dd" stroke-width="1.6"/>`;}
+function nodeBox(x,y,w,h,label,sub,fill,stroke,tc){
+  let t=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${fill}" stroke="${stroke}" stroke-width="1.4"/>`;
+  const cx=x+w/2;
+  if(sub){
+    t+=`<text x="${cx}" y="${y+h/2-3}" text-anchor="middle" font-size="12" font-weight="600" fill="${tc}">${label}</text>`;
+    t+=`<text x="${cx}" y="${y+h/2+12}" text-anchor="middle" font-size="10.5" fill="${MUTED}">${sub}</text>`;
+  } else {
+    t+=`<text x="${cx}" y="${y+h/2+4}" text-anchor="middle" font-size="12" font-weight="600" fill="${tc}">${label}</text>`;
+  }
+  return t;
+}
+function renderTaxo(){
+  let s='';
+  // column headers
+  s+=`<text x="${COLX[0]+LW/2}" y="14" text-anchor="middle" font-size="11.5" font-weight="600" fill="${MUTED}">Not observed elsewhere</text>`;
+  s+=`<text x="${COLX[1]+LW/2}" y="14" text-anchor="middle" font-size="11.5" font-weight="600" fill="${MUTED}">Observed elsewhere</text>`;
+  // connectors first (under boxes)
+  s+=conn(112,160,150,82);
+  s+=conn(112,160,150,238);
+  s+=conn(290,82,330,56);
+  s+=conn(290,82,330,108);
+  s+=conn(290,238,330,212);
+  s+=conn(290,238,330,264);
+  // row rails from c2 nodes across both columns
+  ROWC.forEach(yc=>{ s+=`<line x1="440" y1="${yc}" x2="920" y2="${yc}" stroke="#cfd5dd" stroke-width="1.6"/>`; });
+  // core nodes
+  s+=nodeBox(8,142,104,36,'Potential','links','#eef1f4','#c7ced6',TEXT);
+  s+=nodeBox(150,66,140,32,'Predicted +','',POS_L,POS,POS_D);
+  s+=nodeBox(150,222,140,32,'Predicted −','',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,40,110,32,'TP','observed',POS_L,POS,POS_D);
+  s+=nodeBox(330,92,110,32,'FP','not observed',POS_L,POS,POS_D);
+  s+=nodeBox(330,196,110,32,'TN','not observed',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,248,110,32,'FN','observed',NEG_L,NEG,NEG_D);
+  // leaves (clickable)
+  LEAVES.forEach(L=>{
+    const x=COLX[L.col], yc=ROWC[L.row], y=yc-LH/2;
+    const on=(L.cat===selected);
+    const baseStroke=L.pos?POS:NEG, baseText=L.pos?POS_D:NEG_D;
+    const fill=on?'#fbeee2':'#ffffff';
+    const stroke=on?ACCENT:baseStroke;
+    const sw=on?2.6:1.4;
+    const tcol=on?ACCENT_D:baseText;
+    const sig=CLASSES[idxOf(L.cat)].sig.join(',');
+    s+=`<g class="leaf" data-cat="${L.cat}">`+
+       `<rect x="${x}" y="${y}" width="${LW}" height="${LH}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`+
+       `<text x="${x+LW/2}" y="${yc-3}" text-anchor="middle" font-size="12.5" font-weight="${on?700:600}" fill="${tcol}">${L.cat}</text>`+
+       `<text x="${x+LW/2}" y="${yc+12}" text-anchor="middle" font-size="10" fill="${MUTED}">(${sig})</text>`+
+       `</g>`;
+  });
+  document.getElementById('taxo').innerHTML=s;
+}
+document.getElementById('taxo').addEventListener('click',e=>{
+  const g=e.target.closest('.leaf'); if(!g)return;
+  selectCat(g.getAttribute('data-cat'));
+});
+function selectCat(name){
+  selected=name; PMIDX=idxOf(name); OBS=CLASSES[PMIDX].sig.slice();
+  renderTaxo();
+  renderPriorGrid();
+  syncLabels();
+  drawAll();
+  if(typeof layoutBars==='function')layoutBars();
+}
+
+// ---- prior editor ----
+function renderPriorGrid(){
+  const pr=PRIORnorm();
+  let html='';
+  CLASSES.forEach((c,i)=>{
+    const on=(i===PMIDX);
+    html+=`<div class="pw${on?' selp':''}">`+
+      `<label><span>${c.name}</span><span class="pct" id="pwpct${i}">${(pr[i]*100).toFixed(1)}%</span></label>`+
+      `<input type="range" id="pw${i}" min="0" max="1" step="0.01" value="${priorW[i]}">`+
+      `</div>`;
+  });
+  document.getElementById('priorGrid').innerHTML=html;
+  CLASSES.forEach((c,i)=>{
+    document.getElementById('pw'+i).addEventListener('input',e=>{
+      priorW[i]=parseFloat(e.target.value);
+      updatePriorPcts();
+      drawAll();
+    });
+  });
+}
+function updatePriorPcts(){
+  const pr=PRIORnorm();
+  CLASSES.forEach((c,i)=>{const el=document.getElementById('pwpct'+i);if(el)el.textContent=(pr[i]*100).toFixed(1)+'%';});
+}
+
+// ---- dynamic labels ----
+function sigStr(){return `(Ŷ=${OBS[0]}, O_local=${OBS[1]}, O_rep=${OBS[2]})`;}
+function syncLabels(){
+  document.getElementById('selName').textContent=selected.toLowerCase();
+  document.getElementById('confName').textContent=selected.toLowerCase();
+  document.getElementById('confName2').textContent=selected.toLowerCase();
+  document.getElementById('legSel').textContent=selected.toLowerCase();
+  document.getElementById('sigCode').textContent=sigStr();
+}
+
+// ---- canvas helpers ----
+function setup(cv){
+  const dpr=window.devicePixelRatio||1;
+  const r=cv.getBoundingClientRect();
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w:r.width,h:r.height};
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+function hx(h){h=h.replace('#','');return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];}
+function seqColor(t){
+  t=Math.max(0,Math.min(1,t));
+  const stops=[[0,'#FBEFE4'],[0.5,'#EBA96B'],[1,'#B4531A']];
+  let i=0;while(i<stops.length-1&&t>stops[i+1][0])i++;
+  const [t0,c0]=stops[i],[t1,c1]=stops[i+1];
+  const u=(t1-t0)?(t-t0)/(t1-t0):0;
+  const a=hx(c0),b=hx(c1);
+  return `rgb(${Math.round(lerp(a[0],b[0],u))},${Math.round(lerp(a[1],b[1],u))},${Math.round(lerp(a[2],b[2],u))})`;
+}
+
+// ---- bar chart ----
+function drawBars(){
+  const {ctx,w,h}=setup(document.getElementById('bars'));
+  ctx.clearRect(0,0,w,h);
+  const post=posterior(state);
+  const n=CLASSES.length, padL=134, padR=44, padT=6, padB=22;
+  const bw=w-padL-padR, rowH=(h-padT-padB)/n;
+  ctx.font='11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+  for(let g=0;g<=4;g++){
+    const gx=padL+bw*g/4;
+    ctx.strokeStyle=GRID;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(gx,padT);ctx.lineTo(gx,padT+rowH*n);ctx.stroke();
+    ctx.fillStyle=MUTED;ctx.fillText((g/4).toFixed(2),gx,padT+rowH*n+4);
+  }
+  for(let i=0;i<n;i++){
+    const c=CLASSES[i], v=post[i];
+    const y=padT+i*rowH, bh=rowH*0.62, by=y+(rowH-bh)/2;
+    ctx.fillStyle=colorFor(c.sig);
+    ctx.fillRect(padL, by, Math.max(0.5,bw*v), bh);
+    ctx.fillStyle=i===PMIDX?ACCENT_D:TEXT;
+    ctx.font=(i===PMIDX?'600 ':'')+'12px system-ui';
+    ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(c.name, padL-8, by+bh/2);
+    const pct=(v*100).toFixed(1)+'%';
+    ctx.textAlign='left';ctx.fillStyle=MUTED;ctx.font='11px system-ui';
+    const tx=padL+bw*v+6;
+    ctx.fillText(pct, Math.min(tx, w-padR+2), by+bh/2);
+  }
+}
+
+// ---- likelihood table ----
+function factor(match,eps){return match?(1-eps):eps;}
+function updateTable(){
+  const post=posterior(state);
+  let html='';
+  CLASSES.forEach((c,i)=>{
+    const fY=factor(c.sig[0]===OBS[0],state[0]);
+    const fL=factor(c.sig[1]===OBS[1],state[1]);
+    const fR=factor(c.sig[2]===OBS[2],state[2]);
+    const L=fY*fL*fR;
+    html+=`<tr class="${i===PMIDX?'pm':''}">`+
+      `<td class="name">${c.name}</td>`+
+      `<td class="sig">${c.sig.join(',')}</td>`+
+      `<td>${fY.toFixed(2)}</td><td>${fL.toFixed(2)}</td><td>${fR.toFixed(2)}</td>`+
+      `<td>${L.toFixed(4)}</td><td>${(post[i]*100).toFixed(1)}%</td></tr>`;
+  });
+  document.getElementById('tbody').innerHTML=html;
+}
+
+// ---- accumulation ----
+const RMAX=20;
+// counterpart categories: same (Yhat,O_local), the two O_rep values
+function pairIdx(){
+  const y=OBS[0], l=OBS[1];
+  const posIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===1);
+  const negIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===0);
+  return {posIdx,negIdx,y,l};
+}
+function qPost(yh,ol,k,R){
+  const p1=rho*(1-state[1]), p0=fRate, pr=PRIORnorm();
+  const nums=CLASSES.map((c,i)=>{
+    const fY=(yh===c.sig[0])?(1-state[0]):state[0];
+    const fL=(ol===c.sig[1])?(1-state[1]):state[1];
+    const p=(c.sig[2]===1)?p1:p0;
+    return pr[i]*fY*fL*Math.pow(p,k)*Math.pow(1-p,R-k);
+  });
+  const Z=nums.reduce((a,b)=>a+b,0);
+  return nums.map(x=>x/Z);
+}
+let accumMode='det';   // scenario for the all-categories plot
+// shared plot frame: grid, y-ticks, x-ticks, ceiling. returns geometry + mappers
+function accumFrame(ctx,w,h,padR){
+  const padL=60,padT=12,padB=40;
+  const pw=w-padL-padR, ph=h-padT-padB;
+  const ceil=(1-state[0])*(1-state[1]);
+  const X=r=>padL+pw*(r/RMAX), Y=v=>padT+(1-v)*ph;
+  ctx.font='10px system-ui';
+  for(let g=0;g<=4;g++){const gy=padT+ph*g/4,val=1-g/4;
+    ctx.strokeStyle=GRID;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+pw,gy);ctx.stroke();
+    ctx.fillStyle=MUTED;ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(val.toFixed(2),padL-5,gy);}
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle=MUTED;
+  for(let r=0;r<=RMAX;r+=5){ctx.fillText(r,X(r),padT+ph+6);}
+  const cyl=Y(ceil);
+  ctx.strokeStyle='#c2c8d0';ctx.setLineDash([5,4]);ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,cyl);ctx.lineTo(padL+pw,cyl);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=MUTED;ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillText('ceiling '+(ceil*100).toFixed(0)+'%',padL+4,cyl-2);
+  ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
+  ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('number of replicates R (consistent evidence)',padL+pw/2,padT+ph+22);
+  // y-axis title
+  ctx.save();ctx.translate(15,padT+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('posterior probability  P(C | E)',0,0);ctx.restore();
+  return {padL,padT,pw,ph,X,Y};
+}
+// Plot A — all 8 posteriors under the selected scenario, coloured by Hamming distance
+function drawAccumAll(){
+  const {posIdx,negIdx,y,l}=pairIdx();
+  const cpIdx=(OBS[2]===1)?negIdx:posIdx;
+  const emph=new Set([PMIDX,cpIdx]);
+  const {ctx,w,h}=setup(document.getElementById('accumAll'));
+  ctx.clearRect(0,0,w,h);
+  const g=accumFrame(ctx,w,h,150);
+  const series=CLASSES.map(()=>[]);
+  for(let R=0;R<=RMAX;R++){
+    const k=(accumMode==='det')?R:0;
+    qPost(y,l,k,R).forEach((v,i)=>series[i].push(v));
+  }
+  function draw(i,on){
+    const col=CATCOL[i];
+    ctx.beginPath();
+    series[i].forEach((v,R)=>{const px=g.X(R),py=g.Y(v);R===0?ctx.moveTo(px,py):ctx.lineTo(px,py);});
+    ctx.strokeStyle=col;ctx.lineWidth=on?2.6:1.3;ctx.globalAlpha=on?1:0.85;ctx.lineJoin='round';ctx.stroke();
+    ctx.globalAlpha=1;
+    if(on){series[i].forEach((v,R)=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(g.X(R),g.Y(v),2.3,0,7);ctx.fill();});}
+  }
+  CLASSES.forEach((c,i)=>{if(!emph.has(i))draw(i,false);});
+  emph.forEach(i=>draw(i,true));
+  const labels=[];
+  CLASSES.forEach((c,i)=>{const fin=series[i][RMAX];
+    if(emph.has(i)||fin>0.03)labels.push({y:g.Y(fin),text:c.name,col:CATCOL[i],bold:emph.has(i)});});
+  labels.sort((a,b)=>a.y-b.y);
+  for(let i=1;i<labels.length;i++){if(labels[i].y-labels[i-1].y<12)labels[i].y=labels[i-1].y+12;}
+  labels.forEach(L=>{ctx.fillStyle=L.col;ctx.font=(L.bold?'700 ':'')+'10.5px system-ui';
+    ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(L.text,g.padL+g.pw+6,Math.max(g.padT+4,Math.min(g.padT+g.ph-4,L.y)));});
+  // legend (one entry per category) + caption
+  document.getElementById('accumAllLegend').innerHTML=
+    CLASSES.map((c,i)=>`<span><i class="sw" style="background:${CATCOL[i]}"></i>${c.name}</span>`).join('');
+  const cpName=CLASSES[cpIdx].name;
+  const modeTxt=(accumMode==='det')?'a detection in every replicate (k = R)':'an empty in every replicate (k = 0)';
+  document.getElementById('accumAllCap').innerHTML=
+    `Scenario: <b>${modeTxt}</b>. Chosen <b>${selected}</b> and its replicate counterpart <b>${cpName}</b> are bold with markers.`;
+}
+// Plot B — the two focal lines: fast (positive) vs slow (negative) saturation
+function drawAccum(){ drawAccumAll(); }
+
+function drawAll(){
+  drawBars();
+  updateTable();
+  drawAccum();
+  const pm=pmConf(state);
+  const post=posterior(state);
+  const feas=post.filter((_,i)=>feasIdx(i)).reduce((a,b)=>a+b,0);
+  document.getElementById('pm').textContent=(pm*100).toFixed(1)+'%';
+  document.getElementById('feas').textContent=(feas*100).toFixed(1)+'%';
+  const L=(1-state[0])*(1-state[1])*(1-state[2]);
+  const lhs=`(1−${state[0].toFixed(2)})(1−${state[1].toFixed(2)})(1−${state[2].toFixed(2)})`;
+  if(priorIsUniform()){
+    document.getElementById('formula').innerHTML=`${lhs} = <b>${(pm*100).toFixed(1)}%</b>`;
+  }else{
+    document.getElementById('formula').innerHTML=
+      `likelihood ${lhs} = ${(L*100).toFixed(1)}% &nbsp;·&nbsp; prior, normalised &nbsp;⇒&nbsp; P(C|E) = <b>${(pm*100).toFixed(1)}%</b>`;
+  }
+}
+
+function bind(id,vid,idx){
+  const s=document.getElementById(id), v=document.getElementById(vid);
+  s.addEventListener('input',()=>{state[idx]=parseFloat(s.value);v.textContent=state[idx].toFixed(2);drawAll();});
+}
+bind('sY','vY',0);bind('sL','vL',1);bind('sR','vR',2);
+// accumulation sliders: ρ and f
+const sRhoA=document.getElementById('sRhoA'), sFA=document.getElementById('sFA');
+sRhoA.addEventListener('input',e=>{rho=parseFloat(e.target.value);document.getElementById('vRhoA').textContent=rho.toFixed(2);drawAccum();});
+sFA.addEventListener('input',e=>{fRate=parseFloat(e.target.value);document.getElementById('vFA').textContent=fRate.toFixed(2);drawAccum();});
+// scenario toggle (all-categories plot)
+document.getElementById('scenToggle').addEventListener('click',e=>{
+  const b=e.target.closest('.seg'); if(!b)return;
+  accumMode=b.getAttribute('data-mode');
+  document.querySelectorAll('#scenToggle .seg').forEach(s=>s.classList.toggle('active',s===b));
+  drawAccumAll();
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  state=[0.2,0.3,0.1]; rho=0.5; fRate=0.05;
+  [['sY','vY',0],['sL','vL',1],['sR','vR',2]].forEach(([s,v,i])=>{
+    document.getElementById(s).value=state[i];document.getElementById(v).textContent=state[i].toFixed(2);
+  });
+  sRhoA.value=rho;document.getElementById('vRhoA').textContent=rho.toFixed(2);
+  sFA.value=fRate;document.getElementById('vFA').textContent=fRate.toFixed(2);
+  drawAll();
+});
+document.getElementById('resetPrior').addEventListener('click',()=>{
+  priorW=CLASSES.map(()=>1);
+  renderPriorGrid();
+  drawAll();
+});
+// floating bars: stack the error-rate bar under the title bar, add shadow when pinned
+const topbar=document.getElementById('topbar'), ratesbar=document.getElementById('ratesbar');
+function layoutBars(){ ratesbar.style.top=topbar.getBoundingClientRect().height+'px'; }
+function barShadows(){
+  topbar.classList.toggle('stuck',window.scrollY>2);
+  const th=topbar.getBoundingClientRect().height;
+  ratesbar.classList.toggle('stuck',ratesbar.getBoundingClientRect().top<=th+1);
+}
+window.addEventListener('resize',()=>{drawAll();layoutBars();barShadows();});
+window.addEventListener('scroll',barShadows,{passive:true});
+document.getElementById('catCard').addEventListener('toggle',()=>{layoutBars();drawAll();});
+document.getElementById('priorCard').addEventListener('toggle',layoutBars);
+
+// ---- info modals ----
+const INFO={
+  taxonomy:{title:'The link taxonomy',html:`
+    <p>Every potential link is placed by three binary pieces of evidence: the model's prediction <b>Ŷ</b>, whether it
+    was observed <b>locally</b> (O_local), and whether it was observed <b>elsewhere</b> in within-system replicates
+    (O_rep).</p>
+    <p>The first two define the confusion matrix — true/false positive/negative. The contextual axis then splits each
+    cell in two ("not observed elsewhere" vs "observed elsewhere"), giving the eight categories.</p>
+    <p>Click any leaf to make its error-free signature <b>(Ŷ, O_local, O_rep)</b> the observed evidence. Every panel
+    below recomputes for that category.</p>`},
+  confidence:{title:'Confidence in the chosen category',html:`
+    <p>The headline number is the posterior probability <b>P(C = chosen | E)</b> that the category you picked is the
+    true one, given that the observed evidence equals its own error-free signature.</p>
+    <div class="formula">(1−ε_Y)(1−ε_local)(1−ε_rep) — one (1−ε) factor per evidence source</div>
+    <p>With binary evidence and a <b>uniform prior</b> it reduces exactly to that product: the eight likelihoods sum
+    to 1, so the normaliser is 1. Because the product is the same for every category, under a uniform prior your
+    confidence in a deterministic assignment depends only on the error rates — not on which box you landed in.</p>
+    <p>With a <b>non-uniform prior</b> it becomes likelihood × prior, renormalised, so a rarer category needs stronger
+    evidence to reach the same confidence.</p>`},
+  feasible:{title:'P(truly feasible | evidence)',html:`
+    <p>A link is <b>feasible</b> if it can actually occur — and the evidence for that is the link being realised
+    <b>somewhere</b>: seen locally (O_local=1) <i>or</i> in the replicates (O_rep=1).</p>
+    <p>So we sum the posterior over every category whose error-free signature has the link present in at least one
+    place. The only two categories where the link is absent everywhere are <b>Phantom</b> (predicted but seen nowhere
+    → model false positive) and <b>Possibly forbidden</b> (predicted absent, seen nowhere). Hence:</p>
+    <div class="formula">P(feasible) = Σ<sub>c: z<sub>local</sub>=1 or z<sub>rep</sub>=1</sub> P(C=c | E)
+      = <b>1 − P(Phantom) − P(Possibly forbidden)</b></div>
+    <p>It answers a different question from the headline: whichever exact label is right, how sure are we the
+    interaction can occur at all?</p>`},
+  bars:{title:'Posterior over all eight classes',html:`
+    <p>The full posterior <b>P(C | E)</b> over all eight categories at the current error rates and prior.</p>
+    <p>Bars are coloured by <b>Hamming distance</b> from the observed pattern — the number of instrument errors (across
+    the three axes Ŷ, O_local, O_rep) needed to turn that category's true signature into what was observed. The chosen
+    category is 0 errors (highlighted); its 1-error neighbours always inherit the most residual mass, because one
+    error is more likely than two or three.</p>`},
+  table:{title:'Likelihood breakdown',html:`
+    <p>Each factor is <b>1−ε</b> when the category's signature matches the observed bit on that axis and <b>ε</b> when
+    it differs; <b>P(E|C)</b> is their product — the likelihood.</p>
+    <p>With binary evidence and a uniform prior the eight likelihoods already sum to 1, so <b>P(C|E)</b> equals
+    P(E|C); the model and local errors are what move the numbers as you drag the sliders. Give the prior non-uniform
+    weights and P(C|E) tilts toward the categories you made more common a priori.</p>`},
+  accumAll:{title:'Posterior accumulation — all categories',html:`
+    <div class="flag"><b>Heads-up:</b> this plot steps outside the binary Box 2. Everywhere else the replicate evidence
+    is a single bit O_rep ∈ {0,1} ("observed in at least one replicate") with one error rate ε_rep. Here we use the
+    <b>quantitative</b> version — the proportion of replicates in which the link is seen — which is what creates
+    an accumulation to plot.</div>
+    <p>Pick a scenario with the toggle. Each fixes one consistent-evidence stream and plots the full posterior over
+    <i>all eight</i> categories against <b>R</b>, the number of within-system replicates — so the eight lines sum to 1
+    at every R. <b>Detected every replicate</b> is k = R; <b>empty every replicate</b> is k = 0. Each category has its
+    own colour; the chosen category and its replicate counterpart are bold with markers.</p>
+    <p>Under detections the four "observed-elsewhere" categories rise and the four "not-observed-elsewhere" ones decay
+    to zero; under empties it is the reverse. Each plateau equals the bar-chart posterior in the ε_rep→0 limit — so
+    this is the bar chart emerging as replicates accumulate.</p>
+    <p><b>The y-axis is the posterior P(C=c | evidence)</b> — the probability that category c is the true one given
+    the evidence so far. For each category we compute an unnormalised score (below), then divide by the sum of all
+    eight scores so the y-values add to 1 at every R; the height plotted for category c is its share.</p>
+    <p>The score per category c is the two binary within-network factors times a binomial replicate term:</p>
+    <div class="formula">score(c) = π<sub>c</sub> · [ε_Y or 1−ε_Y] · [ε_local or 1−ε_local] ·
+      p<sub>c</sub><sup>k</sup>(1−p<sub>c</sub>)<sup>R−k</sup> &nbsp;;&nbsp;
+      P(C=c | E) = score(c) / Σ<sub>c'</sub> score(c')</div>
+    <p>with π<sub>c</sub> the category's prior, k the number of detections out of R replicates, and p<sub>c</sub> the
+    per-replicate positive probability. For a truly realised-elsewhere link (z_rep=1),
+    <b>p<sub>c</sub> = p₁ = ρ(1−ε_local)</b>: it is realised in the replicate with probability ρ and then detected
+    with the same sampling success as locally, 1−ε_local — a replicate is just another local sample, so the
+    detection error <i>is</i> ε_local (no separate detection parameter). For a truly-absent link (z_rep=0),
+    <b>p<sub>c</sub> = p₀ = f</b>, the false-detection rate. Each within-network factor is 1−ε when category c's
+    signature matches the observed Ŷ / O_local and ε when it differs; the binomial coefficient cancels in the
+    normalisation.</p>
+    <p>Note ρ only bites when f &gt; 0: with no false detections the surviving categories all share the same p₁ᴿ,
+    which cancels, so ρ has no effect under all-detections. A small f restores the ρ-dependent transient.</p>
+    <p><b>The ceiling</b> (dashed line) is <b>(1−ε_Y)(1−ε_local)</b>: the most confidence replicate evidence can ever
+    buy. As R→∞ the replicate axis is fully resolved, but no amount of replicate data touches the model (ε_Y) or local
+    (ε_local) errors — the four surviving categories' model-and-local factors sum to 1, so the chosen category limits
+    to (1−ε_Y)(1−ε_local) and the rest is shared among its neighbours. It is the same value the headline confidence
+    would reach in the ε_rep→0 limit.</p>`}
+};
+const modalBack=document.getElementById('modalBack');
+function openModal(key){
+  const c=INFO[key]; if(!c)return;
+  document.getElementById('modalTitle').textContent=c.title;
+  document.getElementById('modalBody').innerHTML=c.html;
+  modalBack.classList.add('open');
+}
+function closeModal(){modalBack.classList.remove('open');}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.info');
+  if(b){e.preventDefault();e.stopPropagation();openModal(b.getAttribute('data-info'));}
+});
+document.getElementById('modalClose').addEventListener('click',closeModal);
+modalBack.addEventListener('click',e=>{if(e.target===modalBack)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+renderTaxo();
+renderPriorGrid();
+syncLabels();
+drawAll();
+layoutBars();
+barShadows();
+</script>
+</body>
+</html>
