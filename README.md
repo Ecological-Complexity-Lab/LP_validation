@@ -1,9 +1,9 @@
 # :wave: About
-This repository contains the code and data for the paper: "Contextual evidence classifies ecological interactions and guides their chase".
+This repository contains the code and data for the paper: "Contextual evidence classifies ecological interactions and guides their discovery".
 
 
 # :page_facing_up: Paper and citing
-Abramov, K., Nehoray, S. M., Puzis, R., & Pilosof, S. (2026). **Contextual evidence classifies ecological interactions and guides their chase**. 
+Abramov, K., Nehoray, S. M., Puzis, R., & Pilosof, S. (2026). **Contextual evidence classifies ecological interactions and guides their discovery**. 
 
 
 # Abstract:
