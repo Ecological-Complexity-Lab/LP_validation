@@ -155,11 +155,12 @@
   <div class="topbar" id="topbar">
     <h1>How confident are we in a <span id="selName" style="color:var(--accent-d)">possibly&nbsp;missing</span> link?</h1>
   </div>
-  <p class="sub">The Box&nbsp;2 Bayesian reading of the link taxonomy, in its simplest form (binary evidence, three fixed
-  error rates, uniform prior, independent errors). Pick a category on the taxonomy tree. Its error-free
-  signature <code id="sigCode">(Ŷ=1, O_local=0, O_rep=1)</code> becomes the observed evidence, and with a uniform prior
-  the posterior confidence in that label is <code>(1−ε_Y)(1−ε_local)(1−ε_rep)</code>. Drag the sliders — or the point in
-  the phase space — to see how each error rate moves it, and where the residual mass goes.</p>
+  <p class="sub">The Box&nbsp;2 Bayesian reading of the link taxonomy, in its simplest form, includes binary evidence, three fixed
+  error rates, uniform prior, and independent errors. Pick a category on the taxonomy tree. Its error-free
+  signature <code id="sigCode">(Ŷ=1, O_local=0, O_rep=1)</code> is what you would observe if all three sources were
+  right; take that as the evidence and ask what confidence it earns. Under a uniform prior the answer is
+  <code>(1−ε_Y)(1−ε_local)(1−ε_rep)</code>, one factor per source. Drag the sliders to see how each error rate moves
+  it, and which rival categories absorb the rest.</p>
 
   <details class="card coll" id="catCard" open>
     <summary>Pick a link category <button class="info" data-info="taxonomy" aria-label="About the taxonomy">i</button> <span class="muted">— the taxonomy of Fig. 1A; click any leaf</span></summary>
@@ -173,10 +174,10 @@
   <details class="card coll" id="priorCard" open>
     <summary>Category prior (base rates) <span class="muted">— uniform by default; edit to break the symmetry</span></summary>
     <div class="coll-body">
-      <p class="hint">With a uniform prior every category is equally likely before seeing evidence, so confidence in the
-      chosen label depends only on the error rates — not on which category it is. Give some categories more prior
-      weight and the headline confidence starts to differ: a rarer category needs stronger evidence to reach the same
-      confidence. Weights are relative and are renormalised to sum to 1 (shown as %).</p>
+      <p class="hint">A uniform prior treats all eight categories as equally common before any evidence arrives, so
+      confidence in the chosen label depends only on the error rates — not on which category it is. Make some
+      categories commoner than others and that changes: a rare category has further to travel, so it needs stronger
+      evidence to reach the same confidence. Weights are relative, rescaled to sum to 1 (shown as %).</p>
       <div class="prior-grid" id="priorGrid"></div>
       <button class="reset" id="resetPrior">Reset to uniform (1/8 each)</button>
       <div class="explain" style="margin-top:12px"><b>What makes a prior non-uniform?</b> Base rates come from what
@@ -199,7 +200,7 @@
       <div class="ctrl">
         <label><span>ε_local &nbsp;local miss</span><span class="val" id="vL">0.30</span></label>
         <input type="range" id="sL" min="0" max="0.5" step="0.01" value="0.3">
-        <div class="desc">how often local sampling gets O_local wrong (misses a real link / spurious record)</div>
+        <div class="desc">how often local sampling gets O_local wrong: misses a real link, or records one that is not there</div>
       </div>
       <div class="ctrl">
         <label><span>ε_rep &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
@@ -292,8 +293,8 @@
 
   <div class="card">
     <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the accumulation curve read as sampling effort</span></h2>
-    <p class="hint">The same model as above, inverted: instead of "how confident am I after R replicates?", ask
-    "how many replicates of consistent evidence do I need to reach a target?" The two lines are the <b>chosen
+    <p class="hint">Instead of asking "how confident am I after R replicates?", we can ask:
+    "how many replicates of consistent evidence do I need to reach a confidence target?" The two lines are the <b>chosen
     category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Ŷ, O_local; opposite
     O_rep). One is corroborated by <b>presence</b> (it keeps being seen elsewhere), the other by <b>absence</b> (it
     keeps <i>not</i> being seen), so this contrasts how fast a link is confirmed by detections vs by absences. Pick any
@@ -991,10 +992,10 @@ const INFO={
     interaction can occur at all?</p>`},
   bars:{title:'Posterior over all eight classes',html:`
     <p>The full posterior <b>P(C | E)</b> over all eight categories at the current error rates and prior.</p>
-    <p>Bars are coloured by <b>Hamming distance</b> from the observed pattern — the number of instrument errors (across
-    the three axes Ŷ, O_local, O_rep) needed to turn that category's true signature into what was observed. The chosen
-    category is 0 errors (highlighted); its 1-error neighbours always inherit the most residual mass, because one
-    error is more likely than two or three.</p>`},
+    <p>Colour counts how many of the three axes (Ŷ, O_local, O_rep) would have had to go wrong for that category to be
+    the true one and still produce what you observed; that count is the <b>Hamming distance</b>. The chosen category
+    needs zero errors (highlighted). Its 1-error neighbours always take the largest share of what is left, because one
+    thing going wrong is likelier than two or three.</p>`},
   table:{title:'Likelihood breakdown',html:`
     <p>Each factor is <b>1−ε</b> when the category's signature matches the observed bit on that axis and <b>ε</b> when
     it differs; <b>P(E|C)</b> is their product — the likelihood.</p>
