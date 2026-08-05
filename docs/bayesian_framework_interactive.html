@@ -259,10 +259,10 @@
   </div>
 
   <div class="card">
-    <h2>Posterior accumulation — all categories <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— full posterior as replicates accumulate</span></h2>
+    <h2>Posterior accumulation — all categories <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— Posterior as replicates accumulate (SI Sections 4 & 5)</span></h2>
     <div class="seg-wrap" id="scenToggle">
-      <button type="button" class="seg active" data-mode="det">Detected every replicate (k = R)</button>
-      <button type="button" class="seg" data-mode="emp">Empty every replicate (k = 0)</button>
+      <button type="button" class="seg active" data-mode="det">Detected in every replicate (k = R)</button>
+      <button type="button" class="seg" data-mode="emp">Not detected in any replicate (k = 0)</button>
     </div>
     <div class="controls" style="grid-template-columns:1fr 1fr;max-width:640px;margin:12px 0 14px">
       <div class="ctrl">
@@ -276,14 +276,14 @@
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFA">0.05</span></label>
         <input type="range" id="sFA" min="0" max="0.3" step="0.01" value="0.05">
         <div class="desc">chance a replicate reports the link when it is <b>not</b> truly there
-        (per-replicate false positive p₀ = f, e.g. misID or contamination).</div>
+        (per-replicate false positive p₀ = f, e.g. misidentification or contamination).</div>
       </div>
     </div>
     <div class="canvas-holder"><canvas id="accumAll" style="height:400px"></canvas></div>
     <p class="hint" id="accumAllCap" style="margin:12px 0 0"></p>
     <div class="legend" id="accumAllLegend"></div>
-    <p class="notes" style="margin-top:8px">The full posterior over all eight categories under the selected
-    consistent-evidence scenario, so the eight lines sum to 1 at every R. Each category has its own colour; the
+    <p class="notes" style="margin-top:8px">The posterior over all eight categories under the scenario you
+    picked, so the eight lines sum to 1 at every R. Each category has its own colour; the
     <b>chosen</b> category and its <b>replicate counterpart</b> are drawn bold with markers.
     Switch the scenario to see the mirror image — and note each plateau equals the bar-chart posterior in the ε_rep→0
     limit, so this is the bar chart emerging as replicates accumulate. The dashed <b>ceiling = (1−ε_Y)(1−ε_local)</b>
@@ -292,7 +292,7 @@
   </div>
 
   <div class="card">
-    <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the accumulation curve read as sampling effort</span></h2>
+    <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the accumulation curve read as sampling effort (SI Section 4)</span></h2>
     <p class="hint">Instead of asking "how confident am I after R replicates?", we can ask:
     "how many replicates of consistent evidence do I need to reach a confidence target?" The two lines are the <b>chosen
     category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Ŷ, O_local; opposite
@@ -710,8 +710,8 @@ function counterpartIdx(){
   return CLASSES.findIndex(x=>x.sig[0]===s[0]&&x.sig[1]===s[1]&&x.sig[2]===(1-s[2]));
 }
 // Posterior of category `ci` given evidence = its own signature, under its own
-// corroborating scenario (detected every replicate if observed-elsewhere, else
-// empty every replicate), for continuous R and explicit f, rh.
+// corroborating scenario (detected in every replicate if observed-elsewhere, else
+// not detected in any replicate), for continuous R and explicit f, rh.
 // Worked in log space with a log-sum-exp: R runs into the hundreds when the target
 // sits just under the ceiling, and the direct p^R products flush to zero there.
 function catConfAt(ci,R,f,rh){
@@ -1002,14 +1002,14 @@ const INFO={
     <p>With binary evidence and a uniform prior the eight likelihoods already sum to 1, so <b>P(C|E)</b> equals
     P(E|C); the model and local errors are what move the numbers as you drag the sliders. Give the prior non-uniform
     weights and P(C|E) tilts toward the categories you made more common a priori.</p>`},
-  accumAll:{title:'Posterior accumulation — all categories',html:`
-    <div class="flag"><b>Heads-up:</b> this plot steps outside the binary Box 2. Everywhere else the replicate evidence
+  accumAll:{title:'Cumulative replicate evidence',html:`
+    <div class="flag"><b>Heads-up:</b> this plot steps outside the simplified Box 2 and follows the development presented in the SI (Sections 4 and 5). In the simplified version, the replicate evidence
     is a single bit O_rep ∈ {0,1} ("observed in at least one replicate") with one error rate ε_rep. Here we use the
     <b>quantitative</b> version — the proportion of replicates in which the link is seen — which is what creates
     an accumulation to plot.</div>
     <p>Pick a scenario with the toggle. Each fixes one consistent-evidence stream and plots the full posterior over
     <i>all eight</i> categories against <b>R</b>, the number of within-system replicates — so the eight lines sum to 1
-    at every R. <b>Detected every replicate</b> is k = R; <b>empty every replicate</b> is k = 0. Each category has its
+    at every R. <b>Detected in every replicate</b> is k = R; <b>not detected in any replicate</b> is k = 0. Each category has its
     own colour; the chosen category and its replicate counterpart are bold with markers.</p>
     <p>Under detections the four "observed-elsewhere" categories rise and the four "not-observed-elsewhere" ones decay
     to zero; under empties it is the reverse. Each plateau equals the bar-chart posterior in the ε_rep→0 limit — so
@@ -1037,7 +1037,7 @@ const INFO={
     to (1−ε_Y)(1−ε_local) and the rest is shared among its neighbours. It is the same value the headline confidence
     would reach in the ε_rep→0 limit.</p>`},
   effort:{title:'Effort to confidence — how many replicates?',html:`
-    <p>This panel reads the accumulation curve the other way round. Instead of "what is my confidence after R
+    <p>Visualising Section 4 of the SI, this panel reads the accumulation curve the other way round. Instead of "what is my confidence after R
     replicates?", it asks: <b>how many replicates of consistent (corroborating) evidence do I need to reach a target
     confidence?</b> That count is <b>R*</b> — a rarefaction curve for belief.</p>
     <p><b>Two lines, one comparison.</b> They are the <b>chosen category</b> and its <b>replicate counterpart</b> — the
@@ -1051,7 +1051,7 @@ const INFO={
     capped there too: an unreachable target is not something you can ask for. Lower ε_Y or ε_local and the ceiling,
     the axis and the slider's range all move up together.</p>
     <div class="formula">R* solves&nbsp; P(category | k, R) = target&nbsp; under each category's corroborating scenario
-      (detected every replicate for the presence line, empty every replicate for the absence line).</div>
+      (detected in every replicate for the presence line, not detected in any replicate for the absence line).</div>
     <p>Each category and its counterpart differ only in the replicate term, so their log-odds grow <b>linearly</b> in R
     with slope log(p₁/p₀) — the <b>evidence rate</b> in bits per replicate. A big rate ⇒ small R* (fast); a rate near
     zero ⇒ huge R* (slow).</p>
