@@ -3,7 +3,7 @@
 {
   "name": "Link taxonomy uncertainty explorer",
   "schemaVersion": 1,
-  "description": "Interactive explorer for the Box 2 Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree (Panel A); sliders for the three error rates (ε_Y model, ε_local sampling, ε_rep replicate) show the posterior confidence in the chosen category, the full 8-class posterior, a live likelihood table, an accumulation-of-confidence curve (ρ, f sliders) showing the full posterior as replicates accumulate, and an effort-to-confidence (rarefaction) panel that compares two lines — the chosen category (corroborated by presence) and its replicate counterpart (corroborated by absence) — giving R* (replicates needed to reach a target confidence) for each, the evidence rate in bits/replicate, the presence-vs-absence effort gap, and the crossover at which R* diverges.",
+  "description": "Interactive explorer for the Box 2 Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree (Panel A); sliders for the three error rates (ε<sub>Y</sub> model, ε<sub>l</sub> sampling, ε<sub>r</sub> replicate) show the posterior confidence in the chosen category, the full 8-class posterior, a live likelihood table, an accumulation-of-confidence curve (ρ, f sliders) showing the full posterior as replicates accumulate, and an effort-to-confidence (rarefaction) panel that compares two lines — the chosen category (corroborated by presence) and its replicate counterpart (corroborated by absence) — giving R* (replicates needed to reach a target confidence) for each, the evidence rate in bits/replicate, the presence-vs-absence effort gap, and the crossover at which R* diverges.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -114,6 +114,9 @@
     font-size:12px;font-weight:700;cursor:pointer;line-height:1;font-style:italic;
     font-family:Georgia,'Times New Roman',serif;padding:0;box-shadow:0 1px 3px rgba(20,30,50,.22);transition:background .12s}
   .info:hover{background:var(--accent-d)}
+  /* math notation: keep a subscript inside a subscript (e.g. the Σ range in φ) legible */
+  sub{font-size:.72em;line-height:0}
+  sub sub{font-size:1em}
   /* anchor info buttons to the top-right corner of each panel / KPI row */
   .card{position:relative}
   details.coll{position:relative}
@@ -157,9 +160,9 @@
   </div>
   <p class="sub">The Box&nbsp;2 Bayesian reading of the link taxonomy, in its simplest form, includes binary evidence, three fixed
   error rates, uniform prior, and independent errors. Pick a category on the taxonomy tree. Its error-free
-  signature <code id="sigCode">(Ŷ=1, O_local=0, O_rep=1)</code> is what you would observe if all three sources were
+  signature <code id="sigCode">(Ŷ=1, O<sub>l</sub>=0, O<sub>r</sub>=1)</code> is what you would observe if all three sources were
   right; take that as the evidence and ask what confidence it earns. Under a uniform prior the answer is
-  <code>(1−ε_Y)(1−ε_local)(1−ε_rep)</code>, one factor per source. Drag the sliders to see how each error rate moves
+  <code>(1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)(1−ε<sub>r</sub>)</code>, one factor per source. Drag the sliders to see how each error rate moves
   it, and which rival categories absorb the rest.</p>
 
   <details class="card coll" id="catCard" open>
@@ -193,19 +196,19 @@
     <h2>Error rates</h2>
     <div class="controls">
       <div class="ctrl">
-        <label><span>ε_Y &nbsp;model error</span><span class="val" id="vY">0.20</span></label>
+        <label><span>ε<sub>Y</sub> &nbsp;model error</span><span class="val" id="vY">0.20</span></label>
         <input type="range" id="sY" min="0" max="0.5" step="0.01" value="0.2">
         <div class="desc">how often the model's verdict (Ŷ) is wrong</div>
       </div>
       <div class="ctrl">
-        <label><span>ε_local &nbsp;local miss</span><span class="val" id="vL">0.30</span></label>
+        <label><span>ε<sub>l</sub> &nbsp;local miss</span><span class="val" id="vL">0.30</span></label>
         <input type="range" id="sL" min="0" max="0.5" step="0.01" value="0.3">
-        <div class="desc">how often local sampling gets O_local wrong: misses a real link, or records one that is not there</div>
+        <div class="desc">how often local sampling gets O<sub>l</sub> wrong: misses a real link, or records one that is not there</div>
       </div>
       <div class="ctrl">
-        <label><span>ε_rep &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
+        <label><span>ε<sub>r</sub> &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
         <input type="range" id="sR" min="0" max="0.5" step="0.01" value="0.1">
-        <div class="desc">how often the replicate (elsewhere) evidence O_rep is wrong</div>
+        <div class="desc">how often the replicate (elsewhere) evidence O<sub>r</sub> is wrong</div>
       </div>
     </div>
     <button class="reset" id="reset">Reset to 0.20 / 0.30 / 0.10</button>
@@ -236,7 +239,7 @@
       <div class="stat">
         <div class="big" id="feas">–</div>
         <div class="statmeta">
-          <div class="statlabel"><b>P(truly feasible | evidence)</b>
+          <div class="statlabel"><b>φ = P(feasible | E)</b>
           <button class="info" data-info="feasible" aria-label="About this quantity">i</button> — the chance the
           interaction can occur at all, whichever exact label is right.</div>
         </div>
@@ -249,8 +252,8 @@
     <div style="overflow-x:auto">
       <table id="tbl">
         <thead><tr>
-          <th class="name">Class</th><th>signature</th>
-          <th>model</th><th>local</th><th>rep</th>
+          <th class="name">Class</th><th>signature z<sub>c,d</sub></th>
+          <th>model (Y)</th><th>local (l)</th><th>replicate (r)</th>
           <th>P(E|C)</th><th>P(C|E)</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -261,22 +264,22 @@
   <div class="card">
     <h2>Posterior accumulation — all categories <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— Posterior as replicates accumulate (SI Sections 4 & 5)</span></h2>
     <div class="seg-wrap" id="scenToggle">
-      <button type="button" class="seg active" data-mode="det">Detected in every replicate (k = R)</button>
-      <button type="button" class="seg" data-mode="emp">Not detected in any replicate (k = 0)</button>
+      <button type="button" class="seg active" data-mode="det">Detected in every replicate (n = R)</button>
+      <button type="button" class="seg" data-mode="emp">Not detected in any replicate (n = 0)</button>
     </div>
     <div class="controls" style="grid-template-columns:1fr 1fr;max-width:640px;margin:12px 0 14px">
       <div class="ctrl">
         <label><span>ρ &nbsp;realization rate</span><span class="val" id="vRhoA">0.50</span></label>
         <input type="range" id="sRhoA" min="0.05" max="1" step="0.05" value="0.5">
         <div class="desc">chance a <b>feasible</b> link is actually <b>realised</b> (occurs) in a given replicate.
-        A realised link is then detected with the same success as local sampling, 1−ε_local (a replicate is just
-        another local sample), so the per-replicate detection rate is p₁ = ρ(1−ε_local).</div>
+        A realised link is then detected with the same success as local sampling, 1−ε<sub>l</sub> (a replicate is just
+        another local sample), so the per-replicate detection rate is p<sub>1</sub> = ρ(1−ε<sub>l</sub>).</div>
       </div>
       <div class="ctrl">
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFA">0.05</span></label>
         <input type="range" id="sFA" min="0" max="0.3" step="0.01" value="0.05">
         <div class="desc">chance a replicate reports the link when it is <b>not</b> truly there
-        (per-replicate false positive p₀ = f, e.g. misidentification or contamination).</div>
+        (per-replicate false positive p<sub>0</sub> = f, e.g. misidentification or contamination).</div>
       </div>
     </div>
     <div class="canvas-holder"><canvas id="accumAll" style="height:400px"></canvas></div>
@@ -285,36 +288,36 @@
     <p class="notes" style="margin-top:8px">The posterior over all eight categories under the scenario you
     picked, so the eight lines sum to 1 at every R. Each category has its own colour; the
     <b>chosen</b> category and its <b>replicate counterpart</b> are drawn bold with markers.
-    Switch the scenario to see the mirror image — and note each plateau equals the bar-chart posterior in the ε_rep→0
-    limit, so this is the bar chart emerging as replicates accumulate. The dashed <b>ceiling = (1−ε_Y)(1−ε_local)</b>
-    is the most confidence replicate evidence can ever buy: no amount of replicate data resolves the model (ε_Y) or
-    local (ε_local) errors, so the chosen category can climb to that line but no further.</p>
+    Switch the scenario to see the mirror image — and note each plateau equals the bar-chart posterior in the ε<sub>r</sub>→0
+    limit, so this is the bar chart emerging as replicates accumulate. The dashed <b>ceiling κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)</b>
+    is the most confidence replicate evidence can ever buy: no amount of replicate data resolves the model (ε<sub>Y</sub>) or
+    local (ε<sub>l</sub>) errors, so the chosen category can climb to that line but no further.</p>
   </div>
 
   <div class="card">
     <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the accumulation curve read as sampling effort (SI Section 4)</span></h2>
     <p class="hint">Instead of asking "how confident am I after R replicates?", we can ask:
     "how many replicates of consistent evidence do I need to reach a confidence target?" The two lines are the <b>chosen
-    category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Ŷ, O_local; opposite
-    O_rep). One is corroborated by <b>presence</b> (it keeps being seen elsewhere), the other by <b>absence</b> (it
+    category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Ŷ, O<sub>l</sub>; opposite
+    O<sub>r</sub>). One is corroborated by <b>presence</b> (it keeps being seen elsewhere), the other by <b>absence</b> (it
     keeps <i>not</i> being seen), so this contrasts how fast a link is confirmed by detections vs by absences. Pick any
     category on the tree to re-pair; ρ and f are shared with the panel above.</p>
     <div class="controls" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin:6px 0 16px">
       <div class="ctrl">
         <label><span>target confidence</span><span class="val" id="vTgt">50%</span></label>
         <input type="range" id="sTgt" min="0.2" max="0.99" step="0.01" value="0.5">
-        <div class="desc">absolute posterior confidence to reach. The slider stops just below the ceiling
-        (1−ε_Y)(1−ε_local) = <span id="vCeil">–</span>, which no amount of replication can beat</div>
+        <div class="desc">absolute posterior confidence to reach. The slider stops just below the ceiling κ
+        (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>) = <span id="vCeil">–</span>, which no amount of replication can beat</div>
       </div>
       <div class="ctrl">
         <label><span>ρ &nbsp;realization rate</span><span class="val" id="vRhoE">0.50</span></label>
         <input type="range" id="sRhoE" min="0.05" max="1" step="0.05" value="0.5">
-        <div class="desc">shared with the panel above; sets p₁ = ρ(1−ε_local)</div>
+        <div class="desc">shared with the panel above; sets p<sub>1</sub> = ρ(1−ε<sub>l</sub>)</div>
       </div>
       <div class="ctrl">
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFE">0.05</span></label>
         <input type="range" id="sFE" min="0" max="0.3" step="0.01" value="0.05">
-        <div class="desc">shared with the panel above; sets p₀ = f</div>
+        <div class="desc">shared with the panel above; sets p<sub>0</sub> = f</div>
       </div>
     </div>
     <div class="row2">
@@ -339,14 +342,14 @@
     </div>
     <p class="hint" id="effCap" style="margin:12px 0 0"></p>
     <p class="notes" style="margin-top:8px">Both categories' confidence rises with consistent replicates toward the
-    shared <b>ceiling = (1−ε_Y)(1−ε_local)</b> — here the y axis is scaled so that ceiling <i>is</i> the top of the
+    shared <b>ceiling κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)</b> — here the y axis is scaled so that ceiling <i>is</i> the top of the
     plot, so a line reaching the top edge has extracted everything replicates can give. The y values are real
     confidences, and so is the target: the orange line sits at the absolute confidence you asked for, and each
     <b>R*</b> dot marks where a curve crosses it. The target slider stops at the ceiling — you cannot ask for more
-    than replication can buy, so tightening ε_Y or ε_local is what raises the bar. The presence-corroborated line is
+    than replication can buy, so tightening ε<sub>Y</sub> or ε<sub>l</sub> is what raises the bar. The presence-corroborated line is
     steeper (fewer replicates); the absence-corroborated one lags. That gap
     <i>is</i> the asymmetry: a detection is a rarer, more informative event than an absence, so presence resolves
-    faster for the same ρ and f. Both R* values diverge at the crossover f* = ρ(1−ε_local). This panel shares ρ and f
+    faster for the same ρ and f. Both R* values diverge at the crossover f* = ρ(1−ε<sub>l</sub>). This panel shares ρ and f
     with the accumulation panel above.</p>
   </div>
 
@@ -367,7 +370,7 @@ const CATCOL=['#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A676
 const POS='#3B82C4', POS_D='#2A5E8F', POS_L='#eaf1f8';
 const NEG='#C0607A', NEG_D='#9B4256', NEG_L='#f8ebef';
 
-// Eight categories in taxonomy order. sig = (Yhat, O_local, O_rep).
+// Eight categories in taxonomy order. sig = (Ŷ, O_l, O_r).
 const CLASSES=[
   {name:'Locally unique',    sig:[1,1,0]},
   {name:'Recurrent',         sig:[1,1,1]},
@@ -510,13 +513,13 @@ function updatePriorPcts(){
 }
 
 // ---- dynamic labels ----
-function sigStr(){return `(Ŷ=${OBS[0]}, O_local=${OBS[1]}, O_rep=${OBS[2]})`;}
+function sigStr(){return `(Ŷ=${OBS[0]}, O<sub>l</sub>=${OBS[1]}, O<sub>r</sub>=${OBS[2]})`;}
 function syncLabels(){
   document.getElementById('selName').textContent=selected.toLowerCase();
   document.getElementById('confName').textContent=selected.toLowerCase();
   document.getElementById('confName2').textContent=selected.toLowerCase();
   document.getElementById('legSel').textContent=selected.toLowerCase();
-  document.getElementById('sigCode').textContent=sigStr();
+  document.getElementById('sigCode').innerHTML=sigStr();   // sigStr carries subscript markup
 }
 
 // ---- canvas helpers ----
@@ -592,20 +595,20 @@ function updateTable(){
 
 // ---- accumulation ----
 const RMAX=20;
-// counterpart categories: same (Yhat,O_local), the two O_rep values
+// counterpart categories: same (Ŷ,O_l), the two O_r values
 function pairIdx(){
   const y=OBS[0], l=OBS[1];
   const posIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===1);
   const negIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===0);
   return {posIdx,negIdx,y,l};
 }
-function qPost(yh,ol,k,R){
+function qPost(yh,ol,n,R){
   const p1=rho*(1-state[1]), p0=fRate, pr=PRIORnorm();
   const nums=CLASSES.map((c,i)=>{
     const fY=(yh===c.sig[0])?(1-state[0]):state[0];
     const fL=(ol===c.sig[1])?(1-state[1]):state[1];
     const p=(c.sig[2]===1)?p1:p0;
-    return pr[i]*fY*fL*Math.pow(p,k)*Math.pow(1-p,R-k);
+    return pr[i]*fY*fL*Math.pow(p,n)*Math.pow(1-p,R-n);
   });
   const Z=nums.reduce((a,b)=>a+b,0);
   return nums.map(x=>x/Z);
@@ -627,7 +630,7 @@ function accumFrame(ctx,w,h,padR){
   ctx.strokeStyle='#c2c8d0';ctx.setLineDash([5,4]);ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(padL,cyl);ctx.lineTo(padL+pw,cyl);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle=MUTED;ctx.textAlign='left';ctx.textBaseline='bottom';
-  ctx.fillText('ceiling '+(ceil*100).toFixed(0)+'%',padL+4,cyl-2);
+  ctx.fillText('ceiling κ '+(ceil*100).toFixed(0)+'%',padL+4,cyl-2);
   ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
   ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
   ctx.fillText('Number of replicates R (consistent evidence)',padL+pw/2,padT+ph+22);
@@ -647,8 +650,8 @@ function drawAccumAll(){
   const g=accumFrame(ctx,w,h,150);
   const series=CLASSES.map(()=>[]);
   for(let R=0;R<=RMAX;R++){
-    const k=(accumMode==='det')?R:0;
-    qPost(y,l,k,R).forEach((v,i)=>series[i].push(v));
+    const n=(accumMode==='det')?R:0;
+    qPost(y,l,n,R).forEach((v,i)=>series[i].push(v));
   }
   function draw(i,on){
     const col=CATCOL[i];
@@ -671,7 +674,7 @@ function drawAccumAll(){
   document.getElementById('accumAllLegend').innerHTML=
     CLASSES.map((c,i)=>`<span><i class="sw" style="background:${CATCOL[i]}"></i>${c.name}</span>`).join('');
   const cpName=CLASSES[cpIdx].name;
-  const modeTxt=(accumMode==='det')?'a detection in every replicate (k = R)':'an empty in every replicate (k = 0)';
+  const modeTxt=(accumMode==='det')?'a detection in every replicate (n = R)':'an empty in every replicate (n = 0)';
   document.getElementById('accumAllCap').innerHTML=
     `Scenario: <b>${modeTxt}</b>. Chosen <b>${selected}</b> and its replicate counterpart <b>${cpName}</b> are bold with markers.`;
 }
@@ -690,7 +693,7 @@ function crossover(){return rho*(1-state[1]);}         // f* = rho(1-eL): p1 = p
 function targetAbs(){return targetFrac;}                // absolute confidence, NOT rescaled by the ceiling
 function targetReachable(){return targetAbs()<ceilVal();}
 // The target can never beat the ceiling, so the slider stops there: cap its max at the
-// last 0.01 step strictly below (1−ε_Y)(1−ε_local), and pull the value down with it.
+// last 0.01 step strictly below (1−ε_Y)(1−ε_l), and pull the value down with it.
 function syncTargetSlider(){
   const el=document.getElementById('sTgt'), ceil=ceilVal();
   let mx=Math.floor(ceil*100)/100;
@@ -703,7 +706,7 @@ function syncTargetSlider(){
   }
 }
 // The two compared lines: the chosen category and its replicate counterpart
-// (same Yhat & O_local, opposite O_rep) — the other half of the same confusion
+// (same Ŷ & O_l, opposite O_r) — the other half of the same confusion
 // cell. One is corroborated by presence (detections), the other by absence.
 function counterpartIdx(){
   const s=CLASSES[PMIDX].sig;
@@ -716,13 +719,13 @@ function counterpartIdx(){
 // sits just under the ceiling, and the direct p^R products flush to zero there.
 function catConfAt(ci,R,f,rh){
   const obs=CLASSES[ci].sig, p1=rh*(1-state[1]), p0=f, pr=PRIORnorm();
-  const k=(obs[2]===1)?R:0;
-  const xl=(n,v)=>n===0?0:n*Math.log(v);   // 0 exponent wins over a zero base
+  const n=(obs[2]===1)?R:0;
+  const xl=(e,v)=>e===0?0:e*Math.log(v);   // 0 exponent wins over a zero base
   const logs=CLASSES.map((c,i)=>{
     const fY=(obs[0]===c.sig[0])?(1-state[0]):state[0];
     const fL=(obs[1]===c.sig[1])?(1-state[1]):state[1];
     const p=(c.sig[2]===1)?p1:p0;
-    return Math.log(pr[i])+Math.log(fY)+Math.log(fL)+xl(k,p)+xl(R-k,1-p);
+    return Math.log(pr[i])+Math.log(fY)+Math.log(fL)+xl(n,p)+xl(R-n,1-p);
   });
   const m=Math.max(...logs);
   if(!isFinite(m)) return 0;
@@ -838,14 +841,14 @@ function drawEffRare(){
     return `<span><i class="sw" style="background:${CATCOL[ci]}"></i>${CLASSES[ci].name} (${mode}) — ${rtxt}</span>`;
   }).join('')
     +`<span><i class="sw" style="background:${ACCENT}"></i>target ${(t*100).toFixed(0)}%${reach?'':' (above ceiling)'}</span>`
-    +`<span><i class="sw" style="background:${GRID};border:1px solid #cdd2d9"></i>axis max = ceiling ${(ceil*100).toFixed(0)}%</span>`;
+    +`<span><i class="sw" style="background:${GRID};border:1px solid #cdd2d9"></i>axis max = κ ${(ceil*100).toFixed(0)}%</span>`;
 }
 function drawEffort(){
-  syncTargetSlider();          // the ceiling moves with ε_Y / ε_local, so re-cap before anything reads the target
+  syncTargetSlider();          // the ceiling moves with ε_Y / ε_l, so re-cap before anything reads the target
   const A=PMIDX, B=counterpartIdx();
   const rA=rstarCat(A,fRate,rho), rB=rstarCat(B,fRate,rho);
   const bA=rateCat(A), bB=rateCat(B);
-  // presence = the observed-elsewhere (z_rep=1) member; absence = the other
+  // presence = the observed-elsewhere (z_r=1) member; absence = the other
   const presIdx=CLASSES[A].sig[2]===1?A:B, absIdx=presIdx===A?B:A;
   const rPres=presIdx===A?rA:rB, rAbs=absIdx===A?rA:rB;
   const bPres=presIdx===A?bA:bB, bAbs=absIdx===A?bA:bB;
@@ -866,9 +869,9 @@ function drawEffort(){
   const presN=CLASSES[presIdx].name.toLowerCase(), absN=CLASSES[absIdx].name.toLowerCase();
   if(!targetReachable()){
     cap.innerHTML=`The target <b>${(targetAbs()*100).toFixed(0)}%</b> is above the ceiling `+
-      `<b>${(ceilVal()*100).toFixed(1)}%</b> = (1−ε_Y)(1−ε_local), so no number of replicates reaches it — both R* → ∞. `+
+      `<b>${(ceilVal()*100).toFixed(1)}%</b> = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>), so no number of replicates reaches it — both R* → ∞. `+
       `Replicates only resolve the replicate-level question; to lift the ceiling itself you need an orthogonal method `+
-      `(lower ε_Y) or more local sampling (lower ε_local).`;
+      `(lower ε<sub>Y</sub>) or more local sampling (lower ε<sub>l</sub>).`;
   } else if(!isFinite(rPres)&&!isFinite(rAbs)){
     cap.innerHTML=`With f = <b>${fRate.toFixed(2)}</b> at or above the crossover f* = <b>${crossover().toFixed(2)}</b>, `+
       `neither line reaches the target — each replicate now favours the artifact, so both R* → ∞. `+
@@ -877,7 +880,7 @@ function drawEffort(){
     cap.innerHTML=`Confirming <b>${presN}</b> by <b>presence</b> needs ~${isFinite(rPres)?Math.ceil(rPres):'∞'} replicate${Math.ceil(rPres)===1?'':'s'} at ${bPres.toFixed(2)} bits each; `+
       `confirming <b>${absN}</b> by <b>absence</b> needs ~${isFinite(rAbs)?Math.ceil(rAbs):'∞'} at ${bAbs.toFixed(2)} bits — `+
       `<b>${gap==null?'–':(isFinite(gap)?gap.toFixed(1)+'×':'∞')} the effort</b>. A detection is a rarer, more informative event than an absence, so presence resolves faster. `+
-      `Both share the same ceiling (${(ceilVal()*100).toFixed(0)}%); replicates only buy speed to it — to raise it, lower ε_Y or ε_local.`;
+      `Both share the same ceiling (${(ceilVal()*100).toFixed(0)}%); replicates only buy speed to it — to raise it, lower ε<sub>Y</sub> or ε<sub>l</sub>.`;
   }
 }
 
@@ -965,34 +968,34 @@ document.getElementById('priorCard').addEventListener('toggle',layoutBars);
 const INFO={
   taxonomy:{title:'The link taxonomy',html:`
     <p>Every potential link is placed by three binary pieces of evidence: the model's prediction <b>Ŷ</b>, whether it
-    was observed <b>locally</b> (O_local), and whether it was observed <b>elsewhere</b> in within-system replicates
-    (O_rep).</p>
+    was observed <b>locally</b> (O<sub>l</sub>), and whether it was observed <b>elsewhere</b> in within-system replicates
+    (O<sub>r</sub>).</p>
     <p>The first two define the confusion matrix — true/false positive/negative. The contextual axis then splits each
     cell in two ("not observed elsewhere" vs "observed elsewhere"), giving the eight categories.</p>
-    <p>Click any leaf to make its error-free signature <b>(Ŷ, O_local, O_rep)</b> the observed evidence. Every panel
+    <p>Click any leaf to make its error-free signature <b>(Ŷ, O<sub>l</sub>, O<sub>r</sub>)</b> the observed evidence. Every panel
     below recomputes for that category.</p>`},
   confidence:{title:'Confidence in the chosen category',html:`
     <p>The headline number is the posterior probability <b>P(C = chosen | E)</b> that the category you picked is the
     true one, given that the observed evidence equals its own error-free signature.</p>
-    <div class="formula">(1−ε_Y)(1−ε_local)(1−ε_rep) — one (1−ε) factor per evidence source</div>
+    <div class="formula">(1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)(1−ε<sub>r</sub>) — one (1−ε) factor per evidence source</div>
     <p>With binary evidence and a <b>uniform prior</b> it reduces exactly to that product: the eight likelihoods sum
     to 1, so the normaliser is 1. Because the product is the same for every category, under a uniform prior your
     confidence in a deterministic assignment depends only on the error rates — not on which box you landed in.</p>
     <p>With a <b>non-uniform prior</b> it becomes likelihood × prior, renormalised, so a rarer category needs stronger
     evidence to reach the same confidence.</p>`},
-  feasible:{title:'P(truly feasible | evidence)',html:`
+  feasible:{title:'φ — feasibility confidence',html:`
     <p>A link is <b>feasible</b> if it can actually occur — and the evidence for that is the link being realised
-    <b>somewhere</b>: seen locally (O_local=1) <i>or</i> in the replicates (O_rep=1).</p>
+    <b>somewhere</b>: seen locally (O<sub>l</sub>=1) <i>or</i> in the replicates (O<sub>r</sub>=1).</p>
     <p>So we sum the posterior over every category whose error-free signature has the link present in at least one
     place. The only two categories where the link is absent everywhere are <b>Phantom</b> (predicted but seen nowhere
     → model false positive) and <b>Possibly forbidden</b> (predicted absent, seen nowhere). Hence:</p>
-    <div class="formula">P(feasible) = Σ<sub>c: z<sub>local</sub>=1 or z<sub>rep</sub>=1</sub> P(C=c | E)
+    <div class="formula">φ = Σ<sub>c: z<sub>c,l</sub>=1 or z<sub>c,r</sub>=1</sub> P(C=c | E)
       = <b>1 − P(Phantom) − P(Possibly forbidden)</b></div>
     <p>It answers a different question from the headline: whichever exact label is right, how sure are we the
     interaction can occur at all?</p>`},
   bars:{title:'Posterior over all eight classes',html:`
     <p>The full posterior <b>P(C | E)</b> over all eight categories at the current error rates and prior.</p>
-    <p>Colour counts how many of the three axes (Ŷ, O_local, O_rep) would have had to go wrong for that category to be
+    <p>Colour counts how many of the three axes (Ŷ, O<sub>l</sub>, O<sub>r</sub>) would have had to go wrong for that category to be
     the true one and still produce what you observed; that count is the <b>Hamming distance</b>. The chosen category
     needs zero errors (highlighted). Its 1-error neighbours always take the largest share of what is left, because one
     thing going wrong is likelier than two or three.</p>`},
@@ -1004,67 +1007,67 @@ const INFO={
     weights and P(C|E) tilts toward the categories you made more common a priori.</p>`},
   accumAll:{title:'Cumulative replicate evidence',html:`
     <div class="flag"><b>Heads-up:</b> this plot steps outside the simplified Box 2 and follows the development presented in the SI (Sections 4 and 5). In the simplified version, the replicate evidence
-    is a single bit O_rep ∈ {0,1} ("observed in at least one replicate") with one error rate ε_rep. Here we use the
+    is a single bit O<sub>r</sub> ∈ {0,1} ("observed in at least one replicate") with one error rate ε<sub>r</sub>. Here we use the
     <b>quantitative</b> version — the proportion of replicates in which the link is seen — which is what creates
     an accumulation to plot.</div>
     <p>Pick a scenario with the toggle. Each fixes one consistent-evidence stream and plots the full posterior over
     <i>all eight</i> categories against <b>R</b>, the number of within-system replicates — so the eight lines sum to 1
-    at every R. <b>Detected in every replicate</b> is k = R; <b>not detected in any replicate</b> is k = 0. Each category has its
+    at every R. <b>Detected in every replicate</b> is n = R; <b>not detected in any replicate</b> is n = 0. Each category has its
     own colour; the chosen category and its replicate counterpart are bold with markers.</p>
     <p>Under detections the four "observed-elsewhere" categories rise and the four "not-observed-elsewhere" ones decay
-    to zero; under empties it is the reverse. Each plateau equals the bar-chart posterior in the ε_rep→0 limit — so
+    to zero; under empties it is the reverse. Each plateau equals the bar-chart posterior in the ε<sub>r</sub>→0 limit — so
     this is the bar chart emerging as replicates accumulate.</p>
     <p><b>The y-axis is the posterior P(C=c | evidence)</b> — the probability that category c is the true one given
     the evidence so far. For each category we compute an unnormalised score (below), then divide by the sum of all
     eight scores so the y-values add to 1 at every R; the height plotted for category c is its share.</p>
     <p>The score per category c is the two binary within-network factors times a binomial replicate term:</p>
-    <div class="formula">score(c) = π<sub>c</sub> · [ε_Y or 1−ε_Y] · [ε_local or 1−ε_local] ·
-      p<sub>c</sub><sup>k</sup>(1−p<sub>c</sub>)<sup>R−k</sup> &nbsp;;&nbsp;
+    <div class="formula">score(c) = π<sub>c</sub> · [ε<sub>Y</sub> or 1−ε<sub>Y</sub>] · [ε<sub>l</sub> or 1−ε<sub>l</sub>] ·
+      p<sub>c</sub><sup>n</sup>(1−p<sub>c</sub>)<sup>R−n</sup> &nbsp;;&nbsp;
       P(C=c | E) = score(c) / Σ<sub>c'</sub> score(c')</div>
-    <p>with π<sub>c</sub> the category's prior, k the number of detections out of R replicates, and p<sub>c</sub> the
-    per-replicate positive probability. For a truly realised-elsewhere link (z_rep=1),
-    <b>p<sub>c</sub> = p₁ = ρ(1−ε_local)</b>: it is realised in the replicate with probability ρ and then detected
-    with the same sampling success as locally, 1−ε_local — a replicate is just another local sample, so the
-    detection error <i>is</i> ε_local (no separate detection parameter). For a truly-absent link (z_rep=0),
-    <b>p<sub>c</sub> = p₀ = f</b>, the false-detection rate. Each within-network factor is 1−ε when category c's
-    signature matches the observed Ŷ / O_local and ε when it differs; the binomial coefficient cancels in the
+    <p>with π<sub>c</sub> the category's prior, n the number of detections out of R replicates, and p<sub>c</sub> the
+    per-replicate positive probability. For a truly realised-elsewhere link (z<sub>c,r</sub>=1),
+    <b>p<sub>c</sub> = p<sub>1</sub> = ρ(1−ε<sub>l</sub>)</b>: it is realised in the replicate with probability ρ and then detected
+    with the same sampling success as locally, 1−ε<sub>l</sub> — a replicate is just another local sample, so the
+    detection error <i>is</i> ε<sub>l</sub> (no separate detection parameter). For a truly-absent link (z<sub>c,r</sub>=0),
+    <b>p<sub>c</sub> = p<sub>0</sub> = f</b>, the false-detection rate. Each within-network factor is 1−ε when category c's
+    signature matches the observed Ŷ / O<sub>l</sub> and ε when it differs; the binomial coefficient cancels in the
     normalisation.</p>
-    <p>Note ρ only bites when f &gt; 0: with no false detections the surviving categories all share the same p₁ᴿ,
+    <p>Note ρ only bites when f &gt; 0: with no false detections the surviving categories all share the same p<sub>1</sub>ᴿ,
     which cancels, so ρ has no effect under all-detections. A small f restores the ρ-dependent transient.</p>
-    <p><b>The ceiling</b> (dashed line) is <b>(1−ε_Y)(1−ε_local)</b>: the most confidence replicate evidence can ever
-    buy. As R→∞ the replicate axis is fully resolved, but no amount of replicate data touches the model (ε_Y) or local
-    (ε_local) errors — the four surviving categories' model-and-local factors sum to 1, so the chosen category limits
-    to (1−ε_Y)(1−ε_local) and the rest is shared among its neighbours. It is the same value the headline confidence
-    would reach in the ε_rep→0 limit.</p>`},
+    <p><b>The ceiling</b> κ (dashed line) is <b>(1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)</b>: the most confidence replicate evidence can ever
+    buy. As R→∞ the replicate axis is fully resolved, but no amount of replicate data touches the model (ε<sub>Y</sub>) or local
+    (ε<sub>l</sub>) errors — the four surviving categories' model-and-local factors sum to 1, so the chosen category limits
+    to (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>) and the rest is shared among its neighbours. It is the same value the headline confidence
+    would reach in the ε<sub>r</sub>→0 limit.</p>`},
   effort:{title:'Effort to confidence — how many replicates?',html:`
     <p>Visualising Section 4 of the SI, this panel reads the accumulation curve the other way round. Instead of "what is my confidence after R
     replicates?", it asks: <b>how many replicates of consistent (corroborating) evidence do I need to reach a target
     confidence?</b> That count is <b>R*</b> — a rarefaction curve for belief.</p>
     <p><b>Two lines, one comparison.</b> They are the <b>chosen category</b> and its <b>replicate counterpart</b> — the
-    two halves of a single confusion cell (same Ŷ and O_local, opposite O_rep). One is corroborated by <b>presence</b>
+    two halves of a single confusion cell (same Ŷ and O<sub>l</sub>, opposite O<sub>r</sub>). One is corroborated by <b>presence</b>
     (observed-elsewhere: it keeps being detected in replicates), the other by <b>absence</b> (not-observed-elsewhere:
     it keeps being empty). Both climb to the <i>same</i> ceiling, so the only thing that differs is the speed — which
     is exactly the point.</p>
     <p>The target is an <b>absolute</b> confidence — 50% means P(category | E) = 0.50, not 50% of anything. The y
-    axis shows that same real confidence, but is cut off at the <b>ceiling</b> (1−ε_Y)(1−ε_local), the most that
+    axis shows that same real confidence, but is cut off at the <b>ceiling</b> κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>), the most that
     replicate evidence can ever buy. The top edge of the plot is therefore the hard limit, and the target slider is
-    capped there too: an unreachable target is not something you can ask for. Lower ε_Y or ε_local and the ceiling,
+    capped there too: an unreachable target is not something you can ask for. Lower ε<sub>Y</sub> or ε<sub>l</sub> and the ceiling,
     the axis and the slider's range all move up together.</p>
-    <div class="formula">R* solves&nbsp; P(category | k, R) = target&nbsp; under each category's corroborating scenario
+    <div class="formula">R* solves&nbsp; P(category | n, R) = target&nbsp; under each category's corroborating scenario
       (detected in every replicate for the presence line, not detected in any replicate for the absence line).</div>
     <p>Each category and its counterpart differ only in the replicate term, so their log-odds grow <b>linearly</b> in R
-    with slope log(p₁/p₀) — the <b>evidence rate</b> in bits per replicate. A big rate ⇒ small R* (fast); a rate near
+    with slope log(p<sub>1</sub>/p<sub>0</sub>) — the <b>evidence rate</b> in bits per replicate. A big rate ⇒ small R* (fast); a rate near
     zero ⇒ huge R* (slow).</p>
-    <div class="formula">p₁ = ρ(1−ε_local) (per-replicate true detection),&nbsp; p₀ = f (false detection);&nbsp;
-      presence rate = log₂(p₁/p₀),&nbsp; absence rate = log₂((1−p₀)/(1−p₁))</div>
-    <p><b>Why presence beats absence.</b> A true detection is a relatively rare per-replicate event (p₁), so each one is
+    <div class="formula">p<sub>1</sub> = ρ(1−ε<sub>l</sub>) (per-replicate true detection),&nbsp; p<sub>0</sub> = f (false detection);&nbsp;
+      presence rate = log₂(p<sub>1</sub>/p<sub>0</sub>),&nbsp; absence rate = log₂((1−p<sub>0</sub>)/(1−p<sub>1</sub>))</div>
+    <p><b>Why presence beats absence.</b> A true detection is a relatively rare per-replicate event (p<sub>1</sub>), so each one is
     surprising and moves belief a lot; an absence is common, so each one barely nudges it. That is the quantitative
     face of "absence of evidence is weak evidence of absence" — the <b>effort gap</b> between the two lines.</p>
-    <p><b>The crossover</b> f* = ρ(1−ε_local) is where p₁ = p₀: below it the evidence supports each category and R* is
+    <p><b>The crossover</b> f* = ρ(1−ε<sub>l</sub>) is where p<sub>1</sub> = p<sub>0</sub>: below it the evidence supports each category and R* is
     finite; at or above it a detection is evidence for the <i>artifact</i> instead, confidence never reaches the target,
     and <b>R* → ∞</b>. Push f towards f* with the slider and watch both R* values climb and then diverge.</p>
     <p><b>The takeaway:</b> replicates only buy <i>speed</i> to the ceiling. If the ceiling itself is too low, no amount
-    of replication helps — you need an orthogonal method (lower ε_Y) or more local sampling (lower ε_local), which is
+    of replication helps — you need an orthogonal method (lower ε<sub>Y</sub>) or more local sampling (lower ε<sub>l</sub>), which is
     exactly the recommended action attached to each category in the taxonomy.</p>`}
 };
 const modalBack=document.getElementById('modalBack');
