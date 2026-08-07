@@ -66,7 +66,9 @@ posterior_at <- function(R, n, summary = c("count","bit")) {
 ## ---- build the data ---------------------------------------------------------
 scenarios <- c(det = "(a) detected in every replicate (n = R)",
                emp = "(b) empty in every replicate (n = 0)")
-summaries <- c(count = "full count n", bit = "single bit 1[n>0]")
+summaries <- c(count = "count", bit = "bit")
+sum_labs  <- c(expression("full count " * italic(n)),
+               expression("single bit " * bold(1)*"["*italic(n) >= 1*"]"))
 
 df <- do.call(rbind, lapply(names(scenarios), function(sc) {
   do.call(rbind, lapply(names(summaries), function(sm) {
@@ -104,8 +106,10 @@ p_fig <- ggplot(df, aes(R, posterior, colour = category, linetype = summary,
   geom_point(size = 1.3, stroke = 0.5, fill = "white") +
   facet_wrap(~ scenario, ncol = 2) +
   scale_colour_manual(values = pal, name = NULL) +
-  scale_linetype_manual(values = c("solid","22"), name = "replicate evidence") +
-  scale_shape_manual(values = c(16, 21), name = "replicate evidence") +
+  scale_linetype_manual(values = c("solid","22"), name = "replicate evidence",
+                        labels = sum_labs) +
+  scale_shape_manual(values = c(16, 21), name = "replicate evidence",
+                     labels = sum_labs) +
   scale_y_continuous(limits = c(0, 1), expand = expansion(mult = c(0.02, 0.02))) +
   scale_x_continuous(breaks = seq(0, Rmax, 10)) +
   labs(x = "number of replicates R (consistent evidence)",
@@ -118,5 +122,5 @@ p_fig <- ggplot(df, aes(R, posterior, colour = category, linetype = summary,
         strip.text       = element_text(face = "bold", size = 10))
 
 ## ---- save -------------------------------------------------------------------
-ggsave("box2_accumulation.pdf", p_fig, width = 9.0, height = 3.8)
-ggsave("box2_accumulation.png", p_fig, width = 9.0, height = 3.8, dpi = 300)
+ggsave("accumulation.pdf", p_fig, width = 9.0, height = 3.8)
+ggsave("accumulation.png", p_fig, width = 9.0, height = 3.8, dpi = 300)
