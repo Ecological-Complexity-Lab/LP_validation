@@ -97,6 +97,28 @@
   details.foldcard>summary .muted{font-weight:400;color:var(--muted)}
   .fold-body{padding:0 18px 15px}
   .fold-body .sub{margin:0}
+  /* the error-mapping square */
+  .sqgrid{display:grid;grid-template-columns:1fr 190px;gap:0 18px;align-items:start;margin-top:4px}
+  @media(max-width:700px){.sqgrid{grid-template-columns:1fr}}
+  .sq-top{grid-column:1;display:flex;justify-content:center;padding:0 0 2px 0}
+  .sq-fig{grid-column:1}
+  .sq-fig svg{width:100%;height:auto;display:block}
+  .sq-side{grid-column:2;grid-row:1/3;align-self:center;display:flex;flex-direction:column;gap:18px}
+  @media(max-width:700px){.sq-side{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap}
+    .sq-top{padding-left:0}}
+  .sqctrl{width:190px}
+  .sqctrl label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:1px}
+  .sqctrl input[type=range]{width:100%;height:20px}
+  .sq-out{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px;
+    border-top:1px solid var(--border);padding-top:12px}
+  .sq-num{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums;line-height:1}
+  .sq-num .cap{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;
+    text-transform:uppercase;letter-spacing:.02em}
+  .info.inl{position:static;top:auto;right:auto;align-self:center;flex:none}
+  .sq-presets{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+  .sq-presets button{font-size:11.5px;background:#eef0f3;border:1px solid var(--border);border-radius:6px;
+    padding:5px 10px;cursor:pointer;color:var(--muted);font-family:inherit}
+  .sq-presets button:hover{background:#e4e7ec;color:var(--text)}
   /* setup bar: three compact tiles that stay visible; clicking one expands its panel */
   .setupbar{position:sticky;z-index:20;background:var(--bg);padding-bottom:10px}
   .setupbar .inner{background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -209,6 +231,50 @@
     <code id="sigCode">z_c = (1, 0, 1)</code> becomes the observed evidence E, and the confidence in that label is
     <code>(1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)(1−ε<sub>r</sub>)</code>. Drag the sliders to see how each error rate moves
     it, and which rival categories absorb the rest.</p>
+    </div>
+  </details>
+
+  <details class="card foldcard" id="squareCard">
+    <summary>Mapping observations to truth</summary>
+    <div class="fold-body">
+      <p class="hint" style="margin-bottom:10px">Each arrow runs from a quantity to the one it is trying to recover,
+      and carries the error rate of that recovery. The <b>green diagonal</b> is what we actually want: how well the
+      model we have, Y, recovers the ground truth. It is never measured directly — but composing the top and right
+      edges gives it. Move the three rates — δ is 1 − accuracy, the number cross-validation reports — and watch the diagonal: it
+      brightens as the model closes on the truth. These sliders are local to this panel and change nothing else on
+      the page.</p>
+      <div class="sqgrid">
+        <div class="sq-top">
+          <div class="sqctrl">
+            <label>δ &nbsp;<span style="font-weight:400">model vs observations</span></label>
+            <input type="range" id="sqSD" min="0" max="0.5" step="0.01" value="0.2">
+          </div>
+        </div>
+        <div class="sq-fig"><svg id="sqFig" viewBox="0 0 470 292" role="img" aria-label="Error mapping square"></svg></div>
+        <div class="sq-side">
+          <div class="sqctrl">
+            <label>ε<sub>l</sub> &nbsp;<span style="font-weight:400">miss rate</span></label>
+            <input type="range" id="sqSL" min="0" max="0.5" step="0.01" value="0.3">
+          </div>
+          <div class="sqctrl">
+            <label>f &nbsp;<span style="font-weight:400">false detection</span></label>
+            <input type="range" id="sqSF" min="0" max="0.5" step="0.01" value="0.05">
+          </div>
+        </div>
+      </div>
+      <div class="sq-out">
+        <div class="sq-num" style="color:var(--muted)"><span id="sqApp">80.0%</span><span class="cap">apparent — what CV says</span></div>
+        <div class="sq-num" id="sqRealWrap"><span id="sqReal">69.5%</span><span class="cap">real — against the truth</span></div>
+        <div class="sq-num" style="font-size:19px;color:var(--text)"><span id="sqErrs">–</span><span class="cap">of Y against the ground truth</span></div>
+        <button class="info inl" data-info="sqmath" aria-label="How these numbers are calculated">i</button>
+        <div class="sq-presets">
+          <button type="button" data-sqp="model">perfect model, δ = 0</button>
+          <button type="button" data-sqp="det">perfect detection, ε<sub>l</sub> = f = 0</button>
+          <button type="button" data-sqp="both">both</button>
+          <button type="button" data-sqp="reset">reset</button>
+        </div>
+      </div>
+      <p class="notes" id="sqNote" style="margin-top:10px"></p>
     </div>
   </details>
 
@@ -1147,6 +1213,116 @@ function syncSetupTabs(){
     `ε<sub>Y</sub> ${state[0].toFixed(2)} &nbsp;ε<sub>l</sub> ${state[1].toFixed(2)} &nbsp;ε<sub>r</sub> ${state[2].toFixed(2)}`;
 }
 
+
+// =====================================================================
+// Mapping observations to truth (SI Fig. S1 / Table S3).
+// Standalone: these three rates are local to the panel and feed nothing else.
+// Composing the top edge (delta) with the right edge (eps_l, f) gives the model's
+// error against the ground truth — the green diagonal, which is never measured.
+// =====================================================================
+let sqD=0.20, sqL=0.30, sqF=0.05;
+const SQ_GREY='#c2c8d0', SQ_GREEN='#1B9E77';
+// Table S3, lower block: Y read against the ground truth rather than the observations
+function sqRates(){
+  const fn=(1-sqL)*sqD + sqL*(1-sqD);        // truth +, Y says -
+  const fp=sqF*(1-sqD) + (1-sqF)*sqD;        // truth -, Y says +
+  const bal=1-(fn+fp)/2;                     // prevalence-free, so the gap is comparable
+  return {fn,fp,bal,near:Math.max(0,Math.min(1,(bal-0.5)/0.5))};
+}
+function sqArrow(x1,y1,x2,y2,col,w,dash){
+  const a=Math.atan2(y2-y1,x2-x1), h=7+w, sp=Math.hypot(x2-x1,y2-y1);
+  const bx=x1+(x2-x1)*(sp-h)/sp, by=y1+(y2-y1)*(sp-h)/sp;
+  return `<line x1="${x1}" y1="${y1}" x2="${bx}" y2="${by}" stroke="${col}" stroke-width="${w}"`+
+         `${dash?' stroke-dasharray="5,4"':''} stroke-linecap="round"/>`+
+         `<polygon points="${x2},${y2} ${bx-h*0.34*Math.sin(-a)},${by-h*0.34*Math.cos(-a)} `+
+         `${bx+h*0.34*Math.sin(-a)},${by+h*0.34*Math.cos(-a)}" fill="${col}"/>`;
+}
+// SVG has no subscript characters, so build them from tspans
+function sqSub(base,sfx,tail){
+  return `${base}<tspan font-size="0.68em" dy="3">${sfx}</tspan>`+(tail?`<tspan dy="-3">${tail}</tspan>`:'');
+}
+function sqBox(x,y,label,sub,strong){
+  const w=96,h=36;
+  return `<rect x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="7" fill="#fff" `+
+    `stroke="${strong?TEXT:'#c7ced6'}" stroke-width="${strong?1.8:1.3}"/>`+
+    `<text x="${x}" y="${y-1}" text-anchor="middle" font-size="14" font-weight="700" fill="${TEXT}">${label}</text>`+
+    `<text x="${x}" y="${y+12}" text-anchor="middle" font-size="9.5" fill="${MUTED}">${sub}</text>`;
+}
+function drawSquare(){
+  const r=sqRates(), t=r.near;
+  const a=hx(SQ_GREY), b=hx(SQ_GREEN);
+  const col=`rgb(${Math.round(lerp(a[0],b[0],t))},${Math.round(lerp(a[1],b[1],t))},${Math.round(lerp(a[2],b[2],t))})`;
+  const lw=1.7+2.9*t;
+  const X1=70,X2=386,Y1=54,Y2=236;        // corner centres; boxes are 96x36
+  let g='';
+  // the measurable route: across the top, then down the right
+  g+=sqArrow(X1+50,Y1,X2-52,Y1,'#8b96a3',1.9);
+  g+=sqArrow(X2,Y1+20,X2,Y2-20,'#8b96a3',1.9);
+  // the other decomposition — not computable from these three rates, so drawn faint
+  g+=sqArrow(X1,Y1+20,X1,Y2-20,'#dfe3e8',1.6,true);
+  g+=sqArrow(X1+50,Y2,X2-52,Y2,'#dfe3e8',1.6,true);
+  // the diagonal: the quantity of interest
+  const dx1=X1+38, dy1=Y1+20, dx2=X2-46, dy2=Y2-22;
+  g+=sqArrow(dx1,dy1,dx2,dy2,col,lw);
+  // edge labels
+  g+=`<text x="${(X1+X2)/2}" y="${Y1-12}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${TEXT}">δ = ${sqD.toFixed(2)}</text>`;
+  g+=`<text x="${X2-12}" y="${(Y1+Y2)/2-5}" text-anchor="end" font-size="12.5" font-weight="700" fill="${TEXT}">${sqSub('ε','l',' = '+sqL.toFixed(2))}</text>`;
+  g+=`<text x="${X2-12}" y="${(Y1+Y2)/2+13}" text-anchor="end" font-size="12.5" font-weight="700" fill="${TEXT}">f = ${sqF.toFixed(2)}</text>`;
+  const ly=(Y1+Y2)/2;
+  g+=`<text x="${X1-15}" y="${ly}" text-anchor="middle" font-size="11" fill="#b0b9c3" transform="rotate(-90 ${X1-15} ${ly})">${sqSub('ε','Y',' — not measurable')}</text>`;
+  g+=`<text x="${(X1+X2)/2}" y="${Y2+34}" text-anchor="middle" font-size="11" fill="#b0b9c3">δ̂ — not measurable</text>`;
+  // diagonal label, set along the line and offset clear of it
+  const ang=Math.atan2(dy2-dy1,dx2-dx1), deg=ang*180/Math.PI;
+  const mx=(dx1+dx2)/2+Math.sin(ang)*20, my=(dy1+dy2)/2-Math.cos(ang)*20;
+  g+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" `+
+     `fill="${col}" transform="rotate(${deg.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})">the error that matters</text>`;
+  // the trophy sits at the far end of the diagonal, brightening as we approach it
+  g+=`<text x="${dx2+9}" y="${dy2-15}" font-size="21" opacity="${(0.2+0.8*t).toFixed(2)}">🏆</text>`;
+  // corners
+  g+=sqBox(X1,Y1,'Y','our model',true);
+  g+=sqBox(X2,Y1,sqSub('O','l'),'observed',true);
+  g+=sqBox(X1,Y2,'Ŷ','truth-fitted');
+  g+=sqBox(X2,Y2,sqSub('L','l'),'ground truth',true);
+  document.getElementById('sqFig').innerHTML=g;
+  // readouts
+  document.getElementById('sqApp').textContent=((1-sqD)*100).toFixed(1)+'%';
+  const real=document.getElementById('sqReal');
+  real.textContent=(r.bal*100).toFixed(1)+'%'; real.parentElement.style.color=col;
+  document.getElementById('sqErrs').innerHTML=
+    `misses <b>${(r.fn*100).toFixed(1)}%</b> &nbsp; invents <b>${(r.fp*100).toFixed(1)}%</b>`;
+  const note=document.getElementById('sqNote');
+  if(sqD<1e-9&&sqL<1e-9&&sqF<1e-9){
+    note.innerHTML=`<b>The trophy.</b> Both blocks are clean, so Y recovers the ground truth exactly — the identity. `+
+      `It takes both: neither a perfect model nor perfect detection gets here alone.`;
+  }else if(sqD<1e-9){
+    note.innerHTML=`<b>A model that is perfect for the observations</b> (δ = 0) recovers the observations, not the `+
+      `truth: it inherits the detection error whole, so its error against the truth is exactly `+
+      `ε<sub>l</sub> = ${sqL.toFixed(2)} one way and f = ${sqF.toFixed(2)} the other. Cross-validation would `+
+      `report 100%.`;
+  }else if(sqL<1e-9&&sqF<1e-9){
+    note.innerHTML=`<b>Perfect detection</b> (ε<sub>l</sub> = f = 0) leaves the model error alone: the error against `+
+      `the truth is δ = ${sqD.toFixed(2)} in both directions. Fixing the data does not fix the model.`;
+  }else{
+    note.innerHTML=`Cross-validation reports <b>${((1-sqD)*100).toFixed(1)}%</b>, but against the ground truth this `+
+      `model misses <b>${(r.fn*100).toFixed(1)}%</b> of the links that are there and invents `+
+      `<b>${(r.fp*100).toFixed(1)}%</b> of those that are not — a real accuracy of `+
+      `<b>${(r.bal*100).toFixed(1)}%</b>. The gap is the observation error leaking through, and no held-out set can `+
+      `show it, because the withheld labels are observations too.`;
+  }
+}
+// the diagram's edge labels are the only readout, so the sliders carry symbols alone
+[['sqSD',v=>sqD=v],['sqSL',v=>sqL=v],['sqSF',v=>sqF=v]].forEach(([sid,set])=>{
+  document.getElementById(sid).addEventListener('input',e=>{set(parseFloat(e.target.value));drawSquare();});
+});
+document.querySelector('.sq-presets').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  const k=b.getAttribute('data-sqp');
+  if(k==='model')sqD=0; else if(k==='det'){sqL=0;sqF=0;}
+  else if(k==='both'){sqD=0;sqL=0;sqF=0;} else {sqD=0.20;sqL=0.30;sqF=0.05;}
+  [['sqSD',sqD],['sqSL',sqL],['sqSF',sqF]].forEach(([sid,v])=>{document.getElementById(sid).value=v;});
+  drawSquare();
+});
+
 // ---- info modals ----
 const INFO={
   taxonomy:{title:'The link taxonomy',html:`
@@ -1337,6 +1513,27 @@ const INFO={
     <p>This treatment still assumes replicates are independent draws sharing one p<sub>1</sub>, which is what makes
     n sufficient, and that the local observation and the replicates err independently. The Supplementary Information
     relaxes both: SI&nbsp;S6 lets p<sub>1</sub> differ between links, and SI&nbsp;S7 lets the two err together.</p>`},
+  sqmath:{title:'How these numbers are calculated',html:`
+    <p>The model we have was fitted to the local observation, so it can only reach the ground truth
+    <i>through</i> it. That gives two ways of being right about a link — both steps correct, or both wrong — and two
+    ways of being wrong.</p>
+    <p>For a link that is truly there, the observation records it with probability 1−ε<sub>l</sub> and misses it with
+    probability ε<sub>l</sub>; the model then agrees with the observation with probability 1−δ and departs from it
+    with probability δ. Composing the two (SI Table S3):</p>
+    <div class="formula">misses = (1−ε<sub>l</sub>)·δ + ε<sub>l</sub>·(1−δ)&nbsp;&nbsp;&nbsp;
+      invents = f·(1−δ) + (1−f)·δ</div>
+    <p><b>Misses</b> is how often Y calls a link absent when it is truly present; <b>invents</b> is how often it
+    calls one present when it is truly absent. Both are rates against the ground truth, not against the
+    observations.</p>
+    <p><b>Apparent = 1 − δ.</b> This is what cross-validation reports — the model measured against the observations
+    it was fitted to, which is the only comparison a held-out set can make.</p>
+    <div class="formula">real = 1 − (misses + invents) / 2</div>
+    <p><b>Real</b> is the two directional rates averaged and taken from one, which is <i>balanced</i> accuracy. It is
+    used here rather than plain accuracy because plain accuracy depends on how many links are truly present, and
+    ecological networks are sparse enough that a model predicting nothing at all would score well on it. Balanced
+    accuracy does not depend on that, so the gap between apparent and real is comparable across systems.</p>
+    <p>Note what the arithmetic implies: setting δ = 0 leaves misses = ε<sub>l</sub> and invents = f, while setting
+    ε<sub>l</sub> = f = 0 leaves both equal to δ. Only clearing both reaches the identity.</p>`},
   effort:{title:'Effort to confidence — how many replicates?',html:`
     <p>This panel reads the accumulation curves as a <b>design question</b>. Instead of "what is my confidence after
     R replicates?", it asks: <b>how many replicates of consistent evidence do I need to reach a target
@@ -1391,6 +1588,7 @@ renderTaxo();
 renderPriorGrid();
 syncLabels();
 setVersion('simple');   // draws everything and lays out the sticky bars
+drawSquare();
 layoutBars();
 barShadows();
 </script>

@@ -123,7 +123,7 @@ agree the whole set and do one pass.
 | R2 | κ modal + accumulation notes | Keep both κ values (J2 resolved); they just need explaining properly. Draft in Part 6. | drafting |
 | R3 | Taxonomy card + modal | Tree is correct as it stands. **The eight are the categories we divide links into given our evidence — not the true categories.** The modal currently leans on the truth framing and must be reworded. Draft in Part 6. | drafting |
 | R5 | Taxonomy modal | Delete the closing paragraph ("Note the distinction the framework rests on: Y is evidence, Ŷ is truth … every panel below recomputes for that category."). Folded into the R3 draft. | agreed, pending |
-| R4 | New panel | Make SI Fig. S1 (the error-mapping square) interactive: move the error rates and watch how near the ground truth — the trophy — the model gets. Proposal in Part 7. | **parked — not building for now**, kept in case we want it |
+| R4 | New panel | SI Fig. S1 made interactive. Built as a sibling collapsible card to "Start here", titled **Mapping observations to truth**. Standalone rates local to the panel; the diagonal brightens and thickens as the model closes on the trophy. Notes in Part 7. | **done** |
 |  | Title + intro |  |  |
 | R6 | Prior card, hint text | Replace with: *"A uniform prior treats all eight categories as equally probable before any evidence arrives, so confidence in the chosen label depends only on the error rates — not on which category it is. Making some categories more probable than others would make the posterior no longer equal to the likelihood."* | agreed, pending — see query below |
 | R7 | Prior modal | Remove the paragraph beginning "**The prior and the likelihood are not independent sources**". | agreed, pending — see note below |
@@ -502,9 +502,33 @@ prose so the page only asserts what it shows.
 
 ---
 
-## Part 7 — Proposal: interactive error-mapping figure (R4) — PARKED
+## Part 7 — R4: the error-mapping square, as built
 
-Not being built. Kept here in case we return to it.
+**Placement (A).** Its own collapsible card, sibling to "Start here", collapsed
+by default:
+
+> ▸ **Mapping observations to truth** — why cross-validation flatters the model
+
+**Rates are standalone**, local to the panel, changing nothing else on the page.
+δ is not a model parameter anywhere else, and the square's diagonal (Y against
+the ground truth) is a different quantity from ε_Y (Y against Ŷ), so coupling it
+to the page would have implied a link that does not exist.
+
+**Sliders sit beside their edges**: δ above the top edge (Y → O_l), ε_l and f to
+the right of the right edge (O_l → L_l). The left and bottom edges — ε_Y and δ̂ —
+are drawn faint and dashed with "not measurable" labels, since neither follows
+from δ, ε_l and f.
+
+**Each value appears once.** The first build printed every rate twice, on the
+slider and again on the diagram. Now the control carries the symbol and its
+name, and the diagram's edge label is the only readout — so reading the value
+and reading what it does happen in the same place. The δ slider is short and
+centred over its edge rather than stretched across the column.
+
+**The diagonal responds.** Its colour runs grey → green and its width 1.7 → 4.6
+with `t = (bal − 0.5)/0.5`, where `bal = 1 − (FN + FP)/2`; the trophy's opacity
+runs 0.2 → 1 on the same scale. So dragging any rate visibly moves the model
+toward or away from the truth.
 
 
 An interactive version of SI Fig. S1, driven by SI Table S3. The point it makes:
@@ -556,16 +580,17 @@ clean.
 That is the SI caption's argument made draggable: neither block alone reaches
 the truth.
 
-### Open questions
+### Verified against SI Table S3
 
-- Where does it sit? It explains what δ and ε_Y mean, so directly after the
-  error-rates card is the natural place — but it would then interrupt the run
-  from rates to posterior. A collapsed card would keep it out of the way.
-- Does δ become a fourth slider on the error-rates card, or stay local to this
-  panel? δ is not currently anywhere on the page.
-- ε_Y and δ̂ are on the diagram but not computable from δ, ε_l and f alone —
-  they are the *other* decomposition of the same square. Label them without
-  values, or leave the left and lower edges greyed?
+| preset | misses | invents | real accuracy | SI's claim |
+|---|---|---|---|---|
+| δ = 0.20, ε_l = 0.30, f = 0.05 | 0.380 | 0.230 | 69.5% | vs 80% apparent |
+| perfect model, δ = 0 | 0.300 | 0.050 | 82.5% | recovers the upper block: FN = ε_l, FP = f |
+| perfect detection, ε_l = f = 0 | 0.200 | 0.200 | 80.0% | leaves the model error alone: FN = FP = δ |
+| both | 0 | 0 | 100% | the identity |
+
+The middle two rows are the caption's argument, and they come out exactly as it
+says: neither block alone reaches the truth.
 
 
 ---
