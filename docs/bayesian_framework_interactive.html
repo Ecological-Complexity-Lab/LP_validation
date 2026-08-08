@@ -419,24 +419,23 @@
         <label><span>ρ &nbsp;realisation rate</span><span class="val" id="vRhoA">0.15</span></label>
         <input type="range" id="sRhoA" min="0.05" max="1" step="0.05" value="0.15">
         <div class="desc">the probability that a <b>feasible</b> link is actually <b>realised</b> in a given
-        replicate. A realised link is then detected with the same success as local sampling, 1−ε<sub>l</sub> (a
-        replicate is only the same method applied elsewhere), so p<sub>1</sub> = ρ(1−ε<sub>l</sub>). ρ is ecological,
-        not methodological.</div>
+        replicate</div>
       </div>
       <div class="ctrl">
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFA">0.05</span></label>
         <input type="range" id="sFA" min="0" max="0.3" step="0.01" value="0.05">
         <div class="desc">the probability that a link that is not there is recorded anyway, through
-        misidentification or contamination. It sets p<sub>0</sub> = f on the replicate axis <b>and</b> the
-        false-positive rate on the local axis.</div>
+        misidentification or contamination</div>
       </div>
     </div>
     <div class="canvas-holder"><canvas id="accumAll" style="height:400px"></canvas></div>
     <p class="hint" id="accumAllCap" style="margin:12px 0 0"></p>
     <div class="legend" id="accumAllLegend"></div>
     <p class="notes" style="margin-top:8px">The posterior over all eight categories under the scenario you picked, so
-    the eight lines sum to 1 at every R. Each category has its own colour; the <b>chosen</b> category and its
-    <b>replicate counterpart</b> are drawn bold with markers. The full count n is retained throughout, which is what
+    the eight lines sum to 1 at every R. The eight fall into four pairs, one per cell of the confusion matrix: the
+    two members of a pair share Y and O<sub>l</sub> and differ only on O<sub>r</sub>, so <b>colour marks the pair</b>
+    and <b>line style the replicate bit</b> — solid observed elsewhere, dashed not. The <b>chosen</b> category and
+    its <b>replicate counterpart</b> are one such pair, drawn bold with markers. The full count n is retained throughout, which is what
     lets confidence accumulate: had the count been collapsed to the single bit O<sub>r</sub> = 1[n ≥ 1], the same
     replicates would push confidence the other way, towards half of κ. Switch the scenario to see the mirror image.
     Note that the local axis is <b>directional</b> here: a link that is there is missed at ε<sub>l</sub>, and one
@@ -463,12 +462,12 @@
       <div class="ctrl">
         <label><span>ρ &nbsp;realisation rate</span><span class="val" id="vRhoE">0.15</span></label>
         <input type="range" id="sRhoE" min="0.05" max="1" step="0.05" value="0.15">
-        <div class="desc">shared with the panel above; sets p<sub>1</sub> = ρ(1−ε<sub>l</sub>)</div>
+        <div class="desc">the same slider as in the panel above; move either and both follow</div>
       </div>
       <div class="ctrl">
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFE">0.05</span></label>
         <input type="range" id="sFE" min="0" max="0.3" step="0.01" value="0.05">
-        <div class="desc">shared with the panel above; sets p<sub>0</sub> = f and the local false positive</div>
+        <div class="desc">the same slider as in the panel above; move either and both follow</div>
       </div>
     </div>
     <div class="row2">
@@ -495,8 +494,9 @@
       </div>
     </div>
     <p class="hint" id="effCap" style="margin:12px 0 0"></p>
-    <p class="notes" style="margin-top:8px">Both categories' confidence rises with consistent replicates toward the
-    shared <b>maximum contextual confidence κ</b> — here the y axis is scaled so that κ <i>is</i> the top of the
+    <p class="notes" style="margin-top:8px">The two lines are one pair, so they share a colour with the plot above
+    and differ only in style: <b>solid</b> is the category observed elsewhere, <b>dashed</b> the one that is not.
+    Both rise with consistent replicates toward the shared <b>maximum contextual confidence κ</b> — here the y axis is scaled so that κ <i>is</i> the top of the
     plot, so a line reaching the top edge has extracted everything replicates can give. The y values are real
     confidences, and so is the target: the orange line sits at the absolute confidence you asked for, and each
     <b>R*</b> dot marks where a curve crosses it. The target must lie strictly below κ, since replicates buy only
@@ -524,8 +524,14 @@
 <script>
 const ACCENT='#E07B39', ACCENT_D='#B4531A', TEXT='#1f2933', MUTED='#5b6472', GRID='#e5e8ec';
 const DCOL=['#E07B39','#3B82C4','#9DBBD6','#C9CED4'];
-// distinct per-category palette (ColorBrewer Dark2), indexed to CLASSES order
-const CATCOL=['#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666'];
+// The eight categories fall into four pairs, one per cell of the confusion matrix: the two
+// members share (Yhat, O_l) and differ only on O_r. Colour therefore carries the cell and
+// line style carries the replicate bit — solid observed elsewhere, dashed not.
+const PAIRCOL=['#7570B3','#E7298A','#D95F02','#1B9E77'];   // (0,0) (0,1) (1,0) (1,1)
+const PAIRNAME=[['Locally absent','Possibly forbidden'],['Model-elusive','Weakly-supported'],
+                ['Possibly missing','Phantom'],['Recurrent','Locally unique']];
+function pairIdx4(sig){return sig[0]*2+sig[1];}
+function pairCol(sig){return PAIRCOL[pairIdx4(sig)];}
 const POS='#3B82C4', POS_D='#2A5E8F', POS_L='#eaf1f8';
 const NEG='#C0607A', NEG_D='#9B4256', NEG_L='#f8ebef';
 
@@ -850,25 +856,27 @@ function drawAccumAll(){
     qPost(y,l,n,R).forEach((v,i)=>series[i].push(v));
   }
   function draw(i,on){
-    const col=CATCOL[i];
+    const sig=CLASSES[i].sig, col=pairCol(sig);
     ctx.beginPath();
     series[i].forEach((v,R)=>{const px=g.X(R),py=g.Y(v);R===0?ctx.moveTo(px,py):ctx.lineTo(px,py);});
-    ctx.strokeStyle=col;ctx.lineWidth=on?2.6:1.3;ctx.globalAlpha=on?1:0.85;ctx.lineJoin='round';ctx.stroke();
-    ctx.globalAlpha=1;
+    ctx.strokeStyle=col;ctx.lineWidth=on?2.6:1.4;ctx.globalAlpha=on?1:0.8;ctx.lineJoin='round';
+    ctx.setLineDash(sig[2]===0?(on?[7,4]:[5,4]):[]);      // dashed = not observed elsewhere
+    ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
     if(on){series[i].forEach((v,R)=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(g.X(R),g.Y(v),2.3,0,7);ctx.fill();});}
   }
   CLASSES.forEach((c,i)=>{if(!emph.has(i))draw(i,false);});
   emph.forEach(i=>draw(i,true));
   const labels=[];
   CLASSES.forEach((c,i)=>{const fin=series[i][RMAX];
-    if(emph.has(i)||fin>0.03)labels.push({y:g.Y(fin),text:c.name,col:CATCOL[i],bold:emph.has(i)});});
+    if(emph.has(i)||fin>0.03)labels.push({y:g.Y(fin),text:c.name,col:pairCol(c.sig),bold:emph.has(i)});});
   labels.sort((a,b)=>a.y-b.y);
   for(let i=1;i<labels.length;i++){if(labels[i].y-labels[i-1].y<12)labels[i].y=labels[i-1].y+12;}
   labels.forEach(L=>{ctx.fillStyle=L.col;ctx.font=(L.bold?'700 ':'')+'10.5px system-ui';
     ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(L.text,g.padL+g.pw+6,Math.max(g.padT+4,Math.min(g.padT+g.ph-4,L.y)));});
   // legend (one entry per category) + caption
   document.getElementById('accumAllLegend').innerHTML=
-    CLASSES.map((c,i)=>`<span><i class="sw" style="background:${CATCOL[i]}"></i>${c.name}</span>`).join('');
+    PAIRNAME.map((nm,k)=>`<span><i class="sw" style="background:${PAIRCOL[k]}"></i>${nm[0]} / ${nm[1]}</span>`).join('')
+    +`<span style="margin-left:4px">— solid: observed elsewhere &nbsp;·&nbsp; dashed: not observed elsewhere</span>`;
   const cpName=CLASSES[cpIdx].name;
   const modeTxt=(accumMode==='det')?'a detection in every replicate (n = R)':'no detection in any replicate (n = 0)';
   document.getElementById('accumAllCap').innerHTML=
@@ -1005,11 +1013,12 @@ function drawEffRare(){
   // one line + its R* marker; the R* text is deferred so it can be placed clear of everything
   const marks=[];
   function line(ci,r){
-    const col=CATCOL[ci];
+    const col=pairCol(CLASSES[ci].sig), dashed=CLASSES[ci].sig[2]===0;
     ctx.beginPath();
     // clamp to the axis max: a non-uniform prior can nudge the limit past the ceiling
     for(let i=0;i<=200;i++){const R=xmax*i/200,v=Math.min(catConfAt(ci,R,fRate,rho),ceil),px=g.X(R),py=g.Y(v);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
-    ctx.strokeStyle=col;ctx.lineWidth=2.6;ctx.lineJoin='round';ctx.stroke();
+    ctx.strokeStyle=col;ctx.lineWidth=2.6;ctx.lineJoin='round';
+    ctx.setLineDash(dashed?[7,4]:[]);ctx.stroke();ctx.setLineDash([]);
     if(isFinite(r)&&r<=xmax){
       const px=g.X(r),py=g.Y(t);
       ctx.strokeStyle=col;ctx.setLineDash([3,3]);ctx.lineWidth=1.2;
@@ -1038,7 +1047,9 @@ function drawEffRare(){
     const r=(ci===A?rA:rB);
     const mode=CLASSES[ci].sig[2]===1?'n = R, detections':'n = 0, absences';
     const rtxt=isFinite(r)?('R*='+Math.ceil(r)):'R*=∞';
-    return `<span><i class="sw" style="background:${CATCOL[ci]}"></i>${CLASSES[ci].name} (${mode}) — ${rtxt}</span>`;
+    const col=pairCol(CLASSES[ci].sig), dsh=CLASSES[ci].sig[2]===0?' stroke-dasharray="6,3.5"':'';
+    return `<span><svg width="20" height="10" style="flex:none"><line x1="1" y1="5" x2="19" y2="5" `+
+      `stroke="${col}" stroke-width="2.6"${dsh}/></svg>${CLASSES[ci].name} (${mode}) — ${rtxt}</span>`;
   }).join('')
     +`<span><i class="sw" style="background:${ACCENT}"></i>target ${(t*100).toFixed(0)}%${reach?'':' (above κ)'}</span>`
     +`<span><i class="sw" style="background:${GRID};border:1px solid #cdd2d9"></i>axis max = κ = ${(ceil*100).toFixed(1)}%</span>`;
@@ -1054,7 +1065,7 @@ function drawEffort(){
   const bPres=presIdx===A?bA:bB, bAbs=absIdx===A?bA:bB;
   function setLine(sfx,ci,r,b){
     const el=document.getElementById('effRstar'+sfx);
-    el.textContent=isFinite(r)?Math.ceil(r):'∞'; el.style.color=CATCOL[ci];
+    el.textContent=isFinite(r)?Math.ceil(r):'∞'; el.style.color=pairCol(CLASSES[ci].sig);
     document.getElementById('effName'+sfx).textContent=CLASSES[ci].name.toLowerCase();
     document.getElementById('effMode'+sfx).textContent=CLASSES[ci].sig[2]===1?'(corroborated by detections, n = R)':'(corroborated by absences, n = 0)';
     document.getElementById('effBits'+sfx).textContent=isFinite(b)?b.toFixed(2):'∞';
@@ -1496,6 +1507,12 @@ const INFO={
     is <b>realised</b> in that replicate, and whether, once realised, it is <b>detected</b> — so</p>
     <div class="formula">p<sub>1</sub> = ρ(1−ε<sub>l</sub>) (realised, then detected);&nbsp;&nbsp;
       p<sub>0</sub> = f (a false detection of a link that is not there)</div>
+    <p>Note what each rate does. Once realised, a link is detected with the same success as local sampling,
+    1−ε<sub>l</sub>, because a replicate is only the same method applied elsewhere. <b>ρ is ecological rather than
+    methodological</b> — it is a property of the system, not of how we sample it, so more replicates sharpen its
+    estimate without reducing the variability it describes. <b>f does double duty</b>: it sets p<sub>0</sub> on the
+    replicate axis and it is also the rate at which the local survey records a link that is not there, so moving it
+    shifts κ as well.</p>
     <p>A replicate is only the same method applied elsewhere, so the replicate axis introduces no sampling parameter
     of its own: the detection error <i>is</i> ε<sub>l</sub>. ρ enters here and not on the local axis because on the
     replicate axis one bit stands for many replicates, each with its own realisation, whereas local realisation is
@@ -1508,7 +1525,7 @@ const INFO={
     discard R, so what declines is the worth of each record rather than the amount of evidence: the more replicates
     were taken, the less surprising a single detection is under absence. The two summaries agree at R = 1, and
     coincide everywhere under n = 0, because a count of zero and an unset bit say the same thing.</p>
-    <p>Note that ρ only bites when f &gt; 0: with no false detections the surviving categories all share the same
+    <p>Note that ρ only has an effect when f &gt; 0: with no false detections the surviving categories all share the same
     p<sub>1</sub><sup>R</sup>, which cancels, so confidence sits at κ from the first replicate.</p>
     <p><b>The dashed horizontal line is κ</b>, the maximum contextual confidence. As R grows the replicate axis is
     resolved completely and the four surviving categories divide by their model and local factors alone, so the
