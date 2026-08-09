@@ -63,8 +63,16 @@ col_subcats <- c(
 
 flow_alpha <- 0.7  # Sankey flow (ribbon) transparency
 
-# -- Tile-map colors: grouped by confusion quadrant (hue = biological meaning,
-#    lightness = evidence: light = corroborated by the other method) --
+# -- Tile-map colors: the original map palette, regrouped onto the contextual
+#    evidence axis rather than the confusion quadrant.
+#      warm (corals, rose, amber) = observed in >=1 replicate
+#      cool (teals, blue, purple) = not observed in any replicate
+#      aquamarine                 = corroborated by the other sampling method
+#    Within warm, dark marks links also recorded at this site; within cool, the
+#    teals mark links recorded here and the blue/purple those recorded nowhere.
+#    The two aquamarines take the place of the palette's former light-coral and
+#    light-lavender have-evidence tints; the other eight colors are unchanged,
+#    only reassigned. Warm/cool membership was checked against the validation axis. --
 map_display_levels <- c(
   "Locally unique",
   "Recurrent",
@@ -77,20 +85,50 @@ map_display_levels <- c(
 )
 
 map_colors <- c(
-  # TP (correctly predicted present) — teal
-  "Locally unique"                    = "#76C7C0",  # light teal     (unique, TP)
-  "Recurrent"                         = "#1F7E72",  # deep teal      (shared, TP)
-  # FP (falsely predicted present) — warm coral/amber
-  "Phantom — have evidence"           = "#F9C8B0",  # light coral    (all-zero FP, corroborated)
-  "Phantom — no evidence"             = "#C05030",  # dark coral     (all-zero FP)
-  "Possibly missing"                  = "#DBA040",  # amber          (obs-elsewhere FP)
-  # FN (missed by model) — dusty rose
-  "Weakly-supported"                      = "#E8A8B8",  # light rose     (unique, FN)
-  "Model elusive"                     = "#8A3050",  # deep rose      (shared, FN)
-  # TN (correctly predicted absent) — lilac/purple
-  "Possibly forbidden — have evidence"  = "#D5C8F0",  # light lavender (all-zero TN, corroborated)
-  "Possibly forbidden — no evidence"    = "#5E3DA0",  # dark purple    (all-zero TN)
-  "Locally absent"                    = "lightsteelblue"   # medium lilac   (obs-elsewhere TN)
+  # -- Observed elsewhere (recorded in >=1 replicate) — warm --
+  #    dark = also recorded here, light = recorded only elsewhere
+  "Recurrent"                          = "#C05030",  # dark coral   also recorded here, predicted
+  "Model elusive"                      = "#8A3050",  # deep rose    also recorded here, not predicted
+  "Possibly missing"                   = "#DBA040",  # amber        only elsewhere, predicted
+  "Locally absent"                     = "#F9C8B0",  # lightsteelblue   only elsewhere, not predicted
+  # -- Not observed elsewhere — cool --
+  #    teal = recorded here, blue/purple = recorded nowhere
+  "Locally unique"                     = "#B0C4DE",  # light teal   recorded here only, predicted
+  "Weakly-supported"                   = "#E8A8B8",  #    recorded here only, not predicted
+  "Phantom — no evidence"              = "#D5C8F0",  # recorded nowhere, predicted
+  "Possibly forbidden — no evidence"   = "#5E3DA0",  # dark purple  recorded nowhere, not predicted
+  # -- Corroborated by the other sampling method — aquamarine (as in the Sankey) --
+  #    these replace the palette's two former have-evidence tints
+  "Phantom — have evidence"            = "#76C7C0",   # #7FFFD4
+  "Possibly forbidden — have evidence" = "#1F7E72"   # #66CDAA
+)
+
+
+# -- Lavender gradient for the unobserved subtypes (locally_unique lightest ->
+#    possibly_forbidden darkest). Defined here rather than inside
+#    make_sankey_validated() so the Sankey and the Sankey-colored map below read
+#    from one definition and cannot drift apart. --
+col_lav <- c("locally_unique"     = "#C3BAD5",
+             "phantom"            = "#AFA2C4",
+             "weakly-supported"   = "#9B8BB4",
+             "possibly_forbidden" = "#8878A4")
+
+# -- Alternative tile-map palette: the alluvial (Sankey) colors, so each map cell
+#    carries the same color as its ribbon in sankey_obs_validated_with_cameras.
+#    Same 10 display levels as map_colors, and assembled from the very objects
+#    make_sankey_validated() uses for axis 4 (col_lav, col_subcats, and the
+#    aquamarine have-evidence pair). Used by map_rich_sankey in Section 9. --
+map_colors_sankey <- c(
+  "Locally unique"                     = unname(col_lav["locally_unique"]),
+  "Recurrent"                          = unname(col_subcats["recurrent"]),
+  "Phantom — have evidence"            = "aquamarine",
+  "Phantom — no evidence"              = unname(col_lav["phantom"]),
+  "Possibly missing"                   = unname(col_subcats["possibly_missing"]),
+  "Weakly-supported"                   = unname(col_lav["weakly-supported"]),
+  "Model elusive"                      = unname(col_subcats["model_elusive"]),
+  "Possibly forbidden — have evidence"  = "aquamarine3",
+  "Possibly forbidden — no evidence"    = unname(col_lav["possibly_forbidden"]),
+  "Locally absent"                     = unname(col_subcats["locally_absent"])
 )
 
 # ---- 3. Functions ----
@@ -160,10 +198,8 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
                                    split_all = FALSE) {
 
   # ---- lavender gradient (locally_unique lightest -> possibly_forbidden darkest) --
-  lav <- c(locally_unique    = "#C3BAD5",
-            phantom           = "#AFA2C4",
-            `weakly-supported`    = "#9B8BB4",
-            possibly_forbidden  = "#8878A4")
+  # Defined in Section 2 so map_colors_sankey reuses exactly these colors.
+  lav <- col_lav
 
   # ---- axis 4 ordering, colors, node IDs, and rank vectors -------------------
   # split_all = FALSE (default): only phantom, weakly-supported, possibly_forbidden
@@ -950,6 +986,26 @@ map_rich_blank
 
 # ggsave("results/figures/map_rich_blank.svg",
 #        plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
+
+# -- Same map, alluvial (Sankey) colors --
+# Identical data, species ordering and theme as map_rich; only the fill palette
+# changes, so every cell carries the color its ribbon has in the Sankey. Built by
+# swapping the scale on map_rich rather than rebuilding the plot, so the two stay
+# in step if the map is restyled. Replacing a scale emits a ggplot2 message,
+# which is expected and suppressed here.
+map_rich_sankey <- suppressMessages(
+  map_rich + scale_fill_manual(values = map_colors_sankey, name = "Link category")
+)
+
+map_rich_sankey
+
+# ggsave("results/figures/map_richest_site_sankey_colors.png",
+#        plot = map_rich_sankey, width = 14, height = 7, dpi = 300, bg = "white")
+#
+# Unlabeled counterpart, matching map_rich_blank:
+# map_rich_sankey_blank <- suppressMessages(
+#   map_rich_blank + scale_fill_manual(values = map_colors_sankey, name = "Link category")
+# )
 
 # -- Richest rpi (camera) site specifically, corroborated by observations --
 # Same logic as above but pinned to method == "rpi" so the richest camera
