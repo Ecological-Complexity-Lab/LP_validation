@@ -800,6 +800,9 @@ gg_obs_sankey_clean
 # ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
 #        plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 
+ggsave("results/figures/gg_obs_sankey_clean.svg",
+       plot = gg_obs_sankey_clean, width = 14, height = 10, bg = "transparent")
+
 gg_rpi_sankey <- make_sankey_validated(
   df_rpi_categorized,
   add_obs_ids      = add_obs_for_rpi,
