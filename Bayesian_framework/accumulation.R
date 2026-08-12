@@ -51,13 +51,28 @@ fL <- ifelse(cats$Olocal == 1,
 w  <- cats$prior * fY * fL
 p  <- ifelse(cats$Orep == 1, p1, p0)
 
-## ---- posterior over the 8 categories, either summary ------------------------
+## ---- replicate factor -------------------------------------------------------
+## For categories with Orep = 1 the rates are conditional on the link being
+## realised in at least one replicate: divide by Z = 1-(1-rho)^R and, at n = 0,
+## remove the runs in which it was realised nowhere (Eqs. erep and cumulative).
+Zc  <- function(R) ifelse(cats$Orep == 1, 1 - (1 - rho)^R, 1)
+corr <- function(n, R) ifelse(cats$Orep == 1 & n == 0, (1 - rho)^R, 0)
+
+eps_present <- function(R) ((1 - p1)^R - (1 - rho)^R) / (1 - (1 - rho)^R)
+eps_absent  <- function(R) 1 - (1 - p0)^R
+
 posterior_at <- function(R, n, summary = c("count","bit")) {
   summary <- match.arg(summary)
+  ## R = 0: no replicate term at all, so every category keeps only w. The eight
+  ## categories pair up by Orep, so each pair splits evenly and the shown pair
+  ## starts at kappa/2.
+  if (R == 0) return(w / sum(w))
   rep_lik <- if (summary == "count") {
-    p^n * (1 - p)^(R - n)                       # binom coeff cancels
+    (p^n * (1 - p)^(R - n) - corr(n, R)) / Zc(R)   # binom coeff cancels
   } else {
-    if (n >= 1) 1 - (1 - p)^R else (1 - p)^R
+    eP <- eps_present(R); eM <- eps_absent(R)
+    if (n >= 1) ifelse(cats$Orep == 1, 1 - eP, eM)
+      else      ifelse(cats$Orep == 1, eP, 1 - eM)
   }
   score <- w * rep_lik
   score / sum(score)
@@ -89,6 +104,12 @@ df$scenario <- factor(df$scenario, levels = scenarios)
 
 kappa <- (1 - eY) * (1 - f) / ((1 - f) + eL)   # directional ceiling
 
+## annotation for panel (b): the two summaries are the same number at n = 0
+ann <- data.frame(scenario = factor(scenarios[["emp"]], levels = scenarios),
+                  R = Rmax / 2, posterior = 0.92,
+                  label = "the two summaries coincide",
+                  stringsAsFactors = FALSE)
+
 ## ---- reported values --------------------------------------------------------
 cat(sprintf("kappa = %.4f\n", kappa))
 key <- df[df$R %in% c(1,3,5,10,20,26), ]
@@ -104,6 +125,8 @@ p_fig <- ggplot(df, aes(R, posterior, colour = category, linetype = summary,
              linewidth = 0.4) +
   geom_line(linewidth = 0.7) +
   geom_point(size = 1.3, stroke = 0.5, fill = "white") +
+  geom_text(data = ann, aes(R, posterior, label = label), inherit.aes = FALSE,
+            size = 3.1, colour = "grey30", hjust = 0.5) +
   facet_wrap(~ scenario, ncol = 2) +
   scale_colour_manual(values = pal, name = NULL) +
   scale_linetype_manual(values = c("solid","22"), name = "replicate evidence",

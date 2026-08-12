@@ -49,20 +49,23 @@ dark2 <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A",
 p1_of <- function(rho, eps_L) rho * (1 - eps_L)   # per-replicate true detection
 p0_of <- function(f) f                            # per-replicate false detection
 
-eps_present <- function(R, p1) (1 - p1)^R         # false negative after R replicates
+## false negative after R replicates, conditional on the link being realised in
+## at least one of them: P(no detection AND realised somewhere) / P(realised somewhere)
+eps_present <- function(R, p1, rho = get("rho", envir = parent.frame()))
+  ((1 - p1)^R - (1 - rho)^R) / (1 - (1 - rho)^R)
 eps_absent  <- function(R, p0) 1 - (1 - p0)^R     # false positive after R replicates
 
 ## R at which the two directional rates are equal. eps_present falls
 ## monotonically from 1 and eps_absent rises monotonically from 0, so the
 ## difference is monotone and the root is unique.
-crossing_R <- function(p1, p0) {
-  g <- function(R) eps_present(R, p1) - eps_absent(R, p0)
-  uniroot(g, interval = c(1e-8, 1e4), tol = .Machine$double.eps^0.5)$root
+crossing_R <- function(p1, p0, rho) {
+  g <- function(R) eps_present(R, p1, rho) - eps_absent(R, p0)
+  uniroot(g, interval = c(1, 1e4), tol = .Machine$double.eps^0.5)$root
 }
 
 ## the common rate at that crossing = the lowest value the pointwise maximum
 ## of the two rates can take
-best_rate <- function(p1, p0) eps_present(crossing_R(p1, p0), p1)
+best_rate <- function(p1, p0, rho) eps_present(crossing_R(p1, p0, rho), p1, rho)
 
 p1 <- p1_of(rho, eps_L)
 p0 <- p0_of(f)
@@ -80,15 +83,15 @@ chk <- function(quantity, computed, expected, tol = 5e-4) {
              stringsAsFactors = FALSE)
 }
 
-R_star    <- crossing_R(p1, p0)
-rate_star <- eps_present(R_star, p1)
-mx        <- optimize(function(R) pmax(eps_present(R, p1), eps_absent(R, p0)),
-                      interval = c(0, Rmax_tension), tol = 1e-8)
+R_star    <- crossing_R(p1, p0, rho)
+rate_star <- eps_present(R_star, p1, rho)
+mx        <- optimize(function(R) pmax(eps_present(R, p1, rho), eps_absent(R, p0)),
+                      interval = c(1, Rmax_tension), tol = 1e-8)
 
 panel_b_expected <- data.frame(
   rho  = c(0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.80),
-  R    = c(16.13, 11.31, 8.98, 7.54, 5.77, 3.94, 2.55),
-  rate = c(0.563, 0.440, 0.369, 0.321, 0.256, 0.183, 0.123)
+  R    = c(6.20, 5.62, 5.15, 4.77, 4.16, 3.30, 2.44),
+  rate = c(0.272, 0.250, 0.232, 0.217, 0.192, 0.156, 0.118)
 )
 
 w_det   <- function(R, p1, p0) (1 - (1 - p1)^R) / (1 - (1 - p0)^R)
@@ -98,8 +101,8 @@ R_probe <- c(1, 5, 10, 20, 50)
 checks <- do.call(rbind, c(
   lapply(seq_along(c(1, 5, 10)), function(i) {
     R <- c(1, 5, 10)[i]
-    chk(sprintf("eps_rep^present, R = %d", R), eps_present(R, p1),
-        c(0.895, 0.574, 0.330)[i])
+    chk(sprintf("eps_rep^present, R = %d", R), eps_present(R, p1, rho),
+        c(0.300, 0.235, 0.165)[i])
   }),
   lapply(seq_along(c(1, 5, 10)), function(i) {
     R <- c(1, 5, 10)[i]
@@ -107,20 +110,20 @@ checks <- do.call(rbind, c(
         c(0.050, 0.226, 0.401)[i])
   }),
   list(
-    chk("crossing, R",                R_star,     8.98,  tol = 5e-3),
-    chk("crossing, common rate",      rate_star,  0.369),
-    chk("min of pointwise max, R",    mx$minimum, 8.98,  tol = 5e-3),
-    chk("min of pointwise max, rate", mx$objective, 0.369)
+    chk("crossing, R",                R_star,     5.15,  tol = 5e-3),
+    chk("crossing, common rate",      rate_star,  0.232),
+    chk("min of pointwise max, R",    mx$minimum, 5.15,  tol = 5e-3),
+    chk("min of pointwise max, rate", mx$objective, 0.232)
   ),
   lapply(seq_len(nrow(panel_b_expected)), function(i) {
     r <- panel_b_expected$rho[i]
     chk(sprintf("panel (b) rho = %.2f, R", r),
-        crossing_R(p1_of(r, eps_L), p0), panel_b_expected$R[i], tol = 5e-3)
+        crossing_R(p1_of(r, eps_L), p0, r), panel_b_expected$R[i], tol = 5e-3)
   }),
   lapply(seq_len(nrow(panel_b_expected)), function(i) {
     r <- panel_b_expected$rho[i]
     chk(sprintf("panel (b) rho = %.2f, rate", r),
-        best_rate(p1_of(r, eps_L), p0), panel_b_expected$rate[i])
+        best_rate(p1_of(r, eps_L), p0, r), panel_b_expected$rate[i])
   }),
   lapply(seq_along(R_probe), function(i) {
     chk(sprintf("detection weight, f = 0.05, R = %d", R_probe[i]),
@@ -155,15 +158,15 @@ if (any(!checks$ok)) {
 # =============================================================================
 
 ## ---- panel (a): the two directional rates and their maximum -----------------
-R_grid <- seq(0, Rmax_tension, length.out = 601)
+R_grid <- seq(1, Rmax_tension, length.out = 601)
 
 dat_a <- data.frame(
   R      = rep(R_grid, 3),
   series = factor(rep(c("present", "absent", "max"), each = length(R_grid)),
                   levels = c("present", "absent", "max")),
-  value  = c(eps_present(R_grid, p1),
+  value  = c(eps_present(R_grid, p1, rho),
              eps_absent(R_grid, p0),
-             pmax(eps_present(R_grid, p1), eps_absent(R_grid, p0)))
+             pmax(eps_present(R_grid, p1, rho), eps_absent(R_grid, p0)))
 )
 
 pal_a <- c(present = dark2[1], absent = dark2[2], max = "grey55")
@@ -210,15 +213,15 @@ rho_grid <- seq(rho_range[1], rho_range[2], length.out = 401)
 
 dat_b <- data.frame(
   rho  = rho_grid,
-  R    = vapply(rho_grid, function(r) crossing_R(p1_of(r, eps_L), p0), numeric(1))
+  R    = vapply(rho_grid, function(r) crossing_R(p1_of(r, eps_L), p0, r), numeric(1))
 )
-dat_b$rate <- eps_present(dat_b$R, p1_of(dat_b$rho, eps_L))
+dat_b$rate <- mapply(function(R, r) eps_present(R, p1_of(r, eps_L), r), dat_b$R, dat_b$rho)
 
 marks_b <- data.frame(
   rho = rho_marks,
-  R   = vapply(rho_marks, function(r) crossing_R(p1_of(r, eps_L), p0), numeric(1))
+  R   = vapply(rho_marks, function(r) crossing_R(p1_of(r, eps_L), p0, r), numeric(1))
 )
-marks_b$rate  <- eps_present(marks_b$R, p1_of(marks_b$rho, eps_L))
+marks_b$rate  <- mapply(function(R, r) eps_present(R, p1_of(r, eps_L), r), marks_b$R, marks_b$rho)
 marks_b$label <- sprintf("R = %.1f", marks_b$R)
 marks_b$lab_x <- marks_b$rho  + rho_mark_dx
 marks_b$lab_y <- marks_b$rate + rho_mark_dy

@@ -29,12 +29,16 @@ lik <- function(el, f, R) {
   el <- rep_len(el, n); f <- rep_len(f, n)
   lmatch <- 1 - f                                   # O_l = 0 matches z_l = 0
   p1 <- rho * (1 - el)
+  ## rates for z_r = 1 are conditional on the link being realised in at least
+  ## one replicate, so divide by Z = 1-(1-rho)^R (Eqs. erep and cumulative).
+  ## rho is common here, so Z does not depend on the drawn rate.
+  Z  <- 1 - (1 - rho)^R
   out <- matrix(0, nrow = 8, ncol = n)
   for (i in 1:8) {
     lY <- if (sig[i, 1] == 1) 1 - eY else eY
     lL <- if (sig[i, 2] == 0) lmatch else el
     p  <- if (sig[i, 3] == 1) p1 else f
-    out[i, ] <- lY * lL * p^R
+    out[i, ] <- lY * lL * p^R / (if (sig[i, 3] == 1) Z else 1)
   }
   out
 }
@@ -66,7 +70,7 @@ post_closed <- function(n) {
     lY   <- if (sig[i, 1] == 1) 1 - eY else eY
     el_t <- bl / (al + bl + n * sig[i, 3])              # miss rate, updated only if z_r = 1
     lL   <- if (sig[i, 2] == 0) 1 - f_fix else el_t     # absent locally: f, untouched
-    Pc   <- if (sig[i, 3] == 1) rho^n * prod_u else f_fix^n
+    Pc   <- if (sig[i, 3] == 1) rho^n * prod_u / (1 - (1 - rho)^n) else f_fix^n
     out[i] <- lY * lL * Pc
   }
   out / sum(out)
@@ -107,7 +111,7 @@ pa <- ggplot(subset(dat, panel == "a"), aes(R, p, colour = errors)) +
   annotate("text", x = max(Rs), y = kappa, label = "kappa == 0.608", parse = TRUE,
            hjust = 1, vjust = 1.9, size = 3, colour = "grey25") +
   scale_colour_manual(values = cols) +
-  scale_y_continuous(limits = c(0.40, 0.82), labels = pct) +
+  scale_y_continuous(limits = c(0.50, 0.75), labels = pct) +
   labs(title = "(a) sampling miss rate shared",
        x = "Replicates, R", y = "P(possibly missing | E)") + base
 
@@ -122,3 +126,4 @@ fig <- pa + pb + plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
 
 ggsave("correlation.pdf", fig, width = 7.2, height = 3.2)
+ggsave("correlation.png", fig, width = 7.2, height = 3.2, dpi = 300)

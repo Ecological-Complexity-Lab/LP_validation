@@ -12,6 +12,7 @@ library(ggplot2)
 library(patchwork)
 
 eY <- 0.20; eL <- 0.30            # model and local error rates
+rho <- 0.15                       # realisation rate, from p1 = rho(1-eL)
 p1 <- 0.105; p0 <- 0.05           # per-replicate recording probability
 Rs <- 0:20
 
@@ -25,7 +26,11 @@ rownames(sig) <- c("recurrent","locally unique","possibly missing","phantom",
 post <- function(R) {                       # detected in every replicate
   w  <- ifelse(sig[,1] == 1, 1 - eY, eY) *
         ifelse(sig[,2] == 0, 1 - eL, eL)    # symmetric local axis
-  pr <- ifelse(sig[,3] == 1, p1, p0)^R
+  if (R == 0) return(w / sum(w))            # no replicate term at all
+  ## categories with z_r = 1 are conditional on the link being realised in at
+  ## least one replicate, so divide by Z = 1-(1-rho)^R (Eqs. erep, cumulative)
+  Z  <- 1 - (1 - rho)^R
+  pr <- ifelse(sig[,3] == 1, p1^R / Z, p0^R)
   L  <- w * pr
   L / sum(L)
 }
@@ -34,14 +39,14 @@ P   <- t(sapply(Rs, post)); colnames(P) <- rownames(sig)
 kap <- (1 - eY) * (1 - eL)                  # 0.56
 
 ## two pairs of categories, each pair differing only in the replicate bit
-lev <- c("Possibly missing","Phantom","Locally absent","Possibly forbidden")
+lev <- c("Possibly missing","Phantom","Recurrent","Locally unique")
 key <- c("Possibly missing (1, 0, 1)", "Phantom (1, 0, 0)",
-         "Locally absent (0, 0, 1)",  "Possibly forbidden (0, 0, 0)")
+         "Recurrent (1, 1, 1)",        "Locally unique (1, 1, 0)")
 dat_a <- rbind(
   data.frame(R = Rs, y = P[,"possibly missing"],   k = lev[1]),
   data.frame(R = Rs, y = P[,"phantom"],            k = lev[2]),
-  data.frame(R = Rs, y = P[,"locally absent"],     k = lev[3]),
-  data.frame(R = Rs, y = P[,"possibly forbidden"], k = lev[4]))
+  data.frame(R = Rs, y = P[,"recurrent"],          k = lev[3]),
+  data.frame(R = Rs, y = P[,"locally unique"],     k = lev[4]))
 dat_a$k <- factor(dat_a$k, levels = lev)
 cols <- setNames(c("#E07B39","#E07B39","#7C5CBF","#7C5CBF"), lev)
 ltys <- setNames(c("solid","22","solid","22"), lev)
