@@ -344,7 +344,7 @@
         <div class="ctrl">
           <label><span>ε<sub>r</sub> &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
           <input type="range" id="sR" min="0" max="0.5" step="0.01" value="0.1">
-          <div class="desc">the probability that a link realised in at least one replicate is recorded in none of them</div>
+          <div class="desc">the probability that an available link is recorded in none of the replicates</div>
         </div>
       </div>
       <button class="reset" id="reset">Reset to the illustrative rates (0.20 / 0.30 / 0.10)</button>
@@ -502,9 +502,8 @@
           <div class="mid" id="effSummary">–</div>
           <div class="statmeta"><div class="statlabel"><b>effort gap</b> — how much more sampling the
           absence-corroborated category needs than the detection-corroborated one. The contrast between ρ and f
-          vanishes at f = p<sub>1</sub> = <b><span id="effCross">–</span></b>: past that a detection is, in the
-          long run, evidence for a false detection rather than for the link, so confidence peaks after a few
-          replicates and then falls away instead of climbing to κ.</div></div>
+          vanishes at f = p<sub>1</sub> = <b><span id="effCross">–</span></b>, beyond which both R* are
+          infinite.</div></div>
         </div>
       </div>
     </div>
@@ -620,21 +619,21 @@ function posterior(eps){
   return nums.map(x=>x/Z);
 }
 function pmConf(eps){return posterior(eps)[PMIDX];}
-// phi: the link is realised where we sampled (z_cl = 1) or in at least one replicate
+// phi: the link is realised where we sampled (z_cl = 1) or available in the replicates
 // (z_cr = 1). The two categories failing both are phantom and possibly forbidden.
 function feasIdx(i){const s=CLASSES[i].sig;return s[1]===1||s[2]===1;}
 
 // What each category means, and what follows from it, shown for the selected leaf.
 // Nothing else on the page says this: the names alone carry none of it.
 const CATGLOSS={
-  'Recurrent':'Predicted, recorded here, and recorded in at least one replicate. Every source agrees; no further evidence is needed.',
+  'Recurrent':'Predicted, recorded here, and recorded elsewhere in the system. Every source agrees; no further evidence is needed.',
   'Locally unique':'Predicted and recorded here, but in no other replicate. Either a genuinely local interaction or a one-off — replication across contexts is what tells single-network noise from ecological signal.',
-  'Possibly missing':'Predicted and recorded in at least one replicate, but not here. The strongest candidate for a real interaction that local sampling missed, and the best return on more effort with the same method.',
-  'Phantom':'Predicted, but recorded in no context we sampled. Either a model false positive or an interaction this method cannot see — more of the same sampling will not settle it, an independent method might.',
+  'Possibly missing':'Predicted and recorded elsewhere in the system, but not here. The strongest candidate for a real interaction that local sampling missed, and the best return on more effort with the same method.',
+  'Phantom':'Predicted, but recorded nowhere in the system. Either a model false positive or an interaction this method cannot see — more of the same sampling will not settle it, an independent method might.',
   'Model-elusive':'Recorded here and elsewhere, but not predicted. The interaction is real and the model is missing it: a signal about the model rather than about the sampling.',
   'Weakly-supported':'Recorded here, but neither predicted nor seen in any other replicate. The thinnest positive evidence in the taxonomy — a single record with nothing corroborating it.',
-  'Locally absent':'Not predicted and not recorded here, but recorded in at least one replicate. The link is realised somewhere we looked, so it is feasible; it simply is not realised in this context.',
-  'Possibly forbidden':'Predicted absent and recorded in no context we sampled. Either genuinely impossible, or invisible to this method throughout — telling those apart needs a complementary method, not more effort.'
+  'Locally absent':'Not predicted and not recorded here, but recorded elsewhere. The link is feasible; it simply is not realised in this context.',
+  'Possibly forbidden':'Predicted absent and recorded nowhere. Either genuinely impossible, or invisible to this method throughout — telling those apart needs a complementary method, not more effort.'
 };
 function showGloss(name){
   const c=CLASSES[idxOf(name)];
@@ -643,18 +642,17 @@ function showGloss(name){
 }
 
 // ---- taxonomy selector ----
-// leaf layout: 4 rows (TP,FP,FN,TN) x 2 cols (not-observed-elsewhere, observed-elsewhere).
-// The rows alternate observed / not observed within each prediction branch.
+// leaf layout: 4 rows (TP,FP,TN,FN) x 2 cols (not-observed-elsewhere, observed-elsewhere)
 const ROWC=[56,108,212,264];
 const LEAVES=[
   {cat:'Locally unique',    col:0,row:0,pos:1},
   {cat:'Recurrent',         col:1,row:0,pos:1},
   {cat:'Phantom',           col:0,row:1,pos:1},
   {cat:'Possibly missing',  col:1,row:1,pos:1},
-  {cat:'Weakly-supported',  col:0,row:2,pos:0},
-  {cat:'Model-elusive',     col:1,row:2,pos:0},
-  {cat:'Possibly forbidden',col:0,row:3,pos:0},
-  {cat:'Locally absent',    col:1,row:3,pos:0},
+  {cat:'Possibly forbidden',col:0,row:2,pos:0},
+  {cat:'Locally absent',    col:1,row:2,pos:0},
+  {cat:'Weakly-supported',  col:0,row:3,pos:0},
+  {cat:'Model-elusive',     col:1,row:3,pos:0},
 ];
 const COLX=[500,720], LW=200, LH=40;
 function conn(x1,y1,x2,y2){const mx=(x1+x2)/2;return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#cfd5dd" stroke-width="1.6"/>`;}
@@ -689,8 +687,8 @@ function renderTaxo(){
   s+=nodeBox(150,222,140,32,'Predicted −','',NEG_L,NEG,NEG_D);
   s+=nodeBox(330,40,110,32,'TP','observed',POS_L,POS,POS_D);
   s+=nodeBox(330,92,110,32,'FP','not observed',POS_L,POS,POS_D);
-  s+=nodeBox(330,196,110,32,'FN','observed',NEG_L,NEG,NEG_D);
-  s+=nodeBox(330,248,110,32,'TN','not observed',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,196,110,32,'TN','not observed',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,248,110,32,'FN','observed',NEG_L,NEG,NEG_D);
   // leaves (clickable)
   LEAVES.forEach(L=>{
     const x=COLX[L.col], yc=ROWC[L.row], y=yc-LH/2;
@@ -852,45 +850,24 @@ function pairIdx(){
   const negIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===0);
   return {posIdx,negIdx,y,l};
 }
-// Replicate factor of SI Eq. S6, B*(n,R,p_c)/Z_c, with the binomial coefficient dropped
-// because it is common to every category and cancels in the normalisation (so n is a
-// sufficient summary of the replicate evidence).
-//
-// L_r is whether the link is realised in at least one replicate, not whether it could be.
-// For a category with z_cr = 1, then, a run of R replicates recording nothing can only be
-// a run of sampling misses: the plain binomial would also count the runs in which the link
-// was never realised, which is no failure of sampling and belongs to the categories in
-// which the link is realised nowhere. Subtracting (1-rho)^R removes those runs and
-// dividing by Z_c = 1-(1-rho)^R rescales what is left. The subtraction applies only when
-// nothing was recorded, since a single record already shows the link was realised
-// somewhere; where the link is realised nowhere every record is a false detection at rate
-// f, so no adjustment applies. At R = 0 there is no replicate evidence and the factor is 1.
-function repFac(zr,n,R,p1,p0,rh){
-  if(R<=0)return 1;
-  if(zr!==1)return Math.pow(p0,n)*Math.pow(1-p0,R-n);
-  const Z=1-Math.pow(1-rh,R);
-  if(Z<=0)return 0;
-  let b=Math.pow(p1,n)*Math.pow(1-p1,R-n);
-  if(n===0)b-=Math.pow(1-rh,R);
-  return Math.max(0,b)/Z;
-}
 // Posterior with the count n retained (SI Eq. S6): the two within-network factors, the
-// local one directional, times the replicate factor above.
+// local one directional, times a binomial replicate term with p_c = p1 when z_cr = 1 and
+// p_c = p0 otherwise. The binomial coefficient is common to every category and cancels in
+// the normalisation, so n is a sufficient summary of the replicate evidence.
 function qPost(yh,ol,n,R){
   const p1=rho*(1-state[1]), p0=fRate, pr=PRIORnorm();
   const nums=CLASSES.map((c,i)=>{
-    return pr[i]*mFac(yh,c.sig[0])*lFacDir(ol,c.sig[1])*repFac(c.sig[2],n,R,p1,p0,rho);
+    const p=(c.sig[2]===1)?p1:p0;
+    return pr[i]*mFac(yh,c.sig[0])*lFacDir(ol,c.sig[1])*Math.pow(p,n)*Math.pow(1-p,R-n);
   });
   const Z=nums.reduce((a,b)=>a+b,0);
   return nums.map(x=>x/Z);
 }
 // kappa in the directional regime: the limiting posterior under consistent replicate
 // evidence, when the replicate axis is resolved completely and only the model and local
-// factors remain. Unlike the symmetric (1-eps_Y)(1-eps_l) it also depends on f and on the
-// local bit of the evidence. Under a uniform prior the sum below is in closed form,
-//   O_l = 0:  (1-eps_Y)(1-f)/((1-f)+eps_l)      O_l = 1:  (1-eps_Y)(1-eps_l)/((1-eps_l)+f)
-// as given in the SI notation table; we keep the explicit sum so that an edited prior is
-// carried through. The chosen category and its replicate counterpart share it.
+// factors remain. Unlike the symmetric (1-eps_Y)(1-eps_l) it also depends on f, and on
+// the local bit of the evidence, so it is computed rather than written in closed form.
+// The chosen category and its replicate counterpart share it.
 function kappaDir(){
   const pr=PRIORnorm(), y=OBS[0], l=OBS[1];
   const idx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===1);
@@ -1010,29 +987,17 @@ function counterpartIdx(){
 // not detected in any replicate), for continuous R and explicit f, rh.
 // Worked in log space with a log-sum-exp: R runs into the hundreds when the target
 // sits just under the ceiling, and the direct p^R products flush to zero there.
-// log of repFac, for continuous R. The n = 0 branch is the difference of two powers, so it
-// is factored as (1-p1)^R [1 - ((1-rho)/(1-p1))^R] to stay finite once both underflow.
-// Since p1 = rho(1-eps_l) <= rho, the bracket is never negative; it is exactly zero when
-// eps_l = 0, where a link realised somewhere can never go unrecorded everywhere.
-function logRepFac(zr,n,R,p1,p0,rh){
-  if(R<=0)return 0;
-  const xl=(e,v)=>e===0?0:e*Math.log(v);   // 0 exponent wins over a zero base
-  if(zr!==1)return xl(n,p0)+xl(R-n,1-p0);
-  const lZ=Math.log1p(-Math.pow(1-rh,R));
-  if(!isFinite(lZ))return -Infinity;
-  if(n>0)return xl(n,p1)+xl(R-n,1-p1)-lZ;
-  const l1=Math.log1p(-Math.exp(R*(Math.log(1-rh)-Math.log(1-p1))));
-  return isFinite(l1)?(R*Math.log(1-p1)+l1-lZ):-Infinity;
-}
 function catConfAt(ci,R,f,rh){
   const obs=CLASSES[ci].sig, p1=rh*(1-state[1]), p0=f, pr=PRIORnorm();
   const n=(obs[2]===1)?R:0;
+  const xl=(e,v)=>e===0?0:e*Math.log(v);   // 0 exponent wins over a zero base
   // the local axis is directional, and f is the rate passed in rather than the global one
   const lFac=(obsL,zL)=>{const err=(zL===1)?state[1]:f;return (obsL===zL)?(1-err):err;};
   const logs=CLASSES.map((c,i)=>{
     const fY=(obs[0]===c.sig[0])?(1-state[0]):state[0];
     const fL=lFac(obs[1],c.sig[1]);
-    return Math.log(pr[i])+Math.log(fY)+Math.log(fL)+logRepFac(c.sig[2],n,R,p1,p0,rh);
+    const p=(c.sig[2]===1)?p1:p0;
+    return Math.log(pr[i])+Math.log(fY)+Math.log(fL)+xl(n,p)+xl(R-n,1-p);
   });
   const m=Math.max(...logs);
   if(!isFinite(m)) return 0;
@@ -1041,27 +1006,16 @@ function catConfAt(ci,R,f,rh){
   return Z>0?wt[ci]/Z:0;
 }
 // Smallest (continuous) R with category ci's confidence >= target; Inf if unreachable.
-// Confidence is not monotone in R once f approaches p1: dividing by Z_c gives the early
-// replicates a large boost that decays as Z_c approaches 1, so a curve can rise, peak and
-// then fall away. A category can therefore reach the target at small R and lose it later,
-// even where f > p1 leaves it hopeless in the limit. We scan for the first crossing rather
-// than assume there is only one, then bisect inside the bracket that found it.
-const RSCAN_STEP=0.25, RSCAN_MAX=600;
 function rstarCat(ci,f,rh){
   const t=targetAbs();
+  if(f>=rh*(1-state[1])) return Infinity;              // signal no longer favours this category
   if(catConfAt(ci,0,f,rh)>=t) return 0;
-  for(let R=RSCAN_STEP;R<=RSCAN_MAX;R+=RSCAN_STEP){
-    if(catConfAt(ci,R,f,rh)>=t){
-      let lo=R-RSCAN_STEP, hi=R;
-      for(let it=0;it<50;it++){const m=(lo+hi)/2; if(catConfAt(ci,m,f,rh)>=t)hi=m; else lo=m;}
-      return hi;
-    }
-  }
-  return Infinity;
+  let lo=0, hi=1;
+  while(catConfAt(ci,hi,f,rh)<t){lo=hi; hi*=2; if(hi>1e5) return Infinity;}
+  for(let it=0;it<60;it++){const m=(lo+hi)/2; if(catConfAt(ci,m,f,rh)>=t)hi=m; else lo=m;}
+  return hi;
 }
-// Evidence rate for category ci: bits of ci-vs-counterpart log-odds per replicate. This is
-// the asymptotic slope; the Z_c rescaling of Eq. S6 shifts the early replicates but tends
-// to 1, so it does not change the rate at which the two curves separate in the long run.
+// Evidence rate for category ci: bits of ci-vs-counterpart log-odds per replicate.
 function rateCat(ci){
   const p1=rho*(1-state[1]), p0=fRate;
   const r=(CLASSES[ci].sig[2]===1)?(p1/p0):((1-p0)/(1-p1));
@@ -1183,13 +1137,7 @@ function drawEffort(){
   setLine('A',A,rA,bA); setLine('B',B,rB,bB);
   document.getElementById('effCross').textContent=crossover().toFixed(3);
   document.getElementById('vCeil').textContent=(ceilVal()*100).toFixed(1)+'%';
-  // Compare whole replicates, which is what the two figures above report. The Z_c boost of
-  // Eq. S6 lets the detection line cross the target inside the first replicate, so its
-  // continuous root can be all but zero and a ratio of the raw roots would explode.
-  let gap;
-  if(!isFinite(rPres)) gap=null;
-  else if(!isFinite(rAbs)) gap=Infinity;
-  else gap=Math.ceil(rAbs)/Math.max(1,Math.ceil(rPres));
+  const gap=(isFinite(rAbs)&&isFinite(rPres)&&rPres>0)?(rAbs/rPres):(isFinite(rPres)?Infinity:null);
   document.getElementById('effSummary').textContent=gap==null?'–':(isFinite(gap)?gap.toFixed(1)+'×':'∞');
   drawEffRare();
   const cap=document.getElementById('effCap');
@@ -1200,11 +1148,10 @@ function drawEffort(){
       `Replicates only resolve the replicate axis; raising κ itself is a matter of methodological evidence: a better `+
       `model (lower ε<sub>Y</sub>) or a complementary method or more sampling effort (lower ε<sub>l</sub>).`;
   } else if(!isFinite(rPres)&&!isFinite(rAbs)){
-    cap.innerHTML=`Neither line reaches <b>${(targetAbs()*100).toFixed(0)}%</b> at any R. With f = `+
-      `<b>${fRate.toFixed(2)}</b> at or above p<sub>1</sub> = ρ(1−ε<sub>l</sub>) = <b>${crossover().toFixed(3)}</b>, `+
-      `the contrast between realisation and false detection has gone: in the long run a detection is evidence for a `+
-      `false detection rather than for the link, so each curve peaks within the first few replicates and then falls `+
-      `away rather than climbing to κ. Lower f, or raise ρ.`;
+    cap.innerHTML=`With f = <b>${fRate.toFixed(2)}</b> at or above p<sub>1</sub> = ρ(1−ε<sub>l</sub>) = `+
+      `<b>${crossover().toFixed(3)}</b>, the contrast between realisation and false detection has vanished, so `+
+      `neither line reaches the target and both R* → ∞: a detection is now evidence for a false detection rather `+
+      `than for the link. Lower f, or raise ρ.`;
   } else {
     cap.innerHTML=`Corroborating <b>${presN}</b> by <b>detections</b> needs ~${isFinite(rPres)?Math.ceil(rPres):'∞'} replicate${Math.ceil(rPres)===1?'':'s'} at ${bPres.toFixed(2)} bits each; `+
       `corroborating <b>${absN}</b> by <b>absences</b> needs ~${isFinite(rAbs)?Math.ceil(rAbs):'∞'} at ${bAbs.toFixed(2)} bits — `+
@@ -1491,8 +1438,8 @@ const INFO={
     sampled goes unrecorded. It concerns detection alone — local realisation is not something marginalised over
     here, it <i>is</i> the latent state L<sub>l</sub>. In this version the same number also serves as the rate at
     which a link that is not there gets recorded anyway.</p>
-    <p><b>ε<sub>r</sub> — the replicates.</b> The probability that a link realised in at least one replicate is
-    recorded in none of them.</p>
+    <p><b>ε<sub>r</sub> — the replicates.</b> The probability that an available link — one that could be realised
+    in the replicate contexts — is recorded in none of them.</p>
     <div class="flag"><b>ε<sub>r</sub> is not a primitive.</b> Unlike ε<sub>Y</sub> and ε<sub>l</sub> it is not a
     property of a method but a consequence of three other quantities. A replicate is only the same method applied
     elsewhere, so the replicate axis adds no sampling parameter of its own. What it adds is the <b>realisation rate
@@ -1502,14 +1449,7 @@ const INFO={
     where <b>f</b> is the <b>false-detection rate</b>, the probability that a link that is not there is recorded
     anyway through misidentification or contamination. f is the other direction of the local error, which this
     simplest version equates with ε<sub>l</sub>. From p<sub>1</sub> and p<sub>0</sub>, ε<sub>r</sub> follows for any
-    number of replicates R:
-    <div class="formula" style="margin:9px 0">ε<sub>r</sub><sup>+</sup>(R) =
-      [(1−p<sub>1</sub>)<sup>R</sup> − (1−ρ)<sup>R</sup>] / [1 − (1−ρ)<sup>R</sup>],&nbsp;&nbsp;
-      ε<sub>r</sub><sup>−</sup>(R) = 1 − (1−f)<sup>R</sup></div>
-    A link goes unrecorded only if it is missed in every replicate, with probability (1−p<sub>1</sub>)<sup>R</sup>.
-    But those runs include the ones in which the link was <b>realised nowhere</b>, (1−ρ)<sup>R</sup>, which are no
-    failure of sampling at all; subtracting them and conditioning on the link being realised somewhere leaves the
-    methodological rate alone. The extension takes this route, replacing ε<sub>r</sub> with ρ and f.</div>`},
+    number of replicates R. The extension takes that route, replacing ε<sub>r</sub> with ρ and f.</div>`},
   prior:{title:'What makes a prior non-uniform?',html:`
     <p>The uniform prior places half its mass on the link being present locally, since four of the eight categories
     have z<sub>c,l</sub> = 1. More generally, the prior takes the same product form as the likelihood, one
@@ -1557,19 +1497,15 @@ const INFO={
     <p>With a <b>non-uniform prior</b> that convenience is lost: the posterior becomes likelihood × prior,
     renormalised, so a rarer category needs stronger evidence to reach the same confidence.</p>`},
   feasible:{title:'φ — feasibility confidence',html:`
-    <p>A link is <b>feasible</b> when it is biologically capable of occurring. φ is the posterior probability that
-    it is <b>realised in at least one of the contexts we sampled</b>: one minus the probability of the two
-    categories in which it is realised in none of them — the link is neither realised where we sampled
-    (z<sub>c,l</sub> = 0) nor in any replicate (z<sub>c,r</sub> = 0) — <b>phantom</b> (1,0,0) and
-    <b>possibly forbidden</b> (0,0,0).</p>
+    <p>A link is <b>feasible</b> when it is biologically capable of occurring. φ aggregates the eight categories
+    into that ecologically meaningful summary: it is one minus the probability of the two categories in which the
+    link is neither realised where we sampled (z<sub>c,l</sub> = 0) nor available in the replicates
+    (z<sub>c,r</sub> = 0) — <b>phantom</b> (1,0,0) and <b>possibly forbidden</b> (0,0,0).</p>
     <div class="formula">φ = Σ<sub>c: z<sub>c,l</sub>=1 or z<sub>c,r</sub>=1</sub> P(C=c | E)
       = <b>1 − P(phantom) − P(possibly forbidden)</b></div>
-    <p>Equivalently it is P(TP) + P(FN) + P(<i>possibly missing</i>) + P(<i>locally absent</i>): every category in
-    which the link is realised where we sampled, whether the model predicted it or not, together with the two in
-    which it is not realised locally but is realised in at least one replicate.</p>
-    <p><b>It is a lower bound</b> on feasibility, not the feasibility probability itself, because a feasible link
-    may go unrealised everywhere we looked: the evidence can only speak to the places we sampled. At the
-    illustrative rates and evidence E = (1,0,1), φ = 93.0%.</p>
+    <p><b>It is a lower bound</b>, not the feasibility probability itself, because a link may be feasible in
+    contexts that were never sampled: the evidence can only speak to the places we looked. At the illustrative rates
+    and evidence E = (1,0,1), φ = 93.0%.</p>
     <p>It answers a different question from the headline: whichever exact label is right, how sure are we that the
     interaction can occur at all?</p>`},
   kappa:{title:'κ — maximum contextual confidence',html:`
@@ -1588,11 +1524,7 @@ const INFO={
     link really is absent" and "the link is there but was missed" are treated as equally plausible readings of
     O<sub>l</sub> = 0, so the matching category keeps a factor of 1−ε<sub>l</sub> = 0.7 against a rival's 0.3. Under
     directional rates it keeps 1−f = 0.95 against the same 0.3, so it takes a larger share once the replicate axis
-    is resolved: κ rises from 56% to 60.8%. Under a uniform prior this has a closed form,
-    <div class="formula" style="margin:9px 0">O<sub>l</sub> = 0: κ = (1−ε<sub>Y</sub>)(1−f) / [(1−f) + ε<sub>l</sub>]
-      &nbsp;&nbsp;·&nbsp;&nbsp;
-      O<sub>l</sub> = 1: κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>) / [(1−ε<sub>l</sub>) + f]</div>
-    which reduces to (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>) when f = ε<sub>l</sub>.</p>
+    is resolved: κ rises from 56% to 60.8%.</p>
     <p style="margin:9px 0 0">A second consequence: <b>κ is no longer the same for every category.</b> Under
     symmetric rates every category has the same ceiling, which is why confidence depends only on the error rates and
     not on which category you picked. Under directional rates it depends on the local bit — for the four categories
@@ -1632,22 +1564,9 @@ const INFO={
     <div class="formula">P(E | C=c) = [ Π<sub>d∈{Y,l}</sub>
       ε<sub>d</sub>(z<sub>c,d</sub>)<sup>1[E<sub>d</sub> ≠ z<sub>c,d</sub>]</sup>
       (1−ε<sub>d</sub>(z<sub>c,d</sub>))<sup>1[E<sub>d</sub> = z<sub>c,d</sub>]</sup> ] ·
-      B*(n,R,p<sub>c</sub>) / Z<sub>c</sub></div>
-    <div class="formula">B*(n,R,p<sub>c</sub>) = C(R,n) p<sub>c</sub><sup>n</sup>(1−p<sub>c</sub>)<sup>R−n</sup>
-      &minus; 1[z<sub>c,r</sub> = 1, n = 0] (1−ρ)<sup>R</sup></div>
-    <p>with <b>p<sub>c</sub> = p<sub>1</sub></b> and <b>Z<sub>c</sub> = 1−(1−ρ)<sup>R</sup></b> for the categories in
-    which the link is realised in at least one replicate, and <b>p<sub>c</sub> = p<sub>0</sub></b>, Z<sub>c</sub> = 1
-    for those in which it is realised in none.</p>
-    <p><b>Why the subtraction.</b> L<sub>r</sub> is whether the link is <i>realised</i> in at least one replicate,
-    not whether it could be. So for a category with z<sub>c,r</sub> = 1, a run of replicates recording nothing can
-    only mean the method missed it every time. The plain binomial would also count the runs in which the link was
-    never realised — no failure of sampling at all, and those runs belong to the categories in which the link is
-    realised nowhere. Subtracting (1−ρ)<sup>R</sup> removes them and Z<sub>c</sub> rescales what is left. It applies
-    only when nothing was recorded, since a single record already shows the link was realised somewhere; where the
-    link is realised nowhere, every record is a false detection at rate f and no adjustment is needed. The binomial
-    coefficient is the same for every category and cancels, so <b>n is a sufficient summary</b> of the replicate
-    evidence.</p>
-    <p>A replicate observation is the product of two ecologically distinct steps — whether a feasible link
+      C(R,n) p<sub>c</sub><sup>n</sup>(1−p<sub>c</sub>)<sup>R−n</sup></div>
+    <p>with <b>p<sub>c</sub> = p<sub>1</sub> if z<sub>c,r</sub> = 1</b> and <b>p<sub>c</sub> = p<sub>0</sub></b>
+    otherwise. A replicate observation is the product of two ecologically distinct steps — whether a feasible link
     is <b>realised</b> in that replicate, and whether, once realised, it is <b>detected</b> — so</p>
     <div class="formula">p<sub>1</sub> = ρ(1−ε<sub>l</sub>) (realised, then detected);&nbsp;&nbsp;
       p<sub>0</sub> = f (a false detection of a link that is not there)</div>
@@ -1660,24 +1579,21 @@ const INFO={
     <p>A replicate is only the same method applied elsewhere, so the replicate axis introduces no sampling parameter
     of its own: the detection error <i>is</i> ε<sub>l</sub>. ρ enters here and not on the local axis because on the
     replicate axis one bit stands for many replicates, each with its own realisation, whereas local realisation is
-    the latent state itself.</p>
-    <p><b>Why the count matters.</b> Retaining n is what lets confidence accumulate. At R = 0 there is no replicate
-    term at all, so the categories pair up by z<sub>c,r</sub>, each pair splits evenly, and every curve starts at
-    <b>κ/2 = 30.4%</b>. The count then carries <i>possibly missing</i> to 56.7% at R = 1, 58.4% at R = 3 and 60.0%
-    at R = 5, reaching κ = 60.8% by about R = 10. Had the count been collapsed to the bit O<sub>r</sub> = 1[n ≥ 1],
-    whose own error rates still depend on R, the same replicates would send it the other way — 46.9% at R = 5 and
-    35.9% at R = 20, back towards the κ/2 it began at, so that a bit drawn from many replicates ends up saying no
-    more than no replicate at all. Discarding n does not discard R, so what declines is the worth of each record
-    rather than the amount of evidence: the more replicates were taken, the less surprising a single detection is
-    under absence. The two summaries agree at R = 1, and coincide everywhere under n = 0, because a count of zero
-    and an unset bit say the same thing.</p>
-    <p>Note that ρ only has an effect when f &gt; 0: with no false detections and a detection in every replicate the
-    surviving categories all share the same p<sub>1</sub><sup>R</sup>/Z<sub>c</sub>, which cancels, so confidence
-    sits at κ from the first replicate.</p>
+    the latent state itself. The binomial coefficient C(R,n) is common to all categories and cancels in the
+    normalisation, so <b>n is a sufficient summary</b> of the replicate evidence.</p>
+    <p><b>Why the count matters.</b> Retaining n is what lets confidence accumulate. It carries <i>possibly
+    missing</i> from 41.2% at R = 1 to 54.9% at R = 3 and 59.3% at R = 5, towards κ = 60.8%. Had the count been
+    collapsed to the bit O<sub>r</sub> = 1[n ≥ 1], whose own error rates still depend on R, the same replicates
+    would send it the other way — 39.7% at R = 5 and 35.4% at R = 20, converging on half of κ. Discarding n does not
+    discard R, so what declines is the worth of each record rather than the amount of evidence: the more replicates
+    were taken, the less surprising a single detection is under absence. The two summaries agree at R = 1, and
+    coincide everywhere under n = 0, because a count of zero and an unset bit say the same thing.</p>
+    <p>Note that ρ only has an effect when f &gt; 0: with no false detections the surviving categories all share the same
+    p<sub>1</sub><sup>R</sup>, which cancels, so confidence sits at κ from the first replicate.</p>
     <p><b>The dashed horizontal line is κ</b>, the maximum contextual confidence. As R grows the replicate axis is
     resolved completely and the four surviving categories divide by their model and local factors alone, so the
     chosen category limits to κ and the rest is shared among its neighbours.</p>
-    <p>This treatment still assumes replicates are exchangeable draws sharing one p<sub>1</sub>, which is what makes
+    <p>This treatment still assumes replicates are independent draws sharing one p<sub>1</sub>, which is what makes
     n sufficient, and that the local observation and the replicates err independently. The Supplementary Information
     relaxes both: SI&nbsp;S6 lets p<sub>1</sub> differ between links, and SI&nbsp;S7 lets the two err together.</p>`},
   sqmath:{title:'How these numbers are calculated',html:`
@@ -1723,18 +1639,13 @@ const INFO={
       absence rate = log₂((1−p<sub>0</sub>)/(1−p<sub>1</sub>))</div>
     <p><b>Why detections beat absences.</b> A detection is rare under either hypothesis and so is surprising,
     whereas an empty replicate is what both mostly predict. At the illustrative values a target of 50% needs
-    R* = 1 under corroboration by detections and R* = 19 under corroboration by absences. That is the quantitative
+    R* = 3 under corroboration by detections and R* = 26 under corroboration by absences. That is the quantitative
     face of "absence of evidence is weak evidence of absence" — the <b>effort gap</b> between the two lines.</p>
     <p><b>What replication cannot fix.</b> R* depends on ρ only through its contrast with f. If f = 0 the factor
-    p<sub>1</sub><sup>R</sup>/Z<sub>c</sub> cancels and confidence sits at κ from the first replicate. The contrast
-    vanishes at f = p<sub>1</sub>: approaching it the <b>absence</b> line climbs steeply — 19 replicates at
-    f = 0.05, 289 at f = 0.10 for the illustrative values — and beyond it never reaches the target at all.</p>
-    <p>The detection line behaves differently, because dividing by Z<sub>c</sub> = 1−(1−ρ)<sup>R</sup> gives the
-    <b>first few replicates a large boost</b> that fades as Z<sub>c</sub> approaches 1. Past f = p<sub>1</sub> a
-    detection is, in the long run, evidence for a false detection rather than for the link, so the curve peaks
-    early and then falls away instead of climbing to κ. A modest target can still be met by the first replicate
-    while a higher one is never met at any R — which is why confidence here is <b>not monotone in R</b>.
-    Replicates are worth taking only while they are cleaner than the link is rare.</p>
+    p<sub>1</sub><sup>R</sup> cancels and confidence sits at κ from the first replicate. The contrast vanishes at
+    f = p<sub>1</sub>: approaching it R* climbs steeply (from 3 replicates at f = 0.05 to 33 at f = 0.10 for the
+    illustrative values), and beyond it R* is infinite, a detection then being evidence for a false detection rather
+    than for the link. Replicates are worth taking only while they are cleaner than the link is rare.</p>
     <p><b>The takeaway:</b> replicates only buy <i>speed</i> towards κ. If κ itself is too low, no amount of
     replication helps — you need a better model (lower ε<sub>Y</sub>) or a complementary method or more local
     sampling effort (lower ε<sub>l</sub>), which is exactly the action attached to each category in the
