@@ -538,11 +538,10 @@
   <div id="priorSec" style="display:none">
   <div class="card">
     <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths</span></h2>
-    <p class="hint"><b>Drag the marker.</b> A block's colour is the category that belief makes most probable, so a
-    boundary between blocks is where one reading gives way to another. The plot on the right follows all four
-    categories along the dotted diagonal path through the marker: read it for how big a shift in belief it takes to
-    change the answer. Evidence and error rates stay fixed. The vertical orange line on the right plot corresponds
-    to the marker on the left plot.</p>
+    <p class="hint"><b>Drag the marker.</b> The plot on the right follows all four categories along the dotted
+    diagonal path through the marker: read it for how big a shift in belief it takes to change the answer. Evidence
+    and error rates stay fixed. The vertical orange line on the right plot corresponds to the marker on the left
+    plot.</p>
     <div class="controls" style="grid-template-columns:repeat(4,1fr);max-width:980px;margin:6px 0 14px">
       <div class="ctrl">
         <label><span>π<sub>r</sub> &nbsp;regional prior</span><span class="val" id="vPiR">0.50</span></label>
@@ -1314,9 +1313,9 @@ function drawPriorMap(){
   ctx.beginPath();ctx.moveTo(padL,Y(th.pl));ctx.lineTo(padL+pw,Y(th.pl));ctx.stroke();
   ctx.font='9.5px system-ui';ctx.fillStyle='#22272e';
   ctx.textAlign='left';ctx.textBaseline='bottom';
-  ctx.fillText('π_r* = '+th.pr.toFixed(3),X(th.pr)+3,padT+ph-3);
+  ctx.fillText('π_r* = '+th.pr.toFixed(2),X(th.pr)+3,padT+ph-3);
   ctx.textAlign='right';ctx.textBaseline='bottom';
-  ctx.fillText('π_l* = '+th.pl.toFixed(3),padL+pw-3,Y(th.pl)-3);
+  ctx.fillText('π_l* = '+th.pl.toFixed(2),padL+pw-3,Y(th.pl)-3);
   // the cut
   const pts=cutPoints();
   ctx.beginPath();
@@ -1339,7 +1338,8 @@ function drawPriorMap(){
   ctx.fillText('π_l  — realised here',0,0);ctx.restore();
   document.getElementById('priorMapLegend').innerHTML=
     modelBlock().map(i=>`<span><i class="sw" style="background:${regionCol(i)}"></i>${CLASSES[i].name}</span>`).join('')
-    +`<span style="margin-left:4px">— the leading category among the four the model bit supports</span>`;
+    +`<span style="margin-left:4px"><b>Colour:</b> the category that belief makes most probable, among the four `
+     +`the model bit supports. A boundary between blocks is where one reading gives way to another.</span>`;
 }
 function drawPriorCut(){
   const {ctx,w,h}=setup(document.getElementById('priorCut'));
@@ -1362,9 +1362,19 @@ function drawPriorCut(){
   const brks=[];
   for(let k=1;k<lead.length;k++)if(lead[k]!==lead[k-1])brks.push([xs[k],lead[k-1],lead[k]]);
   brks.forEach(([xv])=>{ctx.strokeStyle='#98a0aa';ctx.setLineDash([3,3]);ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(XX(xv),padT);ctx.lineTo(XX(xv),padT+ph);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=MUTED;ctx.font='9.5px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.fillText(xv.toFixed(2),XX(xv),padT+2);});
+    ctx.beginPath();ctx.moveTo(XX(xv),padT);ctx.lineTo(XX(xv),padT+ph);ctx.stroke();ctx.setLineDash([]);});
+  // name the leading category in each stretch, italic, as in the published figure. The
+  // switch points themselves are given in the caption rather than repeated on the axis.
+  const segs=[x0,...brks.map(b=>b[0]),x1];
+  ctx.font='italic 10.5px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+  for(let k=0;k<segs.length-1;k++){
+    const mid=(segs[k]+segs[k+1])/2;
+    let q=0; while(q<xs.length-1&&xs[q]<mid)q++;
+    const ci=lead[Math.min(q,lead.length-1)], nm2=CLASSES[ci].name.toLowerCase();
+    ctx.fillStyle=pairCol(CLASSES[ci].sig);
+    const hw=ctx.measureText(nm2).width/2;      // keep the label inside the frame
+    ctx.fillText(nm2,Math.max(padL+hw+2,Math.min(padL+pw-hw-2,XX(mid))),padT+3);
+  }
   B.forEach(i=>{
     ctx.beginPath();
     series[i].forEach((v,k)=>{const px=XX(xs[k]),py=Y(v);k===0?ctx.moveTo(px,py):ctx.lineTo(px,py);});
@@ -1391,23 +1401,30 @@ function drawPriorCut(){
             OBS[1]?'recorded here':'not recorded here',
             OBS[2]?`<b>recorded in at least one of ${priorR} replicates</b>`
                   :`<b>recorded in none of ${priorR} replicates</b>`].join(', ');
-  const at=brks.map(([xv])=>`<b>${xv.toFixed(2)}</b>`);
-  const change=at.length===0?'One category leads across the whole cut.'
-              :`The leader changes at ${at.length===1?at[0]:at.slice(0,-1).join(', ')+' and '+at[at.length-1]}.`;
   const NW=['no','one','two','three','four','five','six','seven','eight'];
   const nread=brks.length+1;
-  // only the pair sweep runs specialists -> generalists; the site sweep varies the ratio
+  const at=brks.map(([xv])=>xv.toFixed(2));
+  const atTxt=at.length===1?at[0]:at.slice(0,-1).join(', ')+' and '+at[at.length-1];
+  // The two sweeps vary different beliefs, so each gets its own opening sentence: the pair
+  // sweep runs specialists -> generalists, the site sweep runs low -> high transfer of the
+  // regional expectation to this site.
   const axis=(sweepMode==='pair')
-    ?` In this example, both priors rise with the pair's degree, so the axis runs from two interacting specialists `+
-     `on the left to two interacting generalists on the right.`:'';
-  const dotted=brks.length?' Dotted lines mark where the leading category changes.':'';
+    ?`In this example, both priors rise with the pair's degree, so the axis runs from two interacting specialists `+
+     `on the left to two interacting generalists on the right.`
+    :`In this example the pair is held fixed and the axis is how much of the regional expectation transfers to `+
+     `this site, from a site where the two are rare or their phenologies barely overlap on the left to one where `+
+     `both are abundant and overlapping on the right.`;
+  const dotted=brks.length
+    ?` Dotted lines mark where the leading category changes (at ${atTxt}).`
+    :` One category leads across the whole cut.`;
+  const known=(sweepMode==='pair')?'about the pair':'about the site';
   const readings=nread>1
     ?` The same evidence and the same error rates therefore support <b>${NW[nread]}</b> different readings, `+
-     `depending only on what is ecologically known about the pair.`:'';
+     `depending only on what is ecologically known ${known}.`:'';
   document.getElementById('priorCutCap').innerHTML=
-    `Evidence: ${ev} — the signature of <i>${selected.toLowerCase()}</i>. ${change} `+
-    `These four categories hold <b>${(blk*100).toFixed(1)}%</b> of the posterior between them; the other four are `+
-    `their mirrors.${axis}${dotted}${readings}`;
+    `${axis}${dotted}${readings} Here, the evidence is for a <b>${selected.toLowerCase()}</b> link: ${ev}. `+
+    `The four categories shown hold <b>${(blk*100).toFixed(1)}%</b> of the posterior between them; the other four `+
+    `hold <b>${((1-blk)*100).toFixed(1)}%</b>.`;
 }
 function drawPriorSec(){drawPriorMap();drawPriorCut();}
 
