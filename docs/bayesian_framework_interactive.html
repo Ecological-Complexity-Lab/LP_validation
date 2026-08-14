@@ -3,7 +3,7 @@
 {
   "name": "Link taxonomy uncertainty explorer",
   "schemaVersion": 1,
-  "description": "Interactive guide to the Bayesian framework of the Supplementary Information. Pick any of the eight link categories on the taxonomy tree (Fig. 1A); its error-free signature z_c becomes the evidence E = (Y, O_l, O_r). The upper panels follow the simplest version (SI S1-S2): symmetric rates eps_Y, eps_l, eps_r, a uniform prior, the posterior over all eight categories, the feasibility confidence phi and the maximum contextual confidence kappa. The lower panels follow the grounded and cumulative version (SI S4-S5): directional local rates eps_l and f, the realisation rate rho, the replicate count n retained against the single bit, and R*, the replicates needed to reach a target confidence under corroboration by detections or by absences.",
+  "description": "Interactive guide to the Bayesian reading of the link taxonomy. Pick any of the eight link categories on the taxonomy tree; its error-free signature z_c becomes the evidence E = (Y, O_l, O_r). The upper panels follow the simplest version: symmetric rates eps_Y, eps_l, eps_r, a uniform prior, the posterior over all eight categories, the feasibility confidence phi and the maximum contextual confidence kappa. The lower panels follow the grounded and cumulative version: directional local rates eps_l and f, the realisation rate rho, the replicate count n retained against the single bit, and R*, the replicates needed to reach a target confidence under corroboration by detections or by absences.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -227,12 +227,13 @@
     deterministic, but every source is error-prone, so it carries uncertainty. The framework therefore treats the true
     category C as unknown and returns a posterior P(C | E) over the eight.
     <br><br>
-    <b>Scope:</b> the upper panels follow the simplest version of the framework (SI&nbsp;S1–S2) — binary evidence, one
+    <b>Scope:</b> the upper panels follow the simplest version of the framework — binary evidence, one
     symmetric error rate per source, a uniform prior, and independent errors. The two lower panels follow the grounded
-    and cumulative version (SI&nbsp;S4–S5), where the local axis errs at different rates in each direction and the
-    replicate count is retained. Throughout, the illustrative rates are those of the SI
-    (ε<sub>Y</sub>&nbsp;=&nbsp;0.2, ε<sub>l</sub>&nbsp;=&nbsp;0.3, ε<sub>r</sub>&nbsp;=&nbsp;0.1, ρ&nbsp;=&nbsp;0.15,
-    f&nbsp;=&nbsp;0.05), chosen to show the behaviour of the framework rather than to describe any particular system.
+    and cumulative version, where the local axis errs at different rates in each direction and the
+    replicate count is retained. Throughout, the illustrative rates are
+    ε<sub>Y</sub>&nbsp;=&nbsp;0.2, ε<sub>l</sub>&nbsp;=&nbsp;0.3, ε<sub>r</sub>&nbsp;=&nbsp;0.1, ρ&nbsp;=&nbsp;0.15
+    and f&nbsp;=&nbsp;0.05, chosen to show the behaviour of the framework rather than to describe any particular
+    system.
     <br><br>
     <b>How to use:</b> pick a category on the taxonomy tree. Its error-free signature
     <code id="sigCode">z_c = (1, 0, 1)</code> becomes the observed evidence E, and the confidence in that label is
@@ -425,7 +426,7 @@
 
   <div id="extSec" style="display:none">
   <div class="card">
-    <h2>Cumulative replicate evidence <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— the posterior when the count n is retained (SI S4–S5)</span></h2>
+    <h2>Cumulative replicate evidence <button class="info" data-info="accumAll" aria-label="About this plot">i</button> <span style="font-weight:400;color:var(--muted)">— the posterior when the count n is retained</span></h2>
     <div class="seg-wrap" id="scenToggle">
       <button type="button" class="seg active" data-mode="det">Detected in every replicate (n = R)</button>
       <button type="button" class="seg" data-mode="emp">Detected in none (n = 0)</button>
@@ -460,7 +461,7 @@
   </div>
 
   <div class="card">
-    <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the same curves read as a design question (SI S5)</span></h2>
+    <h2>Effort to confidence — how many replicates? <button class="info" data-info="effort" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— the same curves read as a design question</span></h2>
     <p class="hint">Instead of asking "how confident am I after R replicates?", we can ask: "how many replicates of
     consistent evidence do I need to reach a confidence target?" That count is <b>R*</b>. The two lines are the
     <b>chosen category</b> and its <b>replicate counterpart</b> — the two halves of one confusion cell (same Y and
@@ -530,10 +531,10 @@
 
   <div id="priorSec" style="display:none">
   <div class="card">
-    <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths (SI S8)</span></h2>
+    <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths</span></h2>
     <p class="hint">The evidence is fixed at the signature of the category you picked, read through the directional
-    rates with <b>R</b> replicates. What varies is what we believed <i>before</i> seeing it. The prior takes the
-    SI's product form, one probability per truth: <b>π<sub>l</sub></b> that the link is realised here and
+    rates with <b>R</b> replicates. What varies is what we believed <i>before</i> seeing it. The prior takes a
+    product form, one probability per truth: <b>π<sub>l</sub></b> that the link is realised here and
     <b>π<sub>r</sub></b> that it is realisable in the replicate systems. Both rise with the pair's degree —
     π<sub>l</sub> with local degree, π<sub>r</sub> with regional — so the map runs from two interacting
     <b>specialists</b> at the lower left to two interacting <b>generalists</b> at the upper right.</p>
@@ -559,8 +560,7 @@
       <div class="ctrl">
         <label><span>R &nbsp;replicates</span><span class="val" id="vPiRep">5</span></label>
         <input type="range" id="sPiRep" min="1" max="20" step="1" value="5">
-        <div class="desc">the replicate evidence is the single bit O<sub>r</sub>, whose two error rates depend on R
-        (SI Eq. S4), as in the published figure</div>
+        <div class="desc">the replicate evidence is the single bit O<sub>r</sub>, whose two error rates both depend on R</div>
       </div>
     </div>
     <div class="row2">
@@ -575,12 +575,12 @@
         why: the prior and the likelihood both factorise across the axes, so each axis is settled by its own
         comparison and neither knows about the other. A boundary sits where the prior odds exactly offset that
         axis's likelihood ratio, π<sub>d</sub>* = L<sub>d</sub>(0)/[L<sub>d</sub>(0)+L<sub>d</sub>(1)]. The three
-        regions of the published figure are one straight path crossing these two perpendicular lines.</p>
+        three regions of the cut on the right are one straight path crossing these two perpendicular lines.</p>
       </div>
       <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
         <div class="seg-wrap" id="sweepSeg" style="margin-bottom:8px">
-          <button type="button" class="seg active" data-sweep="pair">Vary the pair (SI a)</button>
-          <button type="button" class="seg" data-sweep="site">Vary the site (SI b)</button>
+          <button type="button" class="seg active" data-sweep="pair">Vary the pair</button>
+          <button type="button" class="seg" data-sweep="site">Vary the site</button>
         </div>
         <div class="canvas-holder"><canvas id="priorCut" style="height:300px"></canvas></div>
         <div class="legend" id="priorCutLegend"></div>
@@ -642,9 +642,9 @@ let state=[0.2,0.3,0.1];   // eps_Y, eps_l, eps_r  (SI illustrative values)
 let rho=0.15, fRate=0.05;  // realisation rate and false-detection rate (SI illustrative values)
 
 // ---- rate structure -------------------------------------------------------
-// Upper panels (SI S1-S2): one symmetric rate per source, so a source errs at the same
+// Simple version: one symmetric rate per source, so a source errs at the same
 // rate whichever way the error runs.
-// Lower panels (SI S4-S5): the local axis is directional. A link that is realised where
+// Extensions: the local axis is directional. A link that is realised where
 // we sampled (z_cl = 1) is missed at eps_l; a link that is not there (z_cl = 0) is
 // recorded anyway at f. The model axis stays symmetric at eps_Y.
 function mFac(obsY,zY){return (obsY===zY)?(1-state[0]):state[0];}
@@ -916,7 +916,7 @@ function pairIdx(){
   const negIdx=CLASSES.findIndex(c=>c.sig[0]===y&&c.sig[1]===l&&c.sig[2]===0);
   return {posIdx,negIdx,y,l};
 }
-// Posterior with the count n retained (SI Eq. S6): the two within-network factors, the
+// Posterior with the count n retained, per the SI: the two within-network factors, the
 // local one directional, times a binomial replicate term with p_c = p1 when z_cr = 1 and
 // p_c = p0 otherwise. The binomial coefficient is common to every category and cancels in
 // the normalisation, so n is a sufficient summary of the replicate evidence.
@@ -1242,7 +1242,7 @@ function drawEffort(){
 // =====================================================================
 let piY=0.5, piL=0.45, piR=0.5, priorR=5, sweepMode='pair';
 // The replicate evidence here is the single bit O_r, whose two directional
-// rates depend on R (SI Eq. erep) -- the form used in the published figure.
+// rates depend on R -- the form used in the published figure.
 function repFacBit(zr,R){
   const p1=rho*(1-state[1]);
   if(zr===1){const ep=Math.pow(1-p1,R); return (OBS[2]===1)?(1-ep):ep;}
@@ -1570,14 +1570,14 @@ function syncSetupTabs(){
 
 
 // =====================================================================
-// Mapping observations to truth (SI Fig. S1 / Table S3).
+// Mapping observations to truth (the SI error-mapping figure and confusion table).
 // Standalone: these three rates are local to the panel and feed nothing else.
 // Composing the top edge (delta) with the right edge (eps_l, f) gives the model's
 // error against the ground truth — the green diagonal, which is never measured.
 // =====================================================================
 let sqD=0.20, sqL=0.30, sqF=0.05;
 const SQ_GREY='#c2c8d0', SQ_GREEN='#1B9E77';
-// Table S3, lower block: Y read against the ground truth rather than the observations
+// SI confusion table, lower block: Y read against the ground truth rather than the observations
 function sqRates(){
   const fn=(1-sqL)*sqD + sqL*(1-sqD);        // truth +, Y says -
   const fp=sqF*(1-sqD) + (1-sqF)*sqD;        // truth -, Y says +
@@ -1777,9 +1777,9 @@ const INFO={
     <p style="margin:9px 0 0">Two consequences for this panel. The plane is the <b>whole unit square</b> — nothing
     to normalise, every point a valid prior. And there is no π<sub>l</sub> ≤ π<sub>r</sub> constraint: <i>locally
     unique</i> (1,1,0) is precisely a link realised here but not realisable in the other systems, so the region
-    above the diagonal is meaningful, not an error. That freedom is what the SI's independence assumption buys, and
-    the SI flags it as a strong one, since a link realised where we sampled really is more likely realisable
-    elsewhere.</p></div>
+    above the diagonal is meaningful, not an error. That freedom is what the independence assumption behind
+    the product form buys, and it is a strong one, since a link realised where we sampled really is more likely
+    realisable elsewhere.</p></div>
     <div class="flag"><b>Why the map is rectangles.</b> The prior and the likelihood both factorise across the three
     axes, so a category's weight is one factor per axis and the two ecological axes never consult each other. The
     leading category is therefore settled by two independent comparisons, and each boundary is closed:
@@ -1788,7 +1788,7 @@ const INFO={
     offset the evidence on that axis. For the worked case, O<sub>l</sub> = 0 gives
     π<sub>l</sub>* = 0.95/(0.95+0.30) = <b>0.760</b>, and O<sub>r</sub> = 1 at R = 5 gives
     π<sub>r</sub>* = <b>0.347</b>.
-    <p style="margin:9px 0 0">This is what the published figure's three regions really are: a straight path crossing
+    <p style="margin:9px 0 0">This is what the three regions of the cut really are: a straight path crossing
     two perpendicular lines. On the ray π<sub>l</sub> = 0.9 π<sub>r</sub>, the path crosses π<sub>r</sub>* at
     0.347 and π<sub>l</sub>* at 0.760/0.9 = <b>0.844</b>. And the caption's remark that <i>recurrent</i> leaves the
     range below about π<sub>l</sub> = 0.8 π<sub>r</sub> is exact: reaching π<sub>l</sub>* = 0.760 with
@@ -1964,15 +1964,15 @@ const INFO={
     resolved completely and the four surviving categories divide by their model and local factors alone, so the
     chosen category limits to κ and the rest is shared among its neighbours.</p>
     <p>This treatment still assumes replicates are independent draws sharing one p<sub>1</sub>, which is what makes
-    n sufficient, and that the local observation and the replicates err independently. The Supplementary Information
-    relaxes both: SI&nbsp;S6 lets p<sub>1</sub> differ between links, and SI&nbsp;S7 lets the two err together.</p>`},
+    n sufficient, and that the local observation and the replicates err independently. Both can be
+    relaxed, letting p<sub>1</sub> differ between links and letting the two err together.</p>`},
   sqmath:{title:'How these numbers are calculated',html:`
     <p>The model we have was fitted to the local observation, so it can only reach the ground truth
     <i>through</i> it. That gives two ways of being right about a link — both steps correct, or both wrong — and two
     ways of being wrong.</p>
     <p>For a link that is truly there, the observation records it with probability 1−ε<sub>l</sub> and misses it with
     probability ε<sub>l</sub>; the model then agrees with the observation with probability 1−δ and departs from it
-    with probability δ. Composing the two (SI Table S3):</p>
+    with probability δ. Composing the two:</p>
     <div class="formula">misses = (1−ε<sub>l</sub>)·δ + ε<sub>l</sub>·(1−δ)&nbsp;&nbsp;&nbsp;
       invents = f·(1−δ) + (1−f)·δ</div>
     <p><b>Misses</b> is how often Y calls a link absent when it is truly present; <b>invents</b> is how often it
