@@ -1457,12 +1457,12 @@ const VERLEDE={
   ext:`This relaxes two of those assumptions. The replicate evidence keeps its full count n rather than collapsing
     to a single bit, and the local axis errs at a different rate in each direction: ε<sub>l</sub> on a link that is
     there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`,
-  prior:`<b>Drag the marker on the left, and watch the right redraw.</b> The map on the left is every prior you
-    could hold about this pair at once, coloured by the category that belief makes most probable — so its
-    boundaries are where one reading of the evidence gives way to another. The plot on the right takes a single
-    straight path across that map and follows all four categories along it, which is where you can read how large
-    a shift in belief it actually takes to change the answer. The evidence and the error rates never move here;
-    only what you believed before seeing them.`
+  prior:`The map on the left presents the <b>priors</b> (i.e., the “beliefs” that ecological knowledge provides) on
+    the local and regional interaction probabilities of a species pair (e.g., a plant and a bee). The block colours
+    mark the category that belief makes most probable, so their boundaries are where one reading of the evidence
+    gives way to another. The plot on the right takes a single straight path across that map and follows all four
+    categories along it, which is where you can read how large a shift in belief it actually takes to change the
+    answer. The evidence and the error rates remain fixed.`
 };
 function setVersion(v){
   document.getElementById('simpleSec').style.display=(v==='simple')?'':'none';
