@@ -145,6 +145,12 @@
   .setuptab .st-val{display:block;font-size:13px;font-weight:600;color:var(--text);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .setuptab.on .st-val{color:var(--accent-d)}
+  /* the eight-weight editor does not apply on the informative-prior version, which
+     sets its own prior, so the tile is disabled there rather than silently ignored */
+  .setuptab[disabled]{cursor:default;background:#f7f8fa}
+  .setuptab[disabled]:hover{background:#f7f8fa}
+  .setuptab[disabled] .st-label,.setuptab[disabled] .st-val{color:var(--muted);opacity:.65}
+  .setuptab[disabled] .st-label::before{opacity:.35}
   @media(max-width:640px){.setuptabs{grid-template-columns:1fr}
     .setuptab{border-right:none;border-bottom:1px solid var(--border)}}
   .setuppanel{display:none;border-top:1px solid var(--border);padding:13px 16px 15px;
@@ -532,54 +538,38 @@
   <div id="priorSec" style="display:none">
   <div class="card">
     <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths</span></h2>
-    <p class="hint">The evidence is fixed at the signature of the category you picked, read through the directional
-    rates with <b>R</b> replicates. What varies is what we believed <i>before</i> seeing it. The prior takes a
-    product form, one probability per truth: <b>π<sub>l</sub></b> that the link is realised here and
-    <b>π<sub>r</sub></b> that it is realisable in the replicate systems. Both rise with the pair's degree —
-    π<sub>l</sub> with local degree, π<sub>r</sub> with regional — so the map runs from two interacting
-    <b>specialists</b> at the lower left to two interacting <b>generalists</b> at the upper right.</p>
+    <p class="hint"><b>Drag the marker.</b> A block's colour is the category that belief makes most probable, so a
+    boundary is where one reading gives way to another. The plot on the right follows all four categories along the
+    dotted path through the marker: read it for how big a shift in belief it takes to change the answer. Evidence
+    and error rates stay fixed.</p>
     <div class="controls" style="grid-template-columns:repeat(4,1fr);max-width:980px;margin:6px 0 14px">
       <div class="ctrl">
         <label><span>π<sub>r</sub> &nbsp;regional prior</span><span class="val" id="vPiR">0.50</span></label>
         <input type="range" id="sPiR" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">Prior that the link is <b>realisable</b> in the replicate systems. Rises with the pair's
-        regional degree</div>
+        <div class="desc">Prior that the link is realisable in the replicate systems. Rises with regional degree.</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>l</sub> &nbsp;local prior</span><span class="val" id="vPiL">0.45</span></label>
         <input type="range" id="sPiL" min="0.02" max="0.98" step="0.01" value="0.45">
-        <div class="desc">Prior that the link is <b>realised where we sampled</b>. Rises with local degree, and with
-        how much of the regional expectation transfers to this site</div>
+        <div class="desc">Prior that it is realised where we sampled. Rises with local degree.</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>Y</sub> &nbsp;model prior</span><span class="val" id="vPiY">0.50</span></label>
         <input type="range" id="sPiY" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">Prior that the truth-fitted model would predict the link. It rescales the two model blocks
-        against each other, so the four curves on the right rise or fall together and the share printed beneath them
-        changes. It never reorders the categories within a block, so the map does not move</div>
+        <div class="desc">Prior that a truth-fitted model would predict the link. Scales the four curves together; the
+        map does not move.</div>
       </div>
       <div class="ctrl">
         <label><span>R &nbsp;replicates</span><span class="val" id="vPiRep">5</span></label>
         <input type="range" id="sPiRep" min="1" max="20" step="1" value="5">
-        <div class="desc">The replicate evidence is the single bit O<sub>r</sub>, whose two error rates both depend on R</div>
+        <div class="desc">How many replicates stand behind the single bit O<sub>r</sub>, which records only whether the
+        link was seen in <b>at least one</b> of them — not how many.</div>
       </div>
     </div>
     <div class="row2">
       <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
         <div class="canvas-holder"><canvas id="priorMap" style="height:340px"></canvas></div>
         <div class="legend" id="priorMapLegend"></div>
-        <p class="notes" style="margin-top:6px">Every point is a valid prior — the two axes are independent, so the
-        whole square is available. The shaded band below the diagonal is the ecologically usual case,
-        π<sub>l</sub> &lt; π<sub>r</sub> — a convention rather than a constraint. The replicates are <i>other</i>
-        places, so a link can be realised here and nowhere else, which is exactly what <b>locally unique</b> is.
-        Regional pools are broader than local realisations, so π<sub>r</sub> exceeds π<sub>l</sub> on average, but
-        for a locally dominant specialist it need not. Drag the marker, or use the sliders. The dotted path is the
-        cut drawn on the right.</p>
-        <p class="notes" style="margin-top:6px"><b>The regions are rectangles</b>, and the two solid lines are
-        why: the prior and the likelihood both factorise across the axes, so each axis is settled by its own
-        comparison and neither knows about the other. A boundary sits where the prior odds exactly offset that
-        axis's likelihood ratio, π<sub>d</sub>* = L<sub>d</sub>(0)/[L<sub>d</sub>(0)+L<sub>d</sub>(1)]. The three
-        three regions of the cut on the right are one straight path crossing these two perpendicular lines.</p>
       </div>
       <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
         <div class="seg-wrap" id="sweepSeg" style="margin-bottom:8px">
@@ -1394,12 +1384,18 @@ function drawPriorCut(){
   document.getElementById('priorCutLegend').innerHTML=
     B.map(i=>`<span><svg width="20" height="10" style="flex:none"><line x1="1" y1="5" x2="19" y2="5" stroke="${pairCol(CLASSES[i].sig)}" stroke-width="2.4"${CLASSES[i].sig[2]===0?' stroke-dasharray="6,4"':''}/></svg>${CLASSES[i].name}</span>`).join('');
   const P=postPrior(piY,piL,piR,priorR), blk=modelBlock().reduce((a,i)=>a+P[i],0);
-  const names=brks.map(([xv,a,b])=>`<b>${xv.toFixed(2)}</b> (${CLASSES[a].name.toLowerCase()} → ${CLASSES[b].name.toLowerCase()})`);
+  // Spell the evidence out in words rather than as a bare signature. The replicate bit is
+  // the one readers misread, so it says at-least-one / none of R rather than just O_r.
+  const ev=[OBS[0]?'predicted':'not predicted',
+            OBS[1]?'recorded here':'not recorded here',
+            OBS[2]?`<b>recorded in at least one of ${priorR} replicates</b>`
+                  :`<b>recorded in none of ${priorR} replicates</b>`].join(', ');
+  const at=brks.map(([xv])=>`<b>${xv.toFixed(2)}</b>`);
+  const change=at.length===0?'One category leads across the whole cut.'
+              :`The leader changes at ${at.length===1?at[0]:at.slice(0,-1).join(', ')+' and '+at[at.length-1]}.`;
   document.getElementById('priorCutCap').innerHTML=
-    `Evidence E = (${OBS.join(',')}) — the signature of <b>${selected}</b> — at R = ${priorR}. `+
-    (names.length?`The leading category changes at ${names.join(' and ')}. `:`One category leads across the whole cut. `)+
-    `These four hold <b>${(blk*100).toFixed(1)}%</b> of the posterior between them; at π<sub>Y</sub> = 0.5 that is `+
-    `exactly 1−ε<sub>Y</sub>, and the other four are their mirrors.`;
+    `Evidence: ${ev} — the signature of <i>${selected.toLowerCase()}</i>. ${change} `+
+    `These four hold <b>${(blk*100).toFixed(1)}%</b>; the other four are their mirrors.`;
 }
 function drawPriorSec(){drawPriorMap();drawPriorCut();}
 
@@ -1458,15 +1454,15 @@ const VERLEDE={
   ext:`This relaxes two of those assumptions. The replicate evidence keeps its full count n rather than collapsing
     to a single bit, and the local axis errs at a different rate in each direction: ε<sub>l</sub> on a link that is
     there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`,
-  prior:`The map on the left presents the <b>priors</b> (i.e., the “beliefs” that ecological knowledge provides) on
-    the local and regional interaction probabilities of a species pair (e.g., a plant and a bee). The block colours
-    mark the category that belief makes most probable, so their boundaries are where one reading of the evidence
-    gives way to another. <b>Drag the marker</b> to set the belief and the plot on the right redraws: it takes a
-    single straight path across the map through that point and follows all four categories along it, which is where
-    you can read how large a shift in belief it actually takes to change the answer. The evidence and the error
-    rates remain fixed.`
+  prior:`Ecological knowledge gives beliefs about a species pair — a plant and a bee — before any evidence: how
+    likely they interact <b>anywhere in the region</b> (π<sub>r</sub>), and <b>at this site</b> (π<sub>l</sub>).
+    Both rise with the pair's degree, so the map runs from two specialists to two generalists. Because the two enter
+    different comparisons, an informative prior can change <i>which source erred</i>, not just how sure we are.`
 };
+let version='simple';
 function setVersion(v){
+  version=v;
+  if(v==='prior'&&openPanel==='prior')setPanel('prior');   // close it before it is disabled
   document.getElementById('simpleSec').style.display=(v==='simple')?'':'none';
   document.getElementById('extSec').style.display=(v==='ext')?'':'none';
   document.getElementById('priorSec').style.display=(v==='prior')?'':'none';
@@ -1557,6 +1553,8 @@ window.addEventListener('scroll',barShadows,{passive:true});
 // setup can be read at a glance and reopened without leaving the plots.
 let openPanel='cat';
 function setPanel(name){
+  const tab=document.querySelector('.setuptab[data-panel="'+name+'"]');
+  if(tab&&tab.disabled)return;                 // disabled tiles do not open
   openPanel=(openPanel===name)?null:name;      // clicking the open tile closes it
   ['cat','prior','rates'].forEach(k=>{
     document.getElementById('panel-'+k).classList.toggle('on',k===openPanel);
@@ -1571,7 +1569,14 @@ document.getElementById('setupTabs').addEventListener('click',e=>{
 // tile summaries, refreshed whenever anything they report changes
 function syncSetupTabs(){
   document.getElementById('stCat').textContent=selected;
-  document.getElementById('stPrior').textContent=priorIsUniform()?'uniform':'custom';
+  // On the informative-prior version the eight weights are not what drives the panels:
+  // that section sets its own prior from pi_Y, pi_l and pi_r. Disable the tile there and
+  // say so, rather than leaving an editor on screen that nothing below responds to.
+  const pt=document.querySelector('.setuptab[data-panel="prior"]'), off=(version==='prior');
+  pt.disabled=off;
+  pt.title=off?'Set on this version by the map: pi_Y, pi_l and pi_r':'';
+  document.getElementById('stPrior').textContent=
+    off?'set by the map':(priorIsUniform()?'uniform':'custom');
   document.getElementById('stRates').innerHTML=
     `ε<sub>Y</sub> ${state[0].toFixed(2)} &nbsp;ε<sub>l</sub> ${state[1].toFixed(2)} &nbsp;ε<sub>r</sub> ${state[2].toFixed(2)}`;
 }
