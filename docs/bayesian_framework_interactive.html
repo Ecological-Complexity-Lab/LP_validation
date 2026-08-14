@@ -309,8 +309,9 @@
     <div class="setuppanel on" id="panel-cat">
       <h3>Pick a link category <span style="font-weight:400;color:var(--muted)">— click any leaf</span>
         <button class="info" data-info="taxonomy" aria-label="About the taxonomy">i</button></h3>
-      <p class="sigkey">Each leaf carries its signature (Y, O<sub>l</sub>, O<sub>r</sub>):
-        <b>predicted · recorded here · recorded elsewhere</b></p>
+      <p class="sigkey">Each leaf carries its signature z<sub>c</sub> = (Ŷ, L<sub>l</sub>, L<sub>r</sub>):
+        <b>predicted · realised here · realisable in the replicates</b> — the evidence it would produce if no
+        source erred</p>
       <svg id="taxo" viewBox="0 0 930 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Link taxonomy selector"></svg>
       <div class="catgloss" id="catGloss"></div>
     </div>
@@ -344,7 +345,7 @@
         <div class="ctrl">
           <label><span>ε<sub>r</sub> &nbsp;replicate error</span><span class="val" id="vR">0.10</span></label>
           <input type="range" id="sR" min="0" max="0.5" step="0.01" value="0.1">
-          <div class="desc">the probability that an available link is recorded in none of the replicates</div>
+          <div class="desc">the probability that a realisable link is recorded in none of the replicates</div>
         </div>
       </div>
       <button class="reset" id="reset">Reset to the illustrative rates (0.20 / 0.30 / 0.10)</button>
@@ -432,8 +433,8 @@
       <div class="ctrl">
         <label><span>ρ &nbsp;realisation rate</span><span class="val" id="vRhoA">0.15</span></label>
         <input type="range" id="sRhoA" min="0.05" max="1" step="0.05" value="0.15">
-        <div class="desc">the probability that a <b>feasible</b> link is actually <b>realised</b> in a given
-        replicate</div>
+        <div class="desc">the probability that a link is <b>realised</b> in a given place. ρ &gt; 0 is what
+        L<sub>r</sub> = 1 means</div>
       </div>
       <div class="ctrl">
         <label><span>f &nbsp;false-detection rate</span><span class="val" id="vFA">0.05</span></label>
@@ -619,8 +620,9 @@ function posterior(eps){
   return nums.map(x=>x/Z);
 }
 function pmConf(eps){return posterior(eps)[PMIDX];}
-// phi: the link is realised where we sampled (z_cl = 1) or available in the replicates
-// (z_cr = 1). The two categories failing both are phantom and possibly forbidden.
+// phi: the link is realised where we sampled (z_cl = 1) or realisable in the replicate
+// systems (z_cr = 1). The two categories failing both are phantom and possibly forbidden.
+// Being an aggregate, phi is not bounded by kappa the way a single category is.
 function feasIdx(i){const s=CLASSES[i].sig;return s[1]===1||s[2]===1;}
 
 // What each category means, and what follows from it, shown for the selected leaf.
@@ -642,17 +644,18 @@ function showGloss(name){
 }
 
 // ---- taxonomy selector ----
-// leaf layout: 4 rows (TP,FP,TN,FN) x 2 cols (not-observed-elsewhere, observed-elsewhere)
+// leaf layout: 4 rows (TP,FP,FN,TN) x 2 cols (not-observed-elsewhere, observed-elsewhere).
+// The rows alternate observed / not observed within each prediction branch.
 const ROWC=[56,108,212,264];
 const LEAVES=[
   {cat:'Locally unique',    col:0,row:0,pos:1},
   {cat:'Recurrent',         col:1,row:0,pos:1},
   {cat:'Phantom',           col:0,row:1,pos:1},
   {cat:'Possibly missing',  col:1,row:1,pos:1},
-  {cat:'Possibly forbidden',col:0,row:2,pos:0},
-  {cat:'Locally absent',    col:1,row:2,pos:0},
-  {cat:'Weakly-supported',  col:0,row:3,pos:0},
-  {cat:'Model-elusive',     col:1,row:3,pos:0},
+  {cat:'Weakly-supported',  col:0,row:2,pos:0},
+  {cat:'Model-elusive',     col:1,row:2,pos:0},
+  {cat:'Possibly forbidden',col:0,row:3,pos:0},
+  {cat:'Locally absent',    col:1,row:3,pos:0},
 ];
 const COLX=[500,720], LW=200, LH=40;
 function conn(x1,y1,x2,y2){const mx=(x1+x2)/2;return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#cfd5dd" stroke-width="1.6"/>`;}
@@ -687,8 +690,8 @@ function renderTaxo(){
   s+=nodeBox(150,222,140,32,'Predicted −','',NEG_L,NEG,NEG_D);
   s+=nodeBox(330,40,110,32,'TP','observed',POS_L,POS,POS_D);
   s+=nodeBox(330,92,110,32,'FP','not observed',POS_L,POS,POS_D);
-  s+=nodeBox(330,196,110,32,'TN','not observed',NEG_L,NEG,NEG_D);
-  s+=nodeBox(330,248,110,32,'FN','observed',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,196,110,32,'FN','observed',NEG_L,NEG,NEG_D);
+  s+=nodeBox(330,248,110,32,'TN','not observed',NEG_L,NEG,NEG_D);
   // leaves (clickable)
   LEAVES.forEach(L=>{
     const x=COLX[L.col], yc=ROWC[L.row], y=yc-LH/2;
@@ -1123,7 +1126,7 @@ function drawEffort(){
   const A=PMIDX, B=counterpartIdx();
   const rA=rstarCat(A,fRate,rho), rB=rstarCat(B,fRate,rho);
   const bA=rateCat(A), bB=rateCat(B);
-  // detections = the available-in-replicates (z_cr=1) member; absences = the other
+  // detections = the realisable-in-replicates (z_cr=1) member; absences = the other
   const presIdx=CLASSES[A].sig[2]===1?A:B, absIdx=presIdx===A?B:A;
   const rPres=presIdx===A?rA:rB, rAbs=absIdx===A?rA:rB;
   const bPres=presIdx===A?bA:bB, bAbs=absIdx===A?bA:bB;
@@ -1438,18 +1441,31 @@ const INFO={
     sampled goes unrecorded. It concerns detection alone — local realisation is not something marginalised over
     here, it <i>is</i> the latent state L<sub>l</sub>. In this version the same number also serves as the rate at
     which a link that is not there gets recorded anyway.</p>
-    <p><b>ε<sub>r</sub> — the replicates.</b> The probability that an available link — one that could be realised
-    in the replicate contexts — is recorded in none of them.</p>
+    <p><b>ε<sub>r</sub> — the replicates.</b> The probability that a <b>realisable</b> link — one that could be
+    realised in the replicate systems, though not necessarily realised in any of them — is recorded in none.</p>
     <div class="flag"><b>ε<sub>r</sub> is not a primitive.</b> Unlike ε<sub>Y</sub> and ε<sub>l</sub> it is not a
     property of a method but a consequence of three other quantities. A replicate is only the same method applied
     elsewhere, so the replicate axis adds no sampling parameter of its own. What it adds is the <b>realisation rate
-    ρ</b>, the probability that a feasible link is actually realised in a given replicate — an ecological property
-    rather than a methodological one. A record then needs both steps, realisation and then detection:
+    ρ</b>, the probability that a link is realised in a given place — an ecological property rather than a
+    methodological one. In this notation ρ &gt; 0 is exactly what L<sub>r</sub> = 1 means: a link realisable in the
+    replicate systems is one that some replicate could realise. A record then needs both steps, realisation and
+    then detection:
     <div class="formula" style="margin:9px 0">p<sub>1</sub> = ρ(1−ε<sub>l</sub>),&nbsp;&nbsp; p<sub>0</sub> = f</div>
     where <b>f</b> is the <b>false-detection rate</b>, the probability that a link that is not there is recorded
     anyway through misidentification or contamination. f is the other direction of the local error, which this
     simplest version equates with ε<sub>l</sub>. From p<sub>1</sub> and p<sub>0</sub>, ε<sub>r</sub> follows for any
-    number of replicates R. The extension takes that route, replacing ε<sub>r</sub> with ρ and f.</div>`},
+    number of replicates R:
+    <div class="formula" style="margin:9px 0">ε<sub>r</sub><sup>+</sup>(R) = (1−p<sub>1</sub>)<sup>R</sup>
+      &nbsp;&nbsp;·&nbsp;&nbsp; ε<sub>r</sub><sup>−</sup>(R) = 1 − (1−f)<sup>R</sup></div>
+    <table style="margin:0 0 9px;max-width:340px"><thead><tr><th class="name"></th>
+      <th>L<sub>r</sub> = 1</th><th>L<sub>r</sub> = 0</th></tr></thead><tbody>
+      <tr><td class="name">O<sub>r</sub> = 1</td><td>1−(1−p<sub>1</sub>)<sup>R</sup></td>
+        <td>1−(1−p<sub>0</sub>)<sup>R</sup></td></tr>
+      <tr><td class="name">O<sub>r</sub> = 0</td><td>(1−p<sub>1</sub>)<sup>R</sup></td>
+        <td>(1−p<sub>0</sub>)<sup>R</sup></td></tr></tbody></table>
+    The two off-diagonal entries are not symmetric in origin: the false negative carries the ecological failure to
+    be realised together with the methodological failure to detect, whereas the false positive is methodological
+    alone. The extension takes this route, replacing ε<sub>r</sub> with ρ and f.</div>`},
   prior:{title:'What makes a prior non-uniform?',html:`
     <p>The uniform prior places half its mass on the link being present locally, since four of the eight categories
     have z<sub>c,l</sub> = 1. More generally, the prior takes the same product form as the likelihood, one
@@ -1497,15 +1513,24 @@ const INFO={
     <p>With a <b>non-uniform prior</b> that convenience is lost: the posterior becomes likelihood × prior,
     renormalised, so a rarer category needs stronger evidence to reach the same confidence.</p>`},
   feasible:{title:'φ — feasibility confidence',html:`
-    <p>A link is <b>feasible</b> when it is biologically capable of occurring. φ aggregates the eight categories
-    into that ecologically meaningful summary: it is one minus the probability of the two categories in which the
-    link is neither realised where we sampled (z<sub>c,l</sub> = 0) nor available in the replicates
-    (z<sub>c,r</sub> = 0) — <b>phantom</b> (1,0,0) and <b>possibly forbidden</b> (0,0,0).</p>
-    <div class="formula">φ = Σ<sub>c: z<sub>c,l</sub>=1 or z<sub>c,r</sub>=1</sub> P(C=c | E)
-      = <b>1 − P(phantom) − P(possibly forbidden)</b></div>
-    <p><b>It is a lower bound</b>, not the feasibility probability itself, because a link may be feasible in
-    contexts that were never sampled: the evidence can only speak to the places we looked. At the illustrative rates
-    and evidence E = (1,0,1), φ = 93.0%.</p>
+    <p>A link is <b>feasible</b> when it is biologically capable of occurring. φ is the posterior probability that
+    it is either <b>realised where we sampled</b> or <b>realisable in the replicate systems</b>, so it is one minus
+    the probability of the two categories in which L<sub>l</sub> = L<sub>r</sub> = 0 — <b>phantom</b> (1,0,0) and
+    <b>possibly forbidden</b> (0,0,0).</p>
+    <div class="formula">φ = P(L<sub>l</sub> = 1 or L<sub>r</sub> = 1 | E)
+      = <b>1 − P(phantom | E) − P(possibly forbidden | E)</b></div>
+    <p>Equivalently it is P(TP) + P(FN) + P(<i>possibly missing</i>) + P(<i>locally absent</i>): every category in
+    which the link is realised where we sampled, whether the model predicted it (TP) or not (FN), together with the
+    two in which it is not realised locally but is realisable in the replicates.</p>
+    <p><b>It is a lower bound</b> on feasibility, not the feasibility probability itself, because a feasible link
+    may go unrealised everywhere we looked: the evidence can only speak to the places we sampled. At the
+    illustrative rates and evidence E = (1,0,1), φ = 93.0%.</p>
+    <div class="flag"><b>φ is not bounded by κ.</b> Confidence in any single category cannot exceed the maximum
+    contextual confidence, because a rival category always explains the same evidence through a local miss. An
+    aggregate is not so limited: <i>possibly missing</i> and <i>recurrent</i> disagree about the local bit but agree
+    that the link is there, so the doubt that caps each of them separately cancels in their sum. Under accumulating
+    detections φ therefore runs past κ — at the illustrative rates it is already at 100% by R = 10, where the
+    leading single category has stalled at 60.8%.</div>
     <p>It answers a different question from the headline: whichever exact label is right, how sure are we that the
     interaction can occur at all?</p>`},
   kappa:{title:'κ — maximum contextual confidence',html:`
@@ -1524,7 +1549,14 @@ const INFO={
     link really is absent" and "the link is there but was missed" are treated as equally plausible readings of
     O<sub>l</sub> = 0, so the matching category keeps a factor of 1−ε<sub>l</sub> = 0.7 against a rival's 0.3. Under
     directional rates it keeps 1−f = 0.95 against the same 0.3, so it takes a larger share once the replicate axis
-    is resolved: κ rises from 56% to 60.8%.</p>
+    is resolved: κ rises from 56% to 60.8%. Under a uniform prior both forms are closed:
+    <div class="formula" style="margin:9px 0">symmetric: κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      directional, O<sub>l</sub> = 0: κ = (1−ε<sub>Y</sub>)(1−f) / [(1−f) + ε<sub>l</sub>]
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      O<sub>l</sub> = 1: κ = (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>) / [(1−ε<sub>l</sub>) + f]</div>
+    The two agree at f = ε<sub>l</sub> and diverge above it, because a low f keeps a local non-detection weak
+    evidence of absence.</p>
     <p style="margin:9px 0 0">A second consequence: <b>κ is no longer the same for every category.</b> Under
     symmetric rates every category has the same ceiling, which is why confidence depends only on the error rates and
     not on which category you picked. Under directional rates it depends on the local bit — for the four categories
