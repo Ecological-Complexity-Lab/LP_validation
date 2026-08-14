@@ -539,25 +539,26 @@
   <div class="card">
     <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths</span></h2>
     <p class="hint"><b>Drag the marker.</b> A block's colour is the category that belief makes most probable, so a
-    boundary is where one reading gives way to another. The plot on the right follows all four categories along the
-    dotted path through the marker: read it for how big a shift in belief it takes to change the answer. Evidence
-    and error rates stay fixed.</p>
+    boundary between blocks is where one reading gives way to another. The plot on the right follows all four
+    categories along the dotted diagonal path through the marker: read it for how big a shift in belief it takes to
+    change the answer. Evidence and error rates stay fixed. The vertical orange line on the right plot corresponds
+    to the marker on the left plot.</p>
     <div class="controls" style="grid-template-columns:repeat(4,1fr);max-width:980px;margin:6px 0 14px">
       <div class="ctrl">
         <label><span>π<sub>r</sub> &nbsp;regional prior</span><span class="val" id="vPiR">0.50</span></label>
         <input type="range" id="sPiR" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">Prior that the link is realisable in the replicate systems. Rises with regional degree.</div>
+        <div class="desc">Prior that the link is realisable in the replicate systems (e.g., rises with regional degree).</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>l</sub> &nbsp;local prior</span><span class="val" id="vPiL">0.45</span></label>
         <input type="range" id="sPiL" min="0.02" max="0.98" step="0.01" value="0.45">
-        <div class="desc">Prior that it is realised where we sampled. Rises with local degree.</div>
+        <div class="desc">Prior that the link is realised where we sampled (e.g., rises with local degree).</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>Y</sub> &nbsp;model prior</span><span class="val" id="vPiY">0.50</span></label>
         <input type="range" id="sPiY" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">Prior that a truth-fitted model would predict the link. Scales the four curves together; the
-        map does not move.</div>
+        <div class="desc">Prior that a truth-fitted model would predict the link (could be a scaled model output).
+        Scales the four curves together; the map does not move.</div>
       </div>
       <div class="ctrl">
         <label><span>R &nbsp;replicates</span><span class="val" id="vPiRep">5</span></label>
@@ -1332,10 +1333,10 @@ function drawPriorMap(){
     ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(v.toFixed(2),padL-6,Y(v));}
   ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';
   ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText('π_r  — realisable in the replicates (regional degree →)',padL+pw/2,padT+ph+21);
+  ctx.fillText('π_r  — realisable in the replicates',padL+pw/2,padT+ph+21);
   ctx.save();ctx.translate(14,padT+ph/2);ctx.rotate(-Math.PI/2);
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText('π_l  — realised here (local degree →)',0,0);ctx.restore();
+  ctx.fillText('π_l  — realised here',0,0);ctx.restore();
   document.getElementById('priorMapLegend').innerHTML=
     modelBlock().map(i=>`<span><i class="sw" style="background:${regionCol(i)}"></i>${CLASSES[i].name}</span>`).join('')
     +`<span style="margin-left:4px">— the leading category among the four the model bit supports</span>`;
@@ -1393,9 +1394,20 @@ function drawPriorCut(){
   const at=brks.map(([xv])=>`<b>${xv.toFixed(2)}</b>`);
   const change=at.length===0?'One category leads across the whole cut.'
               :`The leader changes at ${at.length===1?at[0]:at.slice(0,-1).join(', ')+' and '+at[at.length-1]}.`;
+  const NW=['no','one','two','three','four','five','six','seven','eight'];
+  const nread=brks.length+1;
+  // only the pair sweep runs specialists -> generalists; the site sweep varies the ratio
+  const axis=(sweepMode==='pair')
+    ?` In this example, both priors rise with the pair's degree, so the axis runs from two interacting specialists `+
+     `on the left to two interacting generalists on the right.`:'';
+  const dotted=brks.length?' Dotted lines mark where the leading category changes.':'';
+  const readings=nread>1
+    ?` The same evidence and the same error rates therefore support <b>${NW[nread]}</b> different readings, `+
+     `depending only on what is ecologically known about the pair.`:'';
   document.getElementById('priorCutCap').innerHTML=
     `Evidence: ${ev} — the signature of <i>${selected.toLowerCase()}</i>. ${change} `+
-    `These four hold <b>${(blk*100).toFixed(1)}%</b>; the other four are their mirrors.`;
+    `These four categories hold <b>${(blk*100).toFixed(1)}%</b> of the posterior between them; the other four are `+
+    `their mirrors.${axis}${dotted}${readings}`;
 }
 function drawPriorSec(){drawPriorMap();drawPriorCut();}
 
@@ -1454,10 +1466,11 @@ const VERLEDE={
   ext:`This relaxes two of those assumptions. The replicate evidence keeps its full count n rather than collapsing
     to a single bit, and the local axis errs at a different rate in each direction: ε<sub>l</sub> on a link that is
     there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`,
-  prior:`Ecological knowledge gives beliefs about a species pair — a plant and a bee — before any evidence: how
-    likely they interact <b>anywhere in the region</b> (π<sub>r</sub>), and <b>at this site</b> (π<sub>l</sub>).
-    Both rise with the pair's degree, so the map runs from two specialists to two generalists. Because the two enter
-    different comparisons, an informative prior can change <i>which source erred</i>, not just how sure we are.`
+  prior:`Ecological knowledge provides beliefs about a species pair (e.g., a plant and a bee) before any evidence:
+    how likely they interact <b>anywhere in the region</b> (π<sub>r</sub>), and <b>at this site</b>
+    (π<sub>l</sub>). Such priors can be informed for instance, by species abundance, degree or traits. In this
+    example the map runs from two specialists (priors closer to 0, indicating we do not believe they will interact)
+    to two generalists (priors closer to 1).`
 };
 let version='simple';
 function setVersion(v){
