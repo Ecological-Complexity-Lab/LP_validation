@@ -570,6 +570,7 @@
       <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
         <div class="canvas-holder"><canvas id="priorMap" style="height:340px"></canvas></div>
         <div class="legend" id="priorMapLegend"></div>
+        <p class="notes" id="priorMapCap" style="margin-top:8px"></p>
       </div>
       <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
         <div class="seg-wrap" id="sweepSeg" style="margin-bottom:8px">
@@ -1337,9 +1338,30 @@ function drawPriorMap(){
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText('π_l  — realised here',0,0);ctx.restore();
   document.getElementById('priorMapLegend').innerHTML=
-    modelBlock().map(i=>`<span><i class="sw" style="background:${regionCol(i)}"></i>${CLASSES[i].name}</span>`).join('')
-    +`<span style="margin-left:4px"><b>Colour:</b> the category that belief makes most probable, among the four `
-     +`the model bit supports. A boundary between blocks is where one reading gives way to another.</span>`;
+    modelBlock().map(i=>`<span><i class="sw" style="background:${regionCol(i)}"></i>${CLASSES[i].name}</span>`).join('');
+  // Legend for the map. The dotted slice and the closing sentence describe whichever cut
+  // is drawn on the right, so both switch with the sweep.
+  const slice=(sweepMode==='pair')
+    ?`the slice the right-hand plot draws, running diagonally; π<sub>r</sub> is that plot's x axis`
+    :`the slice the right-hand plot draws, a vertical cut at fixed π<sub>r</sub>; the ratio `+
+     `π<sub>l</sub>/π<sub>r</sub> is that plot's x axis`;
+  const ends=(sweepMode==='pair')
+    ?`In this example the map runs from two specialists (priors closer to 0, indicating we do not believe they `+
+     `will interact) to two generalists (priors closer to 1).`
+    :`Here the pair is held fixed and the slice runs from a site where the two are rare or barely overlap, `+
+     `π<sub>l</sub> far below π<sub>r</sub>, up to one where the local expectation matches the regional.`;
+  document.getElementById('priorMapCap').innerHTML=
+    `<b>Colour</b> — the category that belief makes most probable; a boundary between blocks is where one reading `+
+    `of the evidence gives way to another. One hue per local truth, pale where the link is not realisable in the `+
+    `replicates.<br>`+
+    `<b>Lines</b> — solid: the two boundaries, π<sub>l</sub>* and π<sub>r</sub>*. Dashed diagonal: `+
+    `π<sub>l</sub> = π<sub>r</sub>; below it lies the usual case, π<sub>l</sub> &lt; π<sub>r</sub>, since a pair is `+
+    `likelier to interact somewhere in the region than at any one site. Dotted: ${slice}.<br>`+
+    `<b>Marker</b> — the two priors as a single point. The orange vertical line on the right marks the same `+
+    `point.<br>`+
+    `<b>Axes</b> — π<sub>r</sub> (→) rises with the pair's <b>regional</b> degree, abundance and trait `+
+    `compatibility: how much we expect them to interact anywhere in the region. π<sub>l</sub> (↑) rises with their `+
+    `<b>local</b> degree, abundance and phenological overlap here: how much we expect it at this site. ${ends}`;
 }
 function drawPriorCut(){
   const {ctx,w,h}=setup(document.getElementById('priorCut'));
@@ -1485,9 +1507,7 @@ const VERLEDE={
     there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`,
   prior:`Ecological knowledge provides beliefs about a species pair (e.g., a plant and a bee) before any evidence:
     how likely they interact <b>anywhere in the region</b> (π<sub>r</sub>), and <b>at this site</b>
-    (π<sub>l</sub>). Such priors can be informed for instance, by species abundance, degree or traits. In this
-    example the map runs from two specialists (priors closer to 0, indicating we do not believe they will interact)
-    to two generalists (priors closer to 1).`
+    (π<sub>l</sub>). Such priors can be informed for instance, by species abundance, degree or traits.`
 };
 let version='simple';
 function setVersion(v){
