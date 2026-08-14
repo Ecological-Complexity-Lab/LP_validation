@@ -360,6 +360,7 @@
     <div class="seg-wrap" id="verSeg">
       <button type="button" class="seg active" data-ver="simple">The simple version</button>
       <button type="button" class="seg" data-ver="ext">Extension: many replicates</button>
+      <button type="button" class="seg" data-ver="prior">Extension: informative priors</button>
     </div>
     <p id="verLede" style="margin-top:11px"></p>
   </div>
@@ -526,6 +527,68 @@
   </div>
 
   </div><!-- /extSec -->
+
+  <div id="priorSec" style="display:none">
+  <div class="card">
+    <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths (SI S8)</span></h2>
+    <p class="hint">The evidence is fixed at the signature of the category you picked, read through the directional
+    rates with <b>R</b> replicates. What varies is what we believed <i>before</i> seeing it. The prior takes the
+    SI's product form, one probability per truth: <b>π<sub>l</sub></b> that the link is realised here and
+    <b>π<sub>r</sub></b> that it is realisable in the replicate systems. Both rise with the pair's degree —
+    π<sub>l</sub> with local degree, π<sub>r</sub> with regional — so the map runs from two interacting
+    <b>specialists</b> at the lower left to two interacting <b>generalists</b> at the upper right.</p>
+    <div class="controls" style="grid-template-columns:repeat(4,1fr);max-width:980px;margin:6px 0 14px">
+      <div class="ctrl">
+        <label><span>π<sub>r</sub> &nbsp;regional prior</span><span class="val" id="vPiR">0.50</span></label>
+        <input type="range" id="sPiR" min="0.02" max="0.98" step="0.01" value="0.5">
+        <div class="desc">prior that the link is <b>realisable</b> in the replicate systems. Rises with the pair's
+        regional degree</div>
+      </div>
+      <div class="ctrl">
+        <label><span>π<sub>l</sub> &nbsp;local prior</span><span class="val" id="vPiL">0.45</span></label>
+        <input type="range" id="sPiL" min="0.02" max="0.98" step="0.01" value="0.45">
+        <div class="desc">prior that the link is <b>realised where we sampled</b>. Rises with local degree, and with
+        how much of the regional expectation transfers to this site</div>
+      </div>
+      <div class="ctrl">
+        <label><span>π<sub>Y</sub> &nbsp;model prior</span><span class="val" id="vPiY">0.50</span></label>
+        <input type="range" id="sPiY" min="0.02" max="0.98" step="0.01" value="0.5">
+        <div class="desc">prior that the truth-fitted model would predict the link. It rescales the two model blocks
+        but never reorders the categories inside one — the map does not move</div>
+      </div>
+      <div class="ctrl">
+        <label><span>R &nbsp;replicates</span><span class="val" id="vPiRep">5</span></label>
+        <input type="range" id="sPiRep" min="1" max="20" step="1" value="5">
+        <div class="desc">the replicate evidence is the single bit O<sub>r</sub>, whose two error rates depend on R
+        (SI Eq. S4), as in the published figure</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
+        <div class="canvas-holder"><canvas id="priorMap" style="height:340px"></canvas></div>
+        <div class="legend" id="priorMapLegend"></div>
+        <p class="notes" style="margin-top:6px">Every point is a valid prior — the two axes are independent, so the
+        whole square is available. The shaded band below the diagonal is the ecologically usual case,
+        π<sub>l</sub> &lt; π<sub>r</sub>, a convention rather than a constraint. Drag the marker, or use the
+        sliders. The dotted path is the cut drawn on the right.</p>
+        <p class="notes" style="margin-top:6px"><b>The regions are rectangles</b>, and the two solid lines are
+        why: the prior and the likelihood both factorise across the axes, so each axis is settled by its own
+        comparison and neither knows about the other. A boundary sits where the prior odds exactly offset that
+        axis's likelihood ratio, π<sub>d</sub>* = L<sub>d</sub>(0)/[L<sub>d</sub>(0)+L<sub>d</sub>(1)]. The three
+        regions of the published figure are one straight path crossing these two perpendicular lines.</p>
+      </div>
+      <div class="card" style="margin:0;box-shadow:none;border-color:var(--grid)">
+        <div class="seg-wrap" id="sweepSeg" style="margin-bottom:8px">
+          <button type="button" class="seg active" data-sweep="pair">Vary the pair (SI a)</button>
+          <button type="button" class="seg" data-sweep="site">Vary the site (SI b)</button>
+        </div>
+        <div class="canvas-holder"><canvas id="priorCut" style="height:300px"></canvas></div>
+        <div class="legend" id="priorCutLegend"></div>
+        <p class="notes" id="priorCutCap" style="margin-top:6px"></p>
+      </div>
+    </div>
+  </div>
+  </div><!-- /priorSec -->
 
   <div class="modal-back" id="modalBack">
     <div class="modal modal-wrap" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
@@ -1163,12 +1226,186 @@ function drawEffort(){
   }
 }
 
+// =====================================================================
+// Informative priors (SI fig. prior_l). The prior takes the SI's product
+// form, one Bernoulli probability per truth. The three are NOT a
+// distribution over three outcomes and do not sum to one; what sums to one
+// is the prior over the eight categories, automatically:
+//   sum_c P(C=c) = [piY+(1-piY)][piL+(1-piL)][piR+(1-piR)] = 1.
+// So the (piR, piL) plane is the free unit square, with no constraint
+// between the two: locally unique (1,1,0) is exactly a link realised here
+// but not realisable in the replicate systems.
+//
+// This section keeps its own prior rather than writing into the eight
+// weights of the setup bar, so that the other two versions go on
+// reproducing the SI numbers while this one is explored.
+// =====================================================================
+let piY=0.5, piL=0.45, piR=0.5, priorR=5, sweepMode='pair';
+// The replicate evidence here is the single bit O_r, whose two directional
+// rates depend on R (SI Eq. erep) -- the form used in the published figure.
+function repFacBit(zr,R){
+  const p1=rho*(1-state[1]);
+  if(zr===1){const ep=Math.pow(1-p1,R); return (OBS[2]===1)?(1-ep):ep;}
+  const em=1-Math.pow(1-fRate,R);      return (OBS[2]===0)?(1-em):em;
+}
+function priorProd(pY,pl,pr,sig){
+  return (sig[0]?pY:1-pY)*(sig[1]?pl:1-pl)*(sig[2]?pr:1-pr);
+}
+function postPrior(pY,pl,pr,R){
+  const w=CLASSES.map(c=>priorProd(pY,pl,pr,c.sig)*mFac(OBS[0],c.sig[0])
+                        *lFacDir(OBS[1],c.sig[1])*repFacBit(c.sig[2],R));
+  const Z=w.reduce((a,b)=>a+b,0);
+  return Z>0?w.map(x=>x/Z):w.map(()=>0);
+}
+// the four categories whose model bit agrees with the evidence. Under piY = 1/2
+// they hold exactly 1-eps_Y of the posterior, whatever piL and piR do, because
+// the model axis factorises out of both the prior and the likelihood.
+function modelBlock(){return CLASSES.map((c,i)=>i).filter(i=>CLASSES[i].sig[0]===OBS[0]);}
+function leadIn(pl,pr,R){
+  const P=postPrior(piY,pl,pr,R), B=modelBlock();
+  let best=B[0]; B.forEach(i=>{if(P[i]>P[best])best=i;});
+  return best;
+}
+// Both the prior and the likelihood factorise across the three axes, so the leading
+// category is settled by two independent comparisons, one per axis, and the regions of
+// the map are exact rectangles. Each boundary sits where the prior odds on that axis
+// exactly offset its likelihood ratio:  pi_d* = L_d(0) / (L_d(0) + L_d(1)).
+function thresholds(R){
+  const L1=lFacDir(OBS[1],1), L0=lFacDir(OBS[1],0);
+  const F1=repFacBit(1,R),    F0=repFacBit(0,R);
+  return {pl:L0/(L0+L1), pr:F0/(F0+F1)};
+}
+// Region colour: the pair colour already used across the page, tinted lighter
+// where the replicate bit is 0, so colour still marks the pair and the tint
+// marks the replicate bit.
+function regionCol(i){
+  const s=CLASSES[i].sig, base=pairCol(s);
+  if(s[2]===1)return base;
+  const r=parseInt(base.slice(1,3),16), g=parseInt(base.slice(3,5),16), b=parseInt(base.slice(5,7),16);
+  const m=v=>Math.round(v+(255-v)*0.58);
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+// the current cut: a path through the plane that passes through the marker
+function cutPoints(){
+  const N=220, pts=[];
+  if(sweepMode==='pair'){                       // SI (a): fix the ratio, vary piR
+    const c=piR>0?piL/piR:1;
+    for(let i=0;i<=N;i++){const pr=0.02+(0.96)*i/N; pts.push([Math.min(0.98,c*pr),pr,pr]);}
+  }else{                                        // SI (b): fix piR, vary the ratio
+    for(let i=0;i<=N;i++){const c=0.02+(0.98)*i/N; pts.push([Math.min(0.98,c*piR),piR,c]);}
+  }
+  return pts;
+}
+function drawPriorMap(){
+  const {ctx,w,h}=setup(document.getElementById('priorMap'));
+  ctx.clearRect(0,0,w,h);
+  const padL=52,padR=14,padT=12,padB=42, pw=w-padL-padR, ph=h-padT-padB;
+  const X=v=>padL+pw*v, Y=v=>padT+ph*(1-v);
+  const NC=84, cw=pw/NC, chh=ph/NC;
+  for(let a=0;a<NC;a++)for(let b=0;b<NC;b++){
+    const pr=(a+0.5)/NC, pl=(b+0.5)/NC;
+    ctx.fillStyle=regionCol(leadIn(pl,pr,priorR));
+    ctx.fillRect(padL+a*cw-0.5, padT+ph-(b+1)*chh-0.5, cw+1, chh+1);
+  }
+  // the conventional region pi_l < pi_r
+  ctx.save();ctx.beginPath();ctx.moveTo(X(0),Y(0));ctx.lineTo(X(1),Y(1));ctx.lineTo(X(1),Y(0));
+  ctx.closePath();ctx.fillStyle='rgba(255,255,255,0.20)';ctx.fill();ctx.restore();
+  ctx.strokeStyle='rgba(60,66,74,0.45)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+  ctx.beginPath();ctx.moveTo(X(0),Y(0));ctx.lineTo(X(1),Y(1));ctx.stroke();ctx.setLineDash([]);
+  // the two closed-form boundaries that make the regions rectangular
+  const th=thresholds(priorR);
+  ctx.strokeStyle='rgba(34,39,46,0.55)';ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(X(th.pr),padT);ctx.lineTo(X(th.pr),padT+ph);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(padL,Y(th.pl));ctx.lineTo(padL+pw,Y(th.pl));ctx.stroke();
+  ctx.font='9.5px system-ui';ctx.fillStyle='#22272e';
+  ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillText('π_r* = '+th.pr.toFixed(3),X(th.pr)+3,padT+ph-3);
+  ctx.textAlign='right';ctx.textBaseline='bottom';
+  ctx.fillText('π_l* = '+th.pl.toFixed(3),padL+pw-3,Y(th.pl)-3);
+  // the cut
+  const pts=cutPoints();
+  ctx.beginPath();
+  pts.forEach(([pl,pr],k)=>{const px=X(pr),py=Y(pl);k===0?ctx.moveTo(px,py):ctx.lineTo(px,py);});
+  ctx.strokeStyle='#22272e';ctx.lineWidth=1.6;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
+  // marker
+  ctx.beginPath();ctx.arc(X(piR),Y(piL),6.5,0,7);
+  ctx.fillStyle='#ffffff';ctx.fill();ctx.lineWidth=2.6;ctx.strokeStyle=ACCENT_D;ctx.stroke();
+  // frame + ticks
+  ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
+  ctx.font='10px system-ui';ctx.fillStyle=MUTED;
+  for(let g=0;g<=4;g++){const v=g/4;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(v.toFixed(2),X(v),padT+ph+5);
+    ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(v.toFixed(2),padL-6,Y(v));}
+  ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('π_r  — realisable in the replicates (regional degree →)',padL+pw/2,padT+ph+21);
+  ctx.save();ctx.translate(14,padT+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('π_l  — realised here (local degree →)',0,0);ctx.restore();
+  document.getElementById('priorMapLegend').innerHTML=
+    modelBlock().map(i=>`<span><i class="sw" style="background:${regionCol(i)}"></i>${CLASSES[i].name}</span>`).join('')
+    +`<span style="margin-left:4px">— the leading category among the four the model bit supports</span>`;
+}
+function drawPriorCut(){
+  const {ctx,w,h}=setup(document.getElementById('priorCut'));
+  ctx.clearRect(0,0,w,h);
+  const padL=52,padR=14,padT=12,padB=44, pw=w-padL-padR, ph=h-padT-padB;
+  const X=v=>padL+pw*v, Y=v=>padT+ph*(1-v);
+  const pts=cutPoints(), B=modelBlock();
+  const xs=pts.map(p=>p[2]), x0=xs[0], x1=xs[xs.length-1];
+  const XX=v=>X((v-x0)/(x1-x0));
+  const series={}; B.forEach(i=>series[i]=[]);
+  const lead=[];
+  pts.forEach(([pl,pr])=>{const P=postPrior(piY,pl,pr,priorR);
+    B.forEach(i=>series[i].push(P[i]));
+    let bi=B[0];B.forEach(i=>{if(P[i]>P[bi])bi=i;});lead.push(bi);});
+  for(let g=0;g<=4;g++){const gy=padT+ph*g/4;
+    ctx.strokeStyle=GRID;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+pw,gy);ctx.stroke();
+    ctx.fillStyle=MUTED;ctx.font='10px system-ui';ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText((1-g/4).toFixed(2),padL-6,gy);}
+  // leader changes
+  const brks=[];
+  for(let k=1;k<lead.length;k++)if(lead[k]!==lead[k-1])brks.push([xs[k],lead[k-1],lead[k]]);
+  brks.forEach(([xv])=>{ctx.strokeStyle='#98a0aa';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(XX(xv),padT);ctx.lineTo(XX(xv),padT+ph);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=MUTED;ctx.font='9.5px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(xv.toFixed(2),XX(xv),padT+2);});
+  B.forEach(i=>{
+    ctx.beginPath();
+    series[i].forEach((v,k)=>{const px=XX(xs[k]),py=Y(v);k===0?ctx.moveTo(px,py):ctx.lineTo(px,py);});
+    ctx.strokeStyle=pairCol(CLASSES[i].sig);ctx.lineWidth=2.2;ctx.lineJoin='round';
+    ctx.setLineDash(CLASSES[i].sig[2]===0?[6,4]:[]);ctx.stroke();ctx.setLineDash([]);});
+  // marker for the current position
+  const cur=(sweepMode==='pair')?piR:(piR>0?piL/piR:1);
+  if(cur>=x0&&cur<=x1){ctx.strokeStyle=ACCENT_D;ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(XX(cur),padT);ctx.lineTo(XX(cur),padT+ph);ctx.stroke();}
+  ctx.strokeStyle='#cdd2d9';ctx.lineWidth=1;ctx.strokeRect(padL,padT,pw,ph);
+  ctx.fillStyle=MUTED;ctx.font='10px system-ui';ctx.textAlign='center';ctx.textBaseline='top';
+  for(let g=0;g<=4;g++){const v=x0+(x1-x0)*g/4;ctx.fillText(v.toFixed(2),X(g/4),padT+ph+5);}
+  ctx.fillStyle=TEXT;ctx.font='600 11px system-ui';
+  ctx.fillText(sweepMode==='pair'?'π_r, with π_l/π_r held fixed':'π_l/π_r, with π_r held fixed',padL+pw/2,padT+ph+21);
+  ctx.save();ctx.translate(14,padT+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('Posterior probability  P(C | E)',0,0);ctx.restore();
+  document.getElementById('priorCutLegend').innerHTML=
+    B.map(i=>`<span><svg width="20" height="10" style="flex:none"><line x1="1" y1="5" x2="19" y2="5" stroke="${pairCol(CLASSES[i].sig)}" stroke-width="2.4"${CLASSES[i].sig[2]===0?' stroke-dasharray="6,4"':''}/></svg>${CLASSES[i].name}</span>`).join('');
+  const P=postPrior(piY,piL,piR,priorR), blk=modelBlock().reduce((a,i)=>a+P[i],0);
+  const names=brks.map(([xv,a,b])=>`<b>${xv.toFixed(2)}</b> (${CLASSES[a].name.toLowerCase()} → ${CLASSES[b].name.toLowerCase()})`);
+  document.getElementById('priorCutCap').innerHTML=
+    `Evidence E = (${OBS.join(',')}) — the signature of <b>${selected}</b> — at R = ${priorR}. `+
+    (names.length?`The leading category changes at ${names.join(' and ')}. `:`One category leads across the whole cut. `)+
+    `These four hold <b>${(blk*100).toFixed(1)}%</b> of the posterior between them; at π<sub>Y</sub> = 0.5 that is `+
+    `exactly 1−ε<sub>Y</sub>, and the other four are their mirrors.`;
+}
+function drawPriorSec(){drawPriorMap();drawPriorCut();}
+
 function drawAll(){
   if(typeof syncSetupTabs==='function')syncSetupTabs();
   drawBars();
   updateTable();
   drawAccum();
   drawEffort();
+  drawPriorSec();
   const pm=pmConf(state);
   const post=posterior(state);
   const feas=post.filter((_,i)=>feasIdx(i)).reduce((a,b)=>a+b,0);
@@ -1216,11 +1453,15 @@ const VERLEDE={
     (1−ε<sub>Y</sub>)(1−ε<sub>l</sub>)(1−ε<sub>r</sub>).`,
   ext:`This relaxes two of those assumptions. The replicate evidence keeps its full count n rather than collapsing
     to a single bit, and the local axis errs at a different rate in each direction: ε<sub>l</sub> on a link that is
-    there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`
+    there, f on one that is not. The numbers therefore differ from the simple version, and so does κ.`,
+  prior:`This relaxes the last one. The evidence and the error rates are held fixed and the <b>prior</b> is made
+    informative, one probability per truth. Because π<sub>l</sub> and π<sub>r</sub> enter different comparisons,
+    this does not merely sharpen the same answer — it can change <b>which source erred</b>.`
 };
 function setVersion(v){
   document.getElementById('simpleSec').style.display=(v==='simple')?'':'none';
   document.getElementById('extSec').style.display=(v==='ext')?'':'none';
+  document.getElementById('priorSec').style.display=(v==='prior')?'':'none';
   document.getElementById('verLede').innerHTML=VERLEDE[v];
   document.querySelectorAll('#verSeg .seg').forEach(b=>b.classList.toggle('active',b.getAttribute('data-ver')===v));
   drawAll();          // canvases sized to 0 while hidden must be redrawn once shown
@@ -1230,6 +1471,44 @@ document.getElementById('verSeg').addEventListener('click',e=>{
   const b=e.target.closest('.seg'); if(!b)return;
   setVersion(b.getAttribute('data-ver'));
 });
+// ---- informative-prior controls ----
+function syncPriorLabels(){
+  document.getElementById('vPiR').textContent=piR.toFixed(2);
+  document.getElementById('vPiL').textContent=piL.toFixed(2);
+  document.getElementById('vPiY').textContent=piY.toFixed(2);
+  document.getElementById('vPiRep').textContent=priorR;
+  document.getElementById('sPiR').value=piR;
+  document.getElementById('sPiL').value=piL;
+}
+[['sPiR',v=>piR=v],['sPiL',v=>piL=v],['sPiY',v=>piY=v]].forEach(([id,set])=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    set(parseFloat(e.target.value)); syncPriorLabels(); drawPriorSec();});
+});
+document.getElementById('sPiRep').addEventListener('input',e=>{
+  priorR=parseInt(e.target.value,10); syncPriorLabels(); drawPriorSec();});
+document.getElementById('sweepSeg').addEventListener('click',e=>{
+  const b=e.target.closest('.seg'); if(!b)return;
+  sweepMode=b.getAttribute('data-sweep');
+  document.querySelectorAll('#sweepSeg .seg').forEach(x=>x.classList.toggle('active',x===b));
+  drawPriorSec();
+});
+// dragging the marker on the map
+(function(){
+  const cv=document.getElementById('priorMap'); let down=false;
+  function put(ev){
+    const r=cv.getBoundingClientRect();
+    const padL=52,padR=14,padT=12,padB=42;
+    const pw=r.width-padL-padR, ph=r.height-padT-padB;
+    const cl=v=>Math.max(0.02,Math.min(0.98,v));
+    piR=cl((ev.clientX-r.left-padL)/pw);
+    piL=cl(1-(ev.clientY-r.top-padT)/ph);
+    syncPriorLabels(); drawPriorSec();
+  }
+  cv.style.cursor='crosshair';
+  cv.addEventListener('pointerdown',e=>{down=true;cv.setPointerCapture(e.pointerId);put(e);});
+  cv.addEventListener('pointermove',e=>{if(down)put(e);});
+  cv.addEventListener('pointerup',e=>{down=false;});
+})();
 // scenario toggle (all-categories plot)
 document.getElementById('scenToggle').addEventListener('click',e=>{
   const b=e.target.closest('.seg'); if(!b)return;
@@ -1466,6 +1745,65 @@ const INFO={
     The two off-diagonal entries are not symmetric in origin: the false negative carries the ecological failure to
     be realised together with the methodological failure to detect, whereas the false positive is methodological
     alone. The extension takes this route, replacing ε<sub>r</sub> with ρ and f.</div>`},
+  priorl:{title:'An informative prior on the two ecological truths',html:`
+    <p>The evidence is fixed. What changes is what we believed <b>before</b> seeing it, and the point of this panel
+    is that the belief can change <i>which source erred</i> rather than merely how sure we are.</p>
+    <p><b>The ecology.</b> Ecological networks have low connectance and skewed degree distributions: most pairs do
+    not interact, and a few species carry many partners. So a uniform prior — every category equally probable — is
+    rarely what we believe. Two quantities carry that belief, and they are not the same quantity:</p>
+    <p><b>π<sub>r</sub></b>, the prior that the link is <b>realisable in the replicate systems</b>, rises with the
+    pair's <b>regional</b> degree, with abundance and with trait compatibility. Phylogeny enters here rather than
+    locally, because relatedness reflects the diversification of characters rather than community assembly.</p>
+    <p><b>π<sub>l</sub></b>, the prior that the link is <b>realised where we sampled</b>, rises with <b>local</b>
+    degree — with how abundant both species are at this site and whether their phenologies overlap here. A species
+    that is generalist regionally can be specialised in every patch it occupies, which is exactly why the two come
+    apart.</p>
+    <p>Reading the map for a link that is predicted, unrecorded here, and recorded in the replicates: at low
+    π<sub>r</sub> the record elsewhere is most easily explained as a <b>false detection</b> (<i>phantom</i>); in the
+    middle the link is genuinely elsewhere and was <b>missed here</b> (<i>possibly missing</i>); and once we also
+    expect it at this site, the local non-record is the thing that needs explaining, so the reading becomes a link
+    that is everywhere and the <b>local survey erred</b> (<i>recurrent</i>).</p>
+    <div class="flag"><b>The three π do not sum to one.</b> They are not a distribution over three outcomes. Each is
+    a separate Bernoulli probability, one per truth axis: π<sub>Y</sub> that Ŷ = 1, π<sub>l</sub> that
+    L<sub>l</sub> = 1, π<sub>r</sub> that L<sub>r</sub> = 1. Each lives in [0,1] on its own.
+    <p style="margin:9px 0 0">What sums to one is the prior over the <b>eight categories</b>, and it does so
+    automatically, because summing the product form factorises:</p>
+    <div class="formula" style="margin:9px 0">Σ<sub>c</sub> P(C=c)
+      = [π<sub>Y</sub> + (1−π<sub>Y</sub>)] · [π<sub>l</sub> + (1−π<sub>l</sub>)] · [π<sub>r</sub> + (1−π<sub>r</sub>)]
+      = 1 · 1 · 1 = 1</div>
+    <p style="margin:9px 0 0">Each bracket is a single truth summed over its two states, so each is 1 whatever the
+    π. The uniform prior is the clearest illustration: π<sub>Y</sub> = π<sub>l</sub> = π<sub>r</sub> = ½ sums to
+    <b>1.5</b>, and still gives exactly 1/8 to each of the eight categories.</p>
+    <p style="margin:9px 0 0">Two consequences for this panel. The plane is the <b>whole unit square</b> — nothing
+    to normalise, every point a valid prior. And there is no π<sub>l</sub> ≤ π<sub>r</sub> constraint: <i>locally
+    unique</i> (1,1,0) is precisely a link realised here but not realisable in the other systems, so the region
+    above the diagonal is meaningful, not an error. That freedom is what the SI's independence assumption buys, and
+    the SI flags it as a strong one, since a link realised where we sampled really is more likely realisable
+    elsewhere.</p></div>
+    <div class="flag"><b>Why the map is rectangles.</b> The prior and the likelihood both factorise across the three
+    axes, so a category's weight is one factor per axis and the two ecological axes never consult each other. The
+    leading category is therefore settled by two independent comparisons, and each boundary is closed:
+    <div class="formula" style="margin:9px 0">π<sub>d</sub>* = L<sub>d</sub>(0) / [L<sub>d</sub>(0) + L<sub>d</sub>(1)]</div>
+    where L<sub>d</sub>(z) is the likelihood factor of axis d for signature bit z — the prior odds that exactly
+    offset the evidence on that axis. For the worked case, O<sub>l</sub> = 0 gives
+    π<sub>l</sub>* = 0.95/(0.95+0.30) = <b>0.760</b>, and O<sub>r</sub> = 1 at R = 5 gives
+    π<sub>r</sub>* = <b>0.347</b>.
+    <p style="margin:9px 0 0">This is what the published figure's three regions really are: a straight path crossing
+    two perpendicular lines. On the ray π<sub>l</sub> = 0.9 π<sub>r</sub>, the path crosses π<sub>r</sub>* at
+    0.347 and π<sub>l</sub>* at 0.760/0.9 = <b>0.844</b>. And the caption's remark that <i>recurrent</i> leaves the
+    range below about π<sub>l</sub> = 0.8 π<sub>r</sub> is exact: reaching π<sub>l</sub>* = 0.760 with
+    π<sub>r</sub> ≤ 0.95 needs a ratio above 0.760/0.95 = <b>0.800</b>.</p></div>
+    <p><b>Why π<sub>Y</sub> is a slider and not a third axis.</b> The model axis factorises out of both the prior
+    and the likelihood, so π<sub>Y</sub> rescales the two model blocks against each other but never reorders the
+    categories <i>within</i> a block. The map's regions do not move when you drag it. What it does control is the
+    balance between the blocks, which are exactly tied at π<sub>Y</sub> = ε<sub>Y</sub>; below that the overall
+    leader flips to a category the model got wrong. At π<sub>Y</sub> = ½ the four drawn here hold exactly
+    1−ε<sub>Y</sub> of the posterior, which is why four curves suffice and the other four are their mirrors.</p>
+    <p>The prior and the likelihood are not independent sources. Abundance and co-occurrence raise π<sub>l</sub> and
+    π<sub>r</sub> and also make the link easier to record, through a lower ε<sub>l</sub> or a higher ρ, so for a
+    common generalist pair the same ecology is counted twice and the posterior is more confident than it should be.
+    Relatedness pulls the other way: it raises π<sub>r</sub> while raising f, so the prior rises as the record that
+    would confirm it becomes less reliable.</p>`},
   prior:{title:'What makes a prior non-uniform?',html:`
     <p>The uniform prior places half its mass on the link being present locally, since four of the eight categories
     have z<sub>c,l</sub> = 1. More generally, the prior takes the same product form as the likelihood, one
