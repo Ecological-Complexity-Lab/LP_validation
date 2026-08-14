@@ -542,25 +542,26 @@
       <div class="ctrl">
         <label><span>π<sub>r</sub> &nbsp;regional prior</span><span class="val" id="vPiR">0.50</span></label>
         <input type="range" id="sPiR" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">prior that the link is <b>realisable</b> in the replicate systems. Rises with the pair's
+        <div class="desc">Prior that the link is <b>realisable</b> in the replicate systems. Rises with the pair's
         regional degree</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>l</sub> &nbsp;local prior</span><span class="val" id="vPiL">0.45</span></label>
         <input type="range" id="sPiL" min="0.02" max="0.98" step="0.01" value="0.45">
-        <div class="desc">prior that the link is <b>realised where we sampled</b>. Rises with local degree, and with
+        <div class="desc">Prior that the link is <b>realised where we sampled</b>. Rises with local degree, and with
         how much of the regional expectation transfers to this site</div>
       </div>
       <div class="ctrl">
         <label><span>π<sub>Y</sub> &nbsp;model prior</span><span class="val" id="vPiY">0.50</span></label>
         <input type="range" id="sPiY" min="0.02" max="0.98" step="0.01" value="0.5">
-        <div class="desc">prior that the truth-fitted model would predict the link. It rescales the two model blocks
-        but never reorders the categories inside one — the map does not move</div>
+        <div class="desc">Prior that the truth-fitted model would predict the link. It rescales the two model blocks
+        against each other, so the four curves on the right rise or fall together and the share printed beneath them
+        changes. It never reorders the categories within a block, so the map does not move</div>
       </div>
       <div class="ctrl">
         <label><span>R &nbsp;replicates</span><span class="val" id="vPiRep">5</span></label>
         <input type="range" id="sPiRep" min="1" max="20" step="1" value="5">
-        <div class="desc">the replicate evidence is the single bit O<sub>r</sub>, whose two error rates both depend on R</div>
+        <div class="desc">The replicate evidence is the single bit O<sub>r</sub>, whose two error rates both depend on R</div>
       </div>
     </div>
     <div class="row2">
@@ -1460,9 +1461,10 @@ const VERLEDE={
   prior:`The map on the left presents the <b>priors</b> (i.e., the “beliefs” that ecological knowledge provides) on
     the local and regional interaction probabilities of a species pair (e.g., a plant and a bee). The block colours
     mark the category that belief makes most probable, so their boundaries are where one reading of the evidence
-    gives way to another. The plot on the right takes a single straight path across that map and follows all four
-    categories along it, which is where you can read how large a shift in belief it actually takes to change the
-    answer. The evidence and the error rates remain fixed.`
+    gives way to another. <b>Drag the marker</b> to set the belief and the plot on the right redraws: it takes a
+    single straight path across the map through that point and follows all four categories along it, which is where
+    you can read how large a shift in belief it actually takes to change the answer. The evidence and the error
+    rates remain fixed.`
 };
 function setVersion(v){
   document.getElementById('simpleSec').style.display=(v==='simple')?'':'none';
