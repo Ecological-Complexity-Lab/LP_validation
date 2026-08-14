@@ -52,13 +52,10 @@ w  <- cats$prior * fY * fL
 p  <- ifelse(cats$Orep == 1, p1, p0)
 
 ## ---- replicate factor -------------------------------------------------------
-## For categories with Orep = 1 the rates are conditional on the link being
-## realised in at least one replicate: divide by Z = 1-(1-rho)^R and, at n = 0,
-## remove the runs in which it was realised nowhere (Eqs. erep and cumulative).
-Zc  <- function(R) ifelse(cats$Orep == 1, 1 - (1 - rho)^R, 1)
-corr <- function(n, R) ifelse(cats$Orep == 1 & n == 0, (1 - rho)^R, 0)
-
-eps_present <- function(R) ((1 - p1)^R - (1 - rho)^R) / (1 - (1 - rho)^R)
+## Orep = 1 means the link is realisable in the replicates, not that it was
+## realised in at least one of them, so the count is plainly binomial and no
+## conditioning is applied (Eqs. erep and cumulative).
+eps_present <- function(R) (1 - p1)^R
 eps_absent  <- function(R) 1 - (1 - p0)^R
 
 posterior_at <- function(R, n, summary = c("count","bit")) {
@@ -68,7 +65,7 @@ posterior_at <- function(R, n, summary = c("count","bit")) {
   ## starts at kappa/2.
   if (R == 0) return(w / sum(w))
   rep_lik <- if (summary == "count") {
-    (p^n * (1 - p)^(R - n) - corr(n, R)) / Zc(R)   # binom coeff cancels
+    p^n * (1 - p)^(R - n)                          # binom coeff cancels
   } else {
     eP <- eps_present(R); eM <- eps_absent(R)
     if (n >= 1) ifelse(cats$Orep == 1, 1 - eP, eM)
@@ -145,5 +142,5 @@ p_fig <- ggplot(df, aes(R, posterior, colour = category, linetype = summary,
         strip.text       = element_text(face = "bold", size = 10))
 
 ## ---- save -------------------------------------------------------------------
-ggsave("accumulation.pdf", p_fig, width = 9.0, height = 3.8)
-ggsave("accumulation.png", p_fig, width = 9.0, height = 3.8, dpi = 300)
+ggsave("SI_accumulation.pdf", p_fig, width = 9.0, height = 3.8)
+ggsave("SI_accumulation.png", p_fig, width = 9.0, height = 3.8, dpi = 300)

@@ -12,7 +12,6 @@ library(ggplot2)
 library(patchwork)
 
 eY <- 0.20; eL <- 0.30            # model and local error rates
-rho <- 0.15                       # realisation rate, from p1 = rho(1-eL)
 p1 <- 0.105; p0 <- 0.05           # per-replicate recording probability
 Rs <- 0:20
 
@@ -23,14 +22,14 @@ rownames(sig) <- c("recurrent","locally unique","possibly missing","phantom",
                    "model-elusive","weakly-supported","locally absent",
                    "possibly forbidden")
 
+## model and local factors for the evidence Y = 1, O_l = 0 (symmetric local axis)
+w <- ifelse(sig[,1] == 1, 1 - eY, eY) * ifelse(sig[,2] == 0, 1 - eL, eL)
+
 post <- function(R) {                       # detected in every replicate
-  w  <- ifelse(sig[,1] == 1, 1 - eY, eY) *
-        ifelse(sig[,2] == 0, 1 - eL, eL)    # symmetric local axis
   if (R == 0) return(w / sum(w))            # no replicate term at all
-  ## categories with z_r = 1 are conditional on the link being realised in at
-  ## least one replicate, so divide by Z = 1-(1-rho)^R (Eqs. erep, cumulative)
-  Z  <- 1 - (1 - rho)^R
-  pr <- ifelse(sig[,3] == 1, p1^R / Z, p0^R)
+  ## z_r = 1 means the link is realisable in the replicates, so the count is
+  ## plainly binomial and no conditioning is applied (Eqs. erep, cumulative)
+  pr <- ifelse(sig[,3] == 1, p1^R, p0^R)
   L  <- w * pr
   L / sum(L)
 }
@@ -84,28 +83,54 @@ pa <- ggplot(dat_a, aes(R, y, colour = k, linetype = k)) +
          linetype = guide_legend(nrow = 2, title.position = "top"))
 
 ## ---- (b) the ceiling itself -------------------------------------------------
-eYs <- c(0.05, 0.20, 0.35)
-dat_b <- do.call(rbind, lapply(eYs, function(e)
-  data.frame(eY = e, eL = seq(0, 0.6, by = 0.005),
-             kap = (1 - e) * (1 - seq(0, 0.6, by = 0.005)))))
-dat_b$eY <- factor(dat_b$eY, levels = eYs)
-labs_b <- data.frame(eY = factor(eYs, levels = eYs), eL = 0.015,
-                     kap = (1 - eYs),
-                     lab = paste0("epsilon[Y] == ", eYs))
-blues <- setNames(c("#0B3C6E","#2A78D6","#7FA9D4"), eYs)
+## ---- (b) what an informative prior does to the same evidence ---------------
+## Binary replicate evidence (O_r = 1 after R = 5 replicates), as in the
+## framework as first presented; both priors rise with the pair's degree, the
+## local one held just below the regional one.
+Rb   <- 5
+eP_b <- (1 - p1)^Rb              # eps_r^+(R), a realisable link recorded in none
+eM_b <- 1 - (1 - p0)^Rb          # eps_r^-(R), an unrealisable one recorded in some
+kfrac <- 0.9                     # pi_l = kfrac * pi_r
 
-pb <- ggplot(dat_b, aes(eL, kap, colour = eY)) +
+post_pi <- function(pr) {
+  pl  <- kfrac * pr
+  pri <- sapply(1:8, function(i)
+    prod(c(0.5, pl, pr)^sig[i, ] * (1 - c(0.5, pl, pr))^(1 - sig[i, ])))
+  L <- w * ifelse(sig[, 3] == 1, 1 - eP_b, eM_b) * pri
+  L / sum(L)
+}
+
+prs <- seq(0.02, 0.95, length.out = 400)
+Pb  <- sapply(prs, post_pi)
+rownames(Pb) <- rownames(sig)
+dat_b <- rbind(
+  data.frame(pr = prs, y = Pb["possibly missing", ], k = lev[1]),
+  data.frame(pr = prs, y = Pb["phantom", ],         k = lev[2]),
+  data.frame(pr = prs, y = Pb["recurrent", ],       k = lev[3]),
+  data.frame(pr = prs, y = Pb["locally unique", ],  k = lev[4]))
+dat_b$k <- factor(dat_b$k, levels = lev)
+
+## where the leading category changes
+ld  <- rownames(sig)[apply(Pb[1:4, ], 2, which.max)]
+brk <- prs[which(diff(as.integer(factor(ld))) != 0)]
+seg <- c(min(prs), brk, max(prs))
+labs_b <- data.frame(x = (head(seg, -1) + tail(seg, -1)) / 2, y = 0.95,
+                     lab = ld[sapply((head(seg, -1) + tail(seg, -1)) / 2,
+                                     function(v) which.min(abs(prs - v)))])
+
+pb <- ggplot(dat_b, aes(pr, y, colour = k, linetype = k)) +
+  geom_vline(xintercept = brk, linetype = "dotted", colour = "grey60",
+             linewidth = 0.35) +
   geom_line(linewidth = 0.8) +
-  geom_text(data = labs_b, aes(label = lab), parse = TRUE, hjust = 0,
-            vjust = -0.8, size = 2.9, show.legend = FALSE, fontface = "bold") +
-  annotate("point", x = eL, y = kap, size = 2, colour = "grey25") +
-  annotate("text", x = eL, y = kap, label = "kappa~plain(\"in (a)\")", parse = TRUE, fontface = "bold", hjust = 0.5,
-           vjust = 1.9, size = 2.9, colour = "grey25") +
-  scale_colour_manual(values = blues, guide = "none") +
-  scale_y_continuous(limits = c(0, 1.03), labels = pct) +
-  labs(title = "(b) the maximum is set by the model and the local method",
-       x = expression("Local miss rate, " * epsilon[l]),
-       y = expression("Maximum contextual confidence, " * kappa))
+  geom_text(data = labs_b, aes(x, y, label = lab), inherit.aes = FALSE,
+            size = 2.9, colour = "grey30", fontface = "italic") +
+  scale_colour_manual(values = cols, guide = "none") +
+  scale_linetype_manual(values = ltys, guide = "none") +
+  scale_y_continuous(limits = c(0, 1), labels = pct) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+  labs(title = "(b) an informative prior changes which error explains it",
+       x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
+       y = "Posterior probability")
 
 base <- theme_classic(base_size = 10) +
   theme(legend.position = "bottom", legend.key.width = unit(20, "pt"),

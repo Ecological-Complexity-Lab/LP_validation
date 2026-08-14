@@ -49,23 +49,24 @@ dark2 <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A",
 p1_of <- function(rho, eps_L) rho * (1 - eps_L)   # per-replicate true detection
 p0_of <- function(f) f                            # per-replicate false detection
 
-## false negative after R replicates, conditional on the link being realised in
-## at least one of them: P(no detection AND realised somewhere) / P(realised somewhere)
-eps_present <- function(R, p1, rho = get("rho", envir = parent.frame()))
-  ((1 - p1)^R - (1 - rho)^R) / (1 - (1 - rho)^R)
+## false negative after R replicates: a realisable link (L_r = 1) goes unrecorded
+## only if it is unobserved in every replicate. Realisation is not conditioned on,
+## because the truth being recovered is realisability, not realisation, so the rate
+## carries the ecological failure to be realised as well as the failure to detect.
+eps_present <- function(R, p1, rho = NULL) (1 - p1)^R
 eps_absent  <- function(R, p0) 1 - (1 - p0)^R     # false positive after R replicates
 
 ## R at which the two directional rates are equal. eps_present falls
 ## monotonically from 1 and eps_absent rises monotonically from 0, so the
 ## difference is monotone and the root is unique.
-crossing_R <- function(p1, p0, rho) {
+crossing_R <- function(p1, p0, rho = NULL) {
   g <- function(R) eps_present(R, p1, rho) - eps_absent(R, p0)
   uniroot(g, interval = c(1, 1e4), tol = .Machine$double.eps^0.5)$root
 }
 
 ## the common rate at that crossing = the lowest value the pointwise maximum
 ## of the two rates can take
-best_rate <- function(p1, p0, rho) eps_present(crossing_R(p1, p0, rho), p1, rho)
+best_rate <- function(p1, p0, rho = NULL) eps_present(crossing_R(p1, p0), p1)
 
 p1 <- p1_of(rho, eps_L)
 p0 <- p0_of(f)
@@ -90,8 +91,8 @@ mx        <- optimize(function(R) pmax(eps_present(R, p1, rho), eps_absent(R, p0
 
 panel_b_expected <- data.frame(
   rho  = c(0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.80),
-  R    = c(6.20, 5.62, 5.15, 4.77, 4.16, 3.30, 2.44),
-  rate = c(0.272, 0.250, 0.232, 0.217, 0.192, 0.156, 0.118)
+  R    = c(16.13, 11.31, 8.98, 7.54, 5.77, 3.94, 2.55),
+  rate = c(0.563, 0.440, 0.369, 0.321, 0.256, 0.183, 0.123)
 )
 
 w_det   <- function(R, p1, p0) (1 - (1 - p1)^R) / (1 - (1 - p0)^R)
@@ -102,7 +103,7 @@ checks <- do.call(rbind, c(
   lapply(seq_along(c(1, 5, 10)), function(i) {
     R <- c(1, 5, 10)[i]
     chk(sprintf("eps_rep^present, R = %d", R), eps_present(R, p1, rho),
-        c(0.300, 0.235, 0.165)[i])
+        c(0.895, 0.574, 0.330)[i])
   }),
   lapply(seq_along(c(1, 5, 10)), function(i) {
     R <- c(1, 5, 10)[i]
@@ -110,10 +111,10 @@ checks <- do.call(rbind, c(
         c(0.050, 0.226, 0.401)[i])
   }),
   list(
-    chk("crossing, R",                R_star,     5.15,  tol = 5e-3),
-    chk("crossing, common rate",      rate_star,  0.232),
-    chk("min of pointwise max, R",    mx$minimum, 5.15,  tol = 5e-3),
-    chk("min of pointwise max, rate", mx$objective, 0.232)
+    chk("crossing, R",                R_star,     8.98,  tol = 5e-3),
+    chk("crossing, common rate",      rate_star,  0.369),
+    chk("min of pointwise max, R",    mx$minimum, 8.98,  tol = 5e-3),
+    chk("min of pointwise max, rate", mx$objective, 0.369)
   ),
   lapply(seq_len(nrow(panel_b_expected)), function(i) {
     r <- panel_b_expected$rho[i]
@@ -247,8 +248,8 @@ fig1 <- (p_a | p_b) +
         plot.tag = element_text(size = 12, face = "bold"))
 
 print(fig1)
-ggsave("erep_tradeoff.pdf", fig1, width = fig_w, height = fig_h)
-ggsave("erep_tradeoff.png", fig1, width = fig_w, height = fig_h, dpi = fig_dpi)
+ggsave("SI_erep_tradeoff.pdf", fig1, width = fig_w, height = fig_h)
+ggsave("SI_erep_tradeoff.png", fig1, width = fig_w, height = fig_h, dpi = fig_dpi)
 
 # =============================================================================
 # FIGURE 2 - evidential_weight
@@ -294,7 +295,7 @@ fig2 <- (p_w1 | p_w2) +
         plot.tag = element_text(size = 12, face = "bold"))
 
 print(fig2)
-ggsave("evidential_weight.pdf", fig2, width = fig_w, height = fig_h)
-ggsave("evidential_weight.png", fig2, width = fig_w, height = fig_h, dpi = fig_dpi)
+ggsave("SI_evidential_weight.pdf", fig2, width = fig_w, height = fig_h)
+ggsave("SI_evidential_weight.png", fig2, width = fig_w, height = fig_h, dpi = fig_dpi)
 
 cat("Wrote erep_tradeoff.{pdf,png} and evidential_weight.{pdf,png}\n")

@@ -15,7 +15,10 @@ library(patchwork)
 
 eY <- 0.20; el <- 0.30; f <- 0.05; rho <- 0.15
 R0 <- 5                                   # replicates in (a) and (b)
-pi_l <- 0.10; pi_r <- 0.20                # informative prior; pi_Y stays 1/2
+piM  <- 0.35                              # prior that the pair is feasible anywhere
+## coherence (Eq. prior_ratio): pi_l and pi_r are not free, both follow from piM
+pi_l <- piM * rho
+pi_r <- piM * (1 - (1 - rho)^R0)          # pi_Y stays 1/2
 
 p1    <- rho * (1 - el)
 epsP  <- function(R) ((1 - p1)^R - (1 - rho)^R) / (1 - (1 - rho)^R)
@@ -87,30 +90,39 @@ heat <- function(d, ttl) {
 }
 
 pa <- heat(g_uni, "(a) uniform prior")
-pb <- heat(g_inf, bquote("(b) informative prior: " * pi[l] ~ "=" ~ .(pi_l) *
-                         "," ~ pi[r] ~ "=" ~ .(pi_r)))
+pb <- heat(g_inf, bquote("(b) coherent prior, " * pi[M] ~ "=" ~ .(piM)))
 
-## ---- (c) the prior needed to overturn the label -----------------------------
-Rs  <- 1:20
-thr <- 1 / (1 + (1 - epsP(Rs)) / epsM(Rs))
-dc  <- data.frame(R = Rs, thr = thr)
+## ---- (c) what governs whether the label survives ---------------------------
+## Flip iff piM < T(R, rho). Using 1-eps_r+ = [1-(1-p1)^R]/A with A = 1-(1-rho)^R,
+## the factor A cancels, leaving a boundary that depends on rho strongly and on R
+## only weakly.
+Tfun <- function(R, r) {
+  pp <- r * (1 - el); A <- 1 - (1 - r)^R
+  B  <- (1 - (1 - f)^R) / (1 - (1 - pp)^R)
+  B / (1 + A * B)
+}
+rgrid <- seq(0.03, 0.60, length.out = 400)
+band  <- sapply(rgrid, function(r) range(sapply(1:20, Tfun, r = r)))
+dc <- data.frame(rho = rgrid, mid = sapply(rgrid, Tfun, R = R0),
+                 lo = pmin(band[1, ], 1), hi = pmin(band[2, ], 1))
 
-pc <- ggplot(dc, aes(R, thr)) +
-  geom_ribbon(aes(ymin = 0, ymax = thr), fill = "#E07B39", alpha = 0.20) +
-  geom_line(linewidth = 0.8, colour = "#E07B39") +
-  annotate("point", x = R0, y = thr[R0], size = 2.2, colour = "#111111") +
-  annotate("text", x = R0 + 0.6, y = thr[R0], label = "case in (b)",
-           hjust = 0, vjust = 1.6, size = 3, colour = "grey20") +
-  annotate("text", x = 1, y = 0.44, hjust = 0, size = 3, colour = "grey25",
-           label = "the taxonomy's label\nsurvives the prior") +
-  annotate("text", x = 19, y = 0.06, hjust = 1, size = 3, colour = "#9C4E13",
+pc <- ggplot(dc, aes(rho)) +
+  geom_ribbon(aes(ymin = 0, ymax = pmin(mid, 1)), fill = "#E07B39", alpha = 0.18) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "grey55", alpha = 0.45) +
+  geom_line(aes(y = pmin(mid, 1)), linewidth = 0.8, colour = "#E07B39") +
+  annotate("point", x = rho, y = Tfun(R0, rho), size = 2.2, colour = "#111111") +
+  annotate("point", x = rho, y = piM, shape = 21, size = 2.4, stroke = 0.8,
+           fill = "white", colour = "#111111") +
+  annotate("text", x = rho + 0.02, y = piM, label = "case in (b)", hjust = 0,
+           vjust = 1.7, size = 3, colour = "grey20") +
+  annotate("text", x = 0.58, y = 0.93, hjust = 1, size = 3, colour = "grey25",
+           label = "the taxonomy's label survives") +
+  annotate("text", x = 0.06, y = 0.10, hjust = 0, size = 3, colour = "#9C4E13",
            label = "the prior overturns it") +
-  scale_y_continuous(limits = c(0, 0.55),
-                     labels = function(x) sprintf("%.1f", x)) +
-  scale_x_continuous(breaks = c(1, 5, 10, 15, 20)) +
-  labs(title = "(c) prior needed to overturn the label",
-       x = expression("Replicates, " * italic(R)),
-       y = expression("prior on regional presence, " * pi[r])) +
+  scale_y_continuous(limits = c(0, 1), labels = function(x) sprintf("%.1f", x)) +
+  labs(title = "(c) what decides it: ecology, not effort",
+       x = expression("Realisation rate, " * rho),
+       y = expression("prior that the pair is feasible, " * pi[M])) +
   theme_classic(base_size = 10) +
   theme(plot.title = element_text(size = 10, hjust = 0),
         axis.line = element_line(colour = "grey40", linewidth = 0.3),
@@ -130,7 +142,7 @@ for (nmv in c("uniform", "informative")) {
         gsub("\n", " ", as.character(s$cat[s$map])), s$p[s$map], s$p[s$deterministic]))
   }
 }
-cat("\nthreshold pi_r:", sprintf("R=%d %.3f", c(1,3,5,10,20), thr[c(1,3,5,10,20)]), "\n")
+cat("\nboundary piM at rho=0.15:", sprintf("R=%d %.3f", c(1,5,20), sapply(c(1,5,20), Tfun, r = rho)), "\n")
 
-ggsave("posterior_map.pdf", fig, width = 11.0, height = 3.6)
-ggsave("posterior_map.png", fig, width = 11.0, height = 3.6, dpi = 300)
+ggsave("main_posterior_map.pdf", fig, width = 11.0, height = 3.6)
+ggsave("main_posterior_map.png", fig, width = 11.0, height = 3.6, dpi = 300)

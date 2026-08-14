@@ -1,15 +1,11 @@
 ## ---------------------------------------------------------------------------
-## SI figure: heterogeneous links. The realisation rate rho is drawn once per
-## link from Beta(a, b) with mean rhobar and concentration nu = a + b, and held
-## fixed across that link's replicates; the detectability 1 - eps_l stays common,
-## so p_1 = rho(1 - eps_l) <= rho by construction.
+## SI figure: heterogeneous links. Under L_r = realisable in the replicates,
+## rho enters the likelihood only through p_1 = rho(1 - eps_l), so it is enough
+## to let p_1 vary. p_1 is drawn once per link from Beta(a, b) with mean pbar
+## and concentration nu = a + b, and held fixed across that link's replicates,
+## which makes the count of detections beta-binomial:
 ##
-## For a category with z_r = 1 the replicate factor is conditioned on the link
-## being realised in at least one replicate, so both the numerator and the
-## normaliser are expectations over the drawn rho (Eq. cumulative):
-##
-##   P(n | L_r = 1) = E_rho[ B*(n, R, rho u) ] / E_rho[ 1 - (1-rho)^R ],
-##   B*(n,R,p) = C(R,n) p^n (1-p)^(R-n) - 1[n = 0] (1-rho)^R.
+##   P(n | L_r = 1) = C(R,n) B(a+n, b+R-n) / B(a,b),   a = pbar*nu, b = (1-pbar)*nu
 ##
 ## Evidence: Y = 1, O_l = 0. Directional local axis (Eq. likelihood_dir).
 ## ---------------------------------------------------------------------------
@@ -20,9 +16,9 @@ library(patchwork)
 eY     <- 0.20
 el     <- 0.30
 f      <- 0.05
-rhobar <- 0.15
-u      <- 1 - el              # detectability, common to all links
-nus    <- c(40, 10, 4)        # concentrations shown, plus the common rate
+rho    <- 0.15
+pbar   <- rho * (1 - el)      # 0.105, the common rate of Eq. cumulative
+nus    <- c(100, 40, 10)      # concentrations shown, plus the common rate
 Rs     <- 1:20
 
 ## the eight categories as (z_Y, z_l, z_r)
@@ -34,19 +30,10 @@ rownames(sig) <- c("recurrent","locally unique","possibly missing","phantom",
 PM <- 3
 
 ## ---- replicate factor for z_r = 1, binomial coefficient dropped -------------
-## Beta(a, b) with a < 1 is singular at 0, so integrate on a fine grid and check
-## against adaptive quadrature (both agree to 1e-8 across the range shown).
-gr <- seq(1e-9, 1 - 1e-9, length.out = 200001)
-
 rep1 <- function(n, R, nu) {
-  if (is.na(nu)) {                                   # common rate
-    p <- rhobar * u
-    num <- if (n == 0) (1 - p)^R - (1 - rhobar)^R else p^n * (1 - p)^(R - n)
-    return(num / (1 - (1 - rhobar)^R))
-  }
-  w   <- dbeta(gr, rhobar * nu, (1 - rhobar) * nu)
-  num <- if (n == 0) (1 - gr * u)^R - (1 - gr)^R else (gr * u)^n * (1 - gr * u)^(R - n)
-  sum(w * num) / sum(w * (1 - (1 - gr)^R))
+  if (is.na(nu)) pbar^n * (1 - pbar)^(R - n)                 # common rate
+  else exp(lbeta(pbar * nu + n, (1 - pbar) * nu + R - n) -
+           lbeta(pbar * nu, (1 - pbar) * nu))                # beta-binomial
 }
 
 post <- function(R, n, nu, which) {
@@ -62,24 +49,24 @@ post <- function(R, n, nu, which) {
 
 lev  <- c("common rate", paste0("nu == ", nus))
 cols <- setNames(c("#4D4D4D", "#2A78D6", "#E07B39", "#7C5CBF"), lev)
-labs <- setNames(c("common rate", expression(nu == 40), expression(nu == 10),
-                   expression(nu == 4)), lev)
+labs <- setNames(c("common rate", expression(nu == 100), expression(nu == 40),
+                   expression(nu == 10)), lev)
 
-## ---- (a) the distribution of the realisation rate across links -------------
-gridp <- seq(1e-4, 0.6, length.out = 1200)
+## ---- (a) the distribution of the detection rate across links ---------------
+gridp <- seq(1e-4, 0.5, length.out = 1200)
 dens <- do.call(rbind, lapply(seq_along(nus), function(k) {
   data.frame(level = lev[k + 1], p = gridp,
-             d = dbeta(gridp, rhobar * nus[k], (1 - rhobar) * nus[k]))
+             d = dbeta(gridp, pbar * nus[k], (1 - pbar) * nus[k]))
 }))
 dens$level <- factor(dens$level, levels = lev)
 
 pa <- ggplot(dens, aes(p, d, colour = level)) +
-  geom_vline(xintercept = rhobar, colour = cols[1], linewidth = 0.7) +
+  geom_vline(xintercept = pbar, colour = cols[1], linewidth = 0.7) +
   geom_line(linewidth = 0.7) +
   scale_colour_manual(values = cols, labels = labs, drop = FALSE) +
-  coord_cartesian(ylim = c(0, 11)) +
-  labs(title = "(a) realisation rate across links",
-       x = expression(rho), y = "density")
+  coord_cartesian(ylim = c(0, 16)) +
+  labs(title = "(a) detection rate across links",
+       x = expression(p[1]), y = "density")
 
 ## ---- (b) empty in every replicate ------------------------------------------
 curves <- do.call(rbind, lapply(c(NA, nus), function(nu) {
@@ -92,7 +79,7 @@ pct <- function(x) paste0(round(100 * x), "%")
 pb <- ggplot(curves, aes(R, p, colour = level)) +
   geom_line(linewidth = 0.7) +
   scale_colour_manual(values = cols, labels = labs, drop = FALSE) +
-  scale_y_continuous(limits = c(0, 0.18), labels = pct) +
+  scale_y_continuous(limits = c(0, 0.35), labels = pct) +
   scale_x_continuous(breaks = scales::pretty_breaks(5)) +
   labs(title = "(b) empty in every replicate",
        x = "Replicates, R",
@@ -115,13 +102,18 @@ for (nu in c(NA, nus)) {
   for (R in c(1, 5, 10, 20)) cat(sprintf("  R%2d %.4f", R, post(R, 0, nu, PM)))
   cat("\n")
 }
-cat("\nE[rho | realised at least once]\n")
-for (nu in nus) {
-  w <- dbeta(gr, rhobar * nu, (1 - rhobar) * nu)
-  for (R in c(1, 5, 20))
-    cat(sprintf("  nu=%2d R=%2d  %.4f\n", nu, R,
-        sum(w * gr * (1 - (1 - gr)^R)) / sum(w * (1 - (1 - gr)^R))))
+cat("\ndetections (n = R), possibly missing\n")
+for (nu in c(NA, nus)) {
+  cat(sprintf("nu=%-7s", ifelse(is.na(nu), "common", as.character(nu))))
+  for (R in c(1, 5, 10, 20)) cat(sprintf("  R%2d %.4f", R, post(R, R, nu, PM)))
+  cat("\n")
+}
+cat("\nphantom under empty replicates\n")
+for (nu in c(NA, nus)) {
+  cat(sprintf("nu=%-7s", ifelse(is.na(nu), "common", as.character(nu))))
+  for (R in c(1, 5, 10, 20)) cat(sprintf("  R%2d %.4f", R, post(R, 0, nu, 4)))
+  cat("\n")
 }
 
-ggsave("heterogeneity.pdf", fig, width = 7.2, height = 3.2)
-ggsave("heterogeneity.png", fig, width = 7.2, height = 3.2, dpi = 300)
+ggsave("SI_heterogeneity.pdf", fig, width = 7.2, height = 3.2)
+ggsave("SI_heterogeneity.png", fig, width = 7.2, height = 3.2, dpi = 300)
