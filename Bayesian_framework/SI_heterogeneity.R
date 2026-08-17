@@ -13,6 +13,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY     <- 0.20
 el     <- 0.30
 f      <- 0.05
@@ -115,5 +122,5 @@ for (nu in c(NA, nus)) {
   cat("\n")
 }
 
-ggsave("SI_heterogeneity.pdf", fig, width = 7.2, height = 3.2)
-ggsave("SI_heterogeneity.png", fig, width = 7.2, height = 3.2, dpi = 300)
+ggsave(file.path(fig_dir, "SI_heterogeneity.pdf"), fig, width = 7.2, height = 3.2)
+ggsave(file.path(fig_dir, "SI_heterogeneity.png"), fig, width = 7.2, height = 3.2, dpi = 300)

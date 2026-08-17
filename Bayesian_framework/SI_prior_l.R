@@ -15,6 +15,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY <- 0.20; el <- 0.30; f <- 0.05; rho <- 0.15
 R  <- 5
 
@@ -116,5 +123,5 @@ cs <- seq(0.02, 1, length.out = 400)
 lb <- apply(sapply(cs, function(v) post(v * prB, prB))[1:4, ], 2, which.max)
 cat("  leader changes at c =", sprintf("%.2f", cs[which(diff(lb) != 0)]), "\n")
 
-ggsave("SI_prior_l.pdf", fig, width = 7.6, height = 3.4)
-ggsave("SI_prior_l.png", fig, width = 7.6, height = 3.4, dpi = 300)
+ggsave(file.path(fig_dir, "SI_prior_l.pdf"), fig, width = 7.6, height = 3.4)
+ggsave(file.path(fig_dir, "SI_prior_l.png"), fig, width = 7.6, height = 3.4, dpi = 300)

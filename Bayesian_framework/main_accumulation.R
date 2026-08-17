@@ -11,6 +11,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY <- 0.20; eL <- 0.30            # model and local error rates
 p1 <- 0.105; p0 <- 0.05           # per-replicate recording probability
 Rs <- 0:20
@@ -77,7 +84,7 @@ pa <- ggplot(dat_a, aes(R, y, colour = k, linetype = k)) +
                           bolditalic(O)[bold(r)] * bold(")"))) +
   scale_y_continuous(limits = c(0, 1), labels = pct) +
   scale_x_continuous(breaks = seq(0, 20, 5)) +
-  labs(title = "(a) evidence accumulates to a maximum",
+  labs(title = "evidence accumulates to a maximum",
        x = "Replicates recording the link, R", y = "Posterior probability") +
   guides(colour = guide_legend(nrow = 2, title.position = "top"),
          linetype = guide_legend(nrow = 2, title.position = "top"))
@@ -128,7 +135,7 @@ pb <- ggplot(dat_b, aes(pr, y, colour = k, linetype = k)) +
   scale_linetype_manual(values = ltys, guide = "none") +
   scale_y_continuous(limits = c(0, 1), labels = pct) +
   scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
-  labs(title = "(b) an informative prior changes which error explains it",
+  labs(title = "an informative prior changes which error explains it",
        x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
        y = "Posterior probability")
 
@@ -137,12 +144,17 @@ base <- theme_classic(base_size = 10) +
         legend.text = element_text(face = "bold", size = 7.5),
         legend.title = element_text(size = 8.5),
         plot.title = element_text(size = 9, hjust = 0, face = "bold"),
+        ## panel letter: a bare "a" / "b", set larger than the title. Carried by
+        ## patchwork's tag rather than the title string, so the letter and the
+        ## title can be sized independently.
+        plot.tag = element_text(size = 13, face = "bold", hjust = 0, vjust = 1),
+        plot.tag.position = c(0, 1),
         axis.line = element_line(colour = "grey40", linewidth = 0.3),
         axis.ticks = element_line(colour = "grey40", linewidth = 0.3))
 
-fig <- (pa + pb) & base
-ggsave("main_accumulation.pdf", fig, width = 9.0, height = 3.8)
-ggsave("main_accumulation.png", fig, width = 9.0, height = 3.8, dpi = 300)
+fig <- ((pa + pb) & base) + plot_annotation(tag_levels = "a")
+ggsave(file.path(fig_dir, "main_accumulation.pdf"), fig, width = 9.0, height = 3.8)
+ggsave(file.path(fig_dir, "main_accumulation.png"), fig, width = 9.0, height = 3.8, dpi = 300)
 
 cat(sprintf("kappa = %.3f\n", kap))
 print(round(100 * data.frame(R = Rs, pm = P[,"possibly missing"],

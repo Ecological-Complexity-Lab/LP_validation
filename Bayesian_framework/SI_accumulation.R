@@ -19,6 +19,13 @@
 
 library(ggplot2)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 ## ---- parameters -------------------------------------------------------------
 eY   <- 0.20     # model error            (epsilon_Y, symmetric)
 eL   <- 0.30     # local miss rate        (epsilon_l)
@@ -138,9 +145,11 @@ p_fig <- ggplot(df, aes(R, posterior, colour = category, linetype = summary,
   theme(panel.grid.minor = element_blank(),
         legend.position  = "right",
         legend.key.width = unit(1.1, "cm"),
-        strip.background = element_rect(fill = "grey95", colour = NA),
-        strip.text       = element_text(face = "bold", size = 10))
+        ## facet headers styled like the panel titles in the other scripts in
+        ## this folder: bare bold text, left aligned, no filled background
+        strip.background = element_blank(),
+        strip.text       = element_text(face = "bold", size = 10, hjust = 0))
 
 ## ---- save -------------------------------------------------------------------
-ggsave("SI_accumulation.pdf", p_fig, width = 9.0, height = 3.8)
-ggsave("SI_accumulation.png", p_fig, width = 9.0, height = 3.8, dpi = 300)
+ggsave(file.path(fig_dir, "SI_accumulation.pdf"), p_fig, width = 9.0, height = 3.8)
+ggsave(file.path(fig_dir, "SI_accumulation.png"), p_fig, width = 9.0, height = 3.8, dpi = 300)

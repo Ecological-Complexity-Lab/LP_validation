@@ -9,6 +9,13 @@
 
 library(ggplot2)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eYs <- c(0.05, 0.20, 0.35)
 f   <- 0.05
 eLs <- seq(0, 0.6, by = 0.002)
@@ -53,5 +60,5 @@ for (e in eYs)
   cat(sprintf("  eps_Y = %.2f: at eps_l = 0 both %.3f; at 0.6 symmetric %.3f, directional %.3f\n",
               e, kap_sym(e, 0), kap_sym(e, 0.6), kap_dir(e, 0.6)))
 
-ggsave("SI_kappa.pdf", p, width = 5.4, height = 3.8)
-ggsave("SI_kappa.png", p, width = 5.4, height = 3.8, dpi = 300)
+ggsave(file.path(fig_dir, "SI_kappa.pdf"), p, width = 5.4, height = 3.8)
+ggsave(file.path(fig_dir, "SI_kappa.png"), p, width = 5.4, height = 3.8, dpi = 300)

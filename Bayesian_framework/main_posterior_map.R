@@ -13,6 +13,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY <- 0.20; el <- 0.30; f <- 0.05; rho <- 0.15
 R0 <- 5                                   # replicates in (a) and (b)
 piM  <- 0.35                              # prior that the pair is feasible anywhere
@@ -144,5 +151,5 @@ for (nmv in c("uniform", "informative")) {
 }
 cat("\nboundary piM at rho=0.15:", sprintf("R=%d %.3f", c(1,5,20), sapply(c(1,5,20), Tfun, r = rho)), "\n")
 
-ggsave("main_posterior_map.pdf", fig, width = 11.0, height = 3.6)
-ggsave("main_posterior_map.png", fig, width = 11.0, height = 3.6, dpi = 300)
+ggsave(file.path(fig_dir, "main_posterior_map.pdf"), fig, width = 11.0, height = 3.6)
+ggsave(file.path(fig_dir, "main_posterior_map.png"), fig, width = 11.0, height = 3.6, dpi = 300)

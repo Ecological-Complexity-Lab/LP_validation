@@ -6,6 +6,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY     <- 0.20      # model error
 rho    <- 0.15      # realisation rate
 el_fix <- 0.30      # sampling miss rate, when held fixed
@@ -123,5 +130,5 @@ pb <- ggplot(subset(dat, panel == "b"), aes(R, p, colour = errors)) +
 fig <- pa + pb + plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
 
-ggsave("SI_correlation.pdf", fig, width = 7.2, height = 3.2)
-ggsave("SI_correlation.png", fig, width = 7.2, height = 3.2, dpi = 300)
+ggsave(file.path(fig_dir, "SI_correlation.pdf"), fig, width = 7.2, height = 3.2)
+ggsave(file.path(fig_dir, "SI_correlation.png"), fig, width = 7.2, height = 3.2, dpi = 300)

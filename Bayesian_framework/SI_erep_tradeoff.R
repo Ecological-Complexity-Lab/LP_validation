@@ -22,6 +22,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 ## ---- parameters -------------------------------------------------------------
 eps_Y <- 0.20    # model error (epsilon_Y); taxonomy only, not these figures
 eps_L <- 0.30    # local-miss error  (epsilon_local)
@@ -248,8 +255,8 @@ fig1 <- (p_a | p_b) +
         plot.tag = element_text(size = 12, face = "bold"))
 
 print(fig1)
-ggsave("SI_erep_tradeoff.pdf", fig1, width = fig_w, height = fig_h)
-ggsave("SI_erep_tradeoff.png", fig1, width = fig_w, height = fig_h, dpi = fig_dpi)
+ggsave(file.path(fig_dir, "SI_erep_tradeoff.pdf"), fig1, width = fig_w, height = fig_h)
+ggsave(file.path(fig_dir, "SI_erep_tradeoff.png"), fig1, width = fig_w, height = fig_h, dpi = fig_dpi)
 
 # =============================================================================
 # FIGURE 2 - evidential_weight
@@ -295,7 +302,7 @@ fig2 <- (p_w1 | p_w2) +
         plot.tag = element_text(size = 12, face = "bold"))
 
 print(fig2)
-ggsave("SI_evidential_weight.pdf", fig2, width = fig_w, height = fig_h)
-ggsave("SI_evidential_weight.png", fig2, width = fig_w, height = fig_h, dpi = fig_dpi)
+ggsave(file.path(fig_dir, "SI_evidential_weight.pdf"), fig2, width = fig_w, height = fig_h)
+ggsave(file.path(fig_dir, "SI_evidential_weight.png"), fig2, width = fig_w, height = fig_h, dpi = fig_dpi)
 
 cat("Wrote erep_tradeoff.{pdf,png} and evidential_weight.{pdf,png}\n")
