@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Link classification Sankey explorer</title>
+<title>Link categorisation Sankey explorer</title>
 <style>
   :root{
     --accent:#E07B39; --accent-d:#B4531A;
@@ -119,11 +119,11 @@
 <div class="wrap">
 
   <div class="topbar">
-    <h1>Link classification &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
+    <h1>Link categorisation &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
   </div>
   <p class="sub">Every link&ndash;site record flows left to right: from the <b>within-network confusion matrix</b>,
   through <b>contextual evidence</b> (was the same species pair recorded at any other site?), into the
-  <b>eight link classes</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
+  <b>eight link categories</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
   Move the threshold to rebinarise the predicted probabilities, and click any band or block to isolate its path.</p>
 
   <div class="databar">
@@ -151,9 +151,9 @@
         <label><span>Cross-method evidence</span></label>
         <div class="seg-wrap" id="splitSeg">
           <button class="seg active" data-split="amb">Flagged only</button>
-          <button class="seg" data-split="all">All classes</button>
+          <button class="seg" data-split="all">All categories</button>
         </div>
-        <div class="desc">which classes are split by the independent method</div>
+        <div class="desc">which categories are split by the independent method</div>
       </div>
     </div>
   </div>
@@ -163,7 +163,7 @@
     <h2>Flow of link&ndash;site records <span class="muted" id="totalNote"></span></h2>
     <p class="hint" id="selHint">Click any block or band to isolate it. Click the background to clear.</p>
     <svg id="sankey" viewBox="0 0 1120 620" preserveAspectRatio="xMidYMid meet"
-         role="img" aria-label="Interactive Sankey of link classification"></svg>
+         role="img" aria-label="Interactive Sankey of link categorisation"></svg>
   </div>
 
   <div class="card" id="readoutCard">
@@ -173,10 +173,10 @@
   </div>
 
   <details class="card coll" id="tableCard">
-    <summary>Link class counts at this threshold <span class="muted">&mdash; all eight classes</span></summary>
+    <summary>Link categories counts at this threshold <span class="muted">&mdash; all eight categories</span></summary>
     <div class="coll-body">
       <table id="catTable"><thead><tr>
-        <th class="name">Link class</th><th>n</th><th>% of total</th>
+        <th class="name">Link category</th><th>n</th><th>% of total</th>
         <th>Have evidence</th><th>% with cross-method evidence</th>
       </tr></thead><tbody></tbody></table>
     </div>
@@ -427,7 +427,7 @@ function render(){
 
       // On axis 4, only the split nodes get a label: a pass-through node
       // repeats its axis-3 name verbatim, so labelling it duplicates the text
-      // for every class that is not split. Elsewhere, label whenever the band
+      // for every category that is not split. Elsewhere, label whenever the band
       // is tall enough to carry one.
       const isSplit = id.indexOf("::") >= 0;
       const showLab = (ax === 3) ? isSplit : (nd.h >= 9);
@@ -487,7 +487,7 @@ function renderReadout(){
 
   if (!sel){
     box.innerHTML = `<div class="empty">Nothing selected. Click a block or a band to see its ` +
-      `counts, its share of the total, and its share of the class it came from.</div>`;
+      `counts, its share of the total, and its share of the category it came from.</div>`;
     return;
   }
 
@@ -571,7 +571,7 @@ function syncLabels(){
   document.getElementById("thrDesc").textContent =
     "predicted probability above which a link is called present (range " +
     META.threshMin.toFixed(1) + "–" + META.threshMax.toFixed(1) +
-    ", where all eight classes stay populated)";
+    ", where all eight categories stay populated)";
 }
 
 sThr.addEventListener("input", () => {
@@ -608,7 +608,7 @@ const INFO = {
        "in parallel at every site. That second, independent method is what makes it possible to test the " +
        "framework's recommendations rather than only state them.</p>" +
        "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
-       "a leave-one-out scheme, then classified against the other five sites as contextual evidence. " +
+       "a leave-one-out scheme, then categorised against the other five sites as contextual evidence. " +
        "23 plant species &times; 69 pollinator species across 6 sites.</p>" +
        "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
        "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
@@ -618,19 +618,19 @@ const INFO = {
   },
   controls: {
     t: "Controls",
-    b: "<p><b>Sampling method</b> selects which method is being classified. The other method " +
+    b: "<p><b>Sampling method</b> selects which method is being categorised. The other method " +
        "supplies the independent evidence shown on axis 4, so switching also swaps the corroborating method.</p>" +
        "<p><b>Threshold</b> rebinarises the leave-one-out predicted probabilities: a record is called " +
        "present when its probability exceeds the threshold. Raising it moves records from the " +
-       "predicted-present classes into the predicted-absent ones.</p>" +
+       "predicted-present categories into the predicted-absent ones.</p>" +
        "<p>The slider is limited to <code>" + META.threshMin.toFixed(1) + "–" +
        META.threshMax.toFixed(1) + "</code>. Probabilities are floored at 0.5 by the pre-sigmoid " +
-       "zero floor, so nothing changes below that; above the upper limit some classes empty out " +
+       "zero floor, so nothing changes below that; above the upper limit some categories empty out " +
        "entirely and their proportions become undefined.</p>" +
-       "<p><b>Cross-method evidence</b> controls which classes are broken into have / no evidence. " +
-       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two classes the framework " +
+       "<p><b>Cross-method evidence</b> controls which categories are broken into have / no evidence. " +
+       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two categories the framework " +
        "flags as needing an independent method rather than more of the same sampling effort. " +
-       "<b>All classes</b> splits every class, for inspecting how cross-method evidence lines up " +
+       "<b>All categories</b> splits every category, for inspecting how cross-method evidence lines up " +
        "across the whole taxonomy at once.</p>"
   },
   sankey: {
@@ -638,7 +638,7 @@ const INFO = {
     b: "<p>Each record is one species pair assessed at one site. Bands are scaled by the number of records.</p>" +
        "<p><b>Axis 1</b> is the within-network confusion matrix at the current threshold. " +
        "<b>Axis 2</b> asks whether the same pair was recorded at any <i>other</i> site. " +
-       "<b>Axis 3</b> is the resulting link class. <b>Axis 4</b> asks whether the independent method found it.</p>" +
+       "<b>Axis 3</b> is the resulting link category. <b>Axis 4</b> asks whether the independent method found it.</p>" +
        "<p>Clicking a block or band isolates its subgraph: everything else fades but stays visible, " +
        "so the highlighted route can be read against the whole. Click again, or click the background, to clear.</p>"
   },
