@@ -61,7 +61,11 @@
   .app-body{padding:17px 19px 19px;display:flex;flex-direction:column;flex:1}
   .app h2{font-size:16.5px;margin:0 0 3px;font-weight:680;letter-spacing:-.005em}
   .app .box{font-size:11.5px;color:var(--accent-d);font-weight:650;letter-spacing:.03em;
-    text-transform:uppercase;margin:0 0 9px}
+    text-transform:uppercase;margin:0 0 9px;
+    /* .app p below sets flex:1 and also matches this <p class="box">. Left to grow,
+       the eyebrow absorbs the card's spare space, and the card with less content
+       pushes its title further down. Pin it so only the description flexes. */
+    flex:none}
   .app p{font-size:13.5px;color:var(--muted);margin:0 0 14px;flex:1}
   .app ul{margin:0 0 15px;padding:0;list-style:none}
   .app li{font-size:12.5px;color:var(--muted);padding-left:15px;position:relative;margin-bottom:3px}
@@ -70,11 +74,16 @@
   .go{font-size:13px;font-weight:650;color:var(--accent-d);display:inline-flex;align-items:center;gap:6px}
   .go svg{transition:transform .16s}
   .app:hover .go svg{transform:translateX(3px)}
+  /* Side by side, the eyebrow and the title can wrap to different line counts in
+     the two cards, which leaves the titles sitting at different heights. Reserve
+     two lines for each so they stay level whatever the width. Only needed while
+     the cards are side by side; below 760px they stack and this is moot. */
+  @media(min-width:761px){
+    .app .box{min-height:3.1em}
+    .app h2{min-height:3.1em}
+  }
 
   /* ---- notes ---- */
-  .datarule{border:none;border-top:1px solid var(--border);margin:30px 0 20px}
-  .datanote{font-size:12.5px;color:var(--muted);line-height:1.7;margin:0}
-  .datanote a{color:var(--accent-d)}
   footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--border);
     font-size:12.5px;color:var(--muted)}
   footer p{margin:0 0 5px}
@@ -98,7 +107,7 @@
 
   <p class="eyebrow">Interactive companions</p>
   <h1>Contextual evidence for classifying interactions and guiding their discovery</h1>
-  <p class="authors">Kesem Abramov, Shir Miryam Nehoray, Peter Mucha, Rami Puzis &amp; Shai Pilosof (2026)</p>
+  <p class="authors">Kesem Abramov, Shir Miryam Nehoray, Peter J. Mucha, Rami Puzis &amp; Shai Pilosof (2026)</p>
   <p class="lede">Link prediction returns candidate interactions, not evidence that they exist. This framework
   reads the variation <b>between replicated networks</b> as evidence, sorting predicted links into
   <b>eight classes</b> that each carry a specific next action: sample more, switch method, or accept
@@ -112,15 +121,15 @@
       <img class="thumb" src="accumulation.png"
            alt="Accumulation of confidence across replicate networks">
       <div class="app-body">
-        <p class="box">Box 2</p>
-        <h2>Link taxonomy uncertainty explorer</h2>
-        <p>A Bayesian reading of the taxonomy. Class labels are claims about a link's hidden state, so
-        how much confidence does a given evidence pattern actually earn?</p>
+        <p class="box">Section Bayesian Inference & Supplementary Information</p>
+        <h2>A Bayesian reading of the link taxonomy</h2>
+        <p>Assigning a class is deterministic, but every source of evidence can err. The framework therefore
+        treats the true category as unknown and returns a posterior over all eight.</p>
         <ul>
-          <li>Pick any of the eight classes on the taxonomy tree</li>
-          <li>Tune the three error rates, priors and the category base rates</li>
-          <li>Full posterior, likelihood breakdown and feasibility</li>
-          <li>Confidence accumulation and replicates needed for a target confidence</li>
+          <li>Pick any of the eight classes, then set the error rates &epsilon;<sub>Y</sub>, &epsilon;<sub>l</sub>, &epsilon;<sub>r</sub></li>
+          <li>Explore how evidence maps onto the truth through the error rates</li>
+          <li>Examine the simple version, or extensions for many replicates and informed priors</li>
+          <li>Posterior, feasibility &phi;, ceiling &kappa;, and replicates needed for a target confidence</li>
         </ul>
         <span class="go">Open the explorer
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"
@@ -134,8 +143,8 @@
       <img class="thumb" src="alluvial.png"
            alt="Alluvial plot of predicted links across evidence classes">
       <div class="app-body">
-        <p class="box">Box 3 · Cabrera island</p>
-        <h2>Interactive link classification</h2>
+        <p class="box">Section Empirical Demonstration</p>
+        <h2>The evidence accumulation framework in action</h2>
         <p>The framework applied to a real plant–pollinator system: six sites, two sampling methods, and
         1624 candidate interactions sorted into where effort is actually worth spending.</p>
         <ul>
@@ -153,23 +162,6 @@
     </a>
 
   </div>
-
-  <hr class="datarule">
-
-  <p class="datanote">
-    Data: plant&ndash;pollinator interaction networks recorded at six sites on Cabrera island (Balearic
-    archipelago, western Mediterranean), monitored by direct field observation and automated cameras in
-    parallel at every site. That second, independent method is what makes it possible to test the
-    framework's recommendations rather than only state them. Interactions were predicted within each site
-    separately using rank-2 SVD matrix completion under a leave-one-out scheme, then classified against the
-    other five sites as contextual evidence. 23 plant species &times; 69 pollinator species across 6 sites.
-    Data originally published by
-    <a href="https://doi.org/10.1111/2041-210X.70165" target="_blank" rel="noopener">Serra-Marin et al.
-    (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., Borge-Holthoefer, J.,
-    Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of automated and manual
-    monitoring in comprehensive plant&ndash;pollinator communities. <em>Methods in Ecology and
-    Evolution</em>, 16, 2960&ndash;2978.
-  </p>
 
   <footer>
     <p>Companion tools to a perspective on classifying and corroborating predicted ecological interactions.</p>
