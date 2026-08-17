@@ -89,6 +89,14 @@
     color:#fff;font-size:12px;font-weight:700;cursor:pointer;line-height:1;font-style:italic;
     font-family:Georgia,"Times New Roman",serif;padding:0;box-shadow:0 1px 3px rgba(20,30,50,.22)}
   .info:hover{background:var(--accent-d)}
+  /* inline, labelled variant used for the data button under the lede */
+  .info.pill{position:static;width:auto;height:auto;border-radius:999px;padding:5px 13px;
+    font-family:inherit;font-style:normal;font-size:12px;font-weight:600;letter-spacing:.01em;
+    gap:6px;box-shadow:0 1px 3px rgba(20,30,50,.18)}
+  .info.pill::before{content:"i";font-family:Georgia,"Times New Roman",serif;font-style:italic;
+    font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+    width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,.24);font-size:11px}
+  .databar{margin:-4px 0 18px}
   .modal-back{position:fixed;inset:0;background:rgba(20,28,44,.46);z-index:100;display:none;
     align-items:center;justify-content:center;padding:24px}
   .modal-back.open{display:flex}
@@ -101,6 +109,7 @@
   .mbody p:last-child{margin-bottom:0}
   .mbody b{color:var(--text)}
   .mbody code{background:#eef0f3;padding:1px 4px;border-radius:4px;font-size:13px}
+  .mbody a{color:var(--accent-d)}
   .modal-close{position:absolute;top:14px;right:16px;border:none;background:#eef0f3;border-radius:8px;
     width:30px;height:30px;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;z-index:1}
   .modal-close:hover{background:#e2e5ea;color:var(--text)}
@@ -116,6 +125,10 @@
   through <b>contextual evidence</b> (was the same species pair recorded at any other site?), into the
   <b>eight link classes</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
   Move the threshold to rebinarise the predicted probabilities, and click any band or block to isolate its path.</p>
+
+  <div class="databar">
+    <button class="info pill" data-info="data" aria-label="About the data and study system">Data &amp; study system</button>
+  </div>
 
   <div class="card ctrlbar" id="ctrlbar">
     <button class="info" data-info="controls" aria-label="About the controls">i</button>
@@ -588,6 +601,21 @@ window.addEventListener("scroll", () => {
 
 // ---- info modals ----
 const INFO = {
+  data: {
+    t: "Data & study system",
+    b: "<p>Plant&ndash;pollinator interaction networks recorded at six sites on Cabrera island (Balearic " +
+       "archipelago, western Mediterranean), monitored by direct field observation and automated cameras " +
+       "in parallel at every site. That second, independent method is what makes it possible to test the " +
+       "framework's recommendations rather than only state them.</p>" +
+       "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
+       "a leave-one-out scheme, then classified against the other five sites as contextual evidence. " +
+       "23 plant species &times; 69 pollinator species across 6 sites.</p>" +
+       "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
+       "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
+       "Borge-Holthoefer, J., Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of " +
+       "automated and manual monitoring in comprehensive plant&ndash;pollinator communities. " +
+       "<em>Methods in Ecology and Evolution</em>, 16, 2960&ndash;2978.</p>"
+  },
   controls: {
     t: "Controls",
     b: "<p><b>Sampling method</b> selects which method is being classified. The other method " +
