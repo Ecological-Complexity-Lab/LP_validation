@@ -83,9 +83,20 @@
   .pw.selp label{color:var(--accent-d)}
   .pw input[type=range]{width:100%}
   /* floating bars */
-  .topbar{position:sticky;top:0;z-index:30;background:var(--bg);padding:14px 0 8px}
+  /* The bar spans the content box exactly, but the cards scrolling under it carry
+     a box-shadow that reaches a couple of px further, so a sliver of it used to
+     show just outside the bar's left and right edges. Widen the opaque background
+     past the content on both sides; the padding keeps the title in place. */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--bg);
+    padding:14px 20px 8px;margin:0 -20px}
   .topbar h1{margin:0}
-  .topbar.stuck{box-shadow:0 4px 14px rgba(20,30,50,.07);border-bottom:1px solid var(--border)}
+  /* the currently chosen category, in the accent orange used for emphasis
+     throughout; nowrap so a two-word name never breaks across lines */
+  .topbar h1 #selName{color:var(--accent-d);white-space:nowrap}
+  /* No scrolled-state styling on the title bar: its box-shadow blurred sideways
+     as well as down, and because the bar is narrower than the viewport that read
+     as a frame flanking the title. The bar is opaque, so content scrolling under
+     it is already hidden without a shadow or rule. */
   /* collapsible card */
   details.foldcard{padding:0;overflow:hidden;position:relative}
   details.foldcard>summary{list-style:none;cursor:pointer;padding:13px 18px;font-size:14px;font-weight:600;
@@ -132,10 +143,13 @@
     padding:5px 10px;cursor:pointer;color:var(--muted);font-family:inherit}
   .sq-presets button:hover{background:#e4e7ec;color:var(--text)}
   /* setup bar: three compact tiles that stay visible; clicking one expands its panel */
-  .setupbar{position:sticky;z-index:20;background:var(--bg);padding-bottom:10px}
+  .setupbar{position:sticky;z-index:20;background:var(--bg);
+    padding:0 20px 10px;margin:0 -20px}
   .setupbar .inner{background:var(--card);border:1px solid var(--border);border-radius:12px;
     box-shadow:0 1px 2px rgba(20,30,50,.04);overflow:hidden}
-  .setupbar.stuck .inner{box-shadow:0 6px 18px rgba(20,30,50,.14)}
+  /* Negative spread pulls the shadow inside the card's own width, so it reads as
+     depth below the bar instead of bleeding out to the left and right of it. */
+  .setupbar.stuck .inner{box-shadow:0 8px 14px -8px rgba(20,30,50,.22)}
   .setuptabs{display:grid;grid-template-columns:1fr 1fr 1.25fr}
   .setuptab{border:none;border-right:1px solid var(--border);background:var(--card);cursor:pointer;
     font-family:inherit;text-align:left;padding:9px 13px;display:block;transition:background .12s;min-width:0}
@@ -226,7 +240,8 @@
 <body>
 <div class="wrap">
   <div class="topbar" id="topbar">
-    <h1>How confident are we in a link's category?</h1>
+    <h1>How confident are we in a link's category?
+      <span id="selName">possibly missing</span></h1>
   </div>
   <details class="card foldcard" id="introCard" open>
     <summary>Start here <span class="muted">— what this is, what it assumes, and how to use it</span><span class="foldx" title="Collapse" aria-hidden="true">×</span></summary>
@@ -821,6 +836,7 @@ function updatePriorPcts(){
 // ---- dynamic labels ----
 function sigStr(){return `z_c = (${OBS[0]}, ${OBS[1]}, ${OBS[2]})`;}
 function syncLabels(){
+  document.getElementById('selName').textContent=selected.toLowerCase();
   document.getElementById('confName').textContent=selected.toLowerCase();
   document.getElementById('confName2').textContent=selected.toLowerCase();
   document.getElementById('legSel').textContent=selected.toLowerCase();
@@ -1596,7 +1612,7 @@ document.getElementById('resetPrior').addEventListener('click',()=>{
 const topbar=document.getElementById('topbar'), setupbar=document.getElementById('setupbar');
 function layoutBars(){ setupbar.style.top=topbar.getBoundingClientRect().height+'px'; }
 function barShadows(){
-  topbar.classList.toggle('stuck',window.scrollY>2);
+  // the title bar has no scrolled state any more; only the setup bar does
   const th=topbar.getBoundingClientRect().height;
   setupbar.classList.toggle('stuck',setupbar.getBoundingClientRect().top<=th+1);
 }

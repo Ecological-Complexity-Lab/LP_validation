@@ -135,7 +135,7 @@ pb <- ggplot(dat_b, aes(pr, y, colour = k, linetype = k)) +
   scale_linetype_manual(values = ltys, guide = "none") +
   scale_y_continuous(limits = c(0, 1), labels = pct) +
   scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
-  labs(title = "an informative prior changes which error explains it",
+  labs(title = "an informed prior changes which error explains it",
        x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
        y = "Posterior probability")
 
