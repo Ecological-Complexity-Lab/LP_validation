@@ -38,11 +38,34 @@
   /* ---- masthead ---- */
   .eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
     font-weight:650;margin:0 0 14px}
-  h1{font-size:31px;line-height:1.25;margin:0 0 14px;font-weight:750;letter-spacing:-.011em;max-width:20ch}
+  /* No character cap: at 20ch the title broke into four short lines. Let it use the
+     column and balance the break so it sits on two even lines, or one when wide. */
+  h1{font-size:31px;line-height:1.25;margin:0 0 14px;font-weight:750;letter-spacing:-.011em;
+    text-wrap:balance}
   .authors{font-size:14px;color:var(--muted);margin:0 0 18px}
+  .authors a.orcid{display:inline-block;vertical-align:-2px;margin-left:3px;line-height:0}
+  .authors a.orcid svg{width:13px;height:13px}
+  .authors a.orcid:hover svg{opacity:.72}
   .lede{font-size:16px;color:var(--muted);margin:0;max-width:66ch}
   .lede b{color:var(--text);font-weight:600}
   .rule{height:1px;background:var(--border);margin:34px 0 30px}
+
+  /* ---- collapsible abstract ---- */
+  details.foldcard{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    margin:16px 0 0;overflow:hidden}
+  details.foldcard>summary{list-style:none;cursor:pointer;padding:11px 16px;font-size:14px;
+    font-weight:650;display:flex;align-items:center;gap:8px}
+  details.foldcard>summary::-webkit-details-marker{display:none}
+  details.foldcard>summary::before{content:'\25B8';color:var(--muted);font-size:12px;
+    transition:transform .15s;display:inline-block}
+  details.foldcard[open]>summary::before{transform:rotate(90deg)}
+  details.foldcard>summary:hover{background:#f7f8fa}
+  details.foldcard>summary .foldx{margin-left:auto;display:none;font-size:17px;line-height:1;
+    color:var(--muted);padding:1px 6px 3px;border-radius:5px;font-weight:400}
+  details.foldcard[open]>summary .foldx{display:inline-block}
+  details.foldcard>summary:hover .foldx{color:var(--text);background:#eceff2}
+  details.foldcard .fold-body{padding:0 16px 14px}
+  details.foldcard .fold-body p{margin:0;font-size:14.5px;color:var(--muted);max-width:78ch}
 
   /* ---- taxonomy strip ---- */
   .strip{display:flex;gap:3px;margin:0 0 10px;height:7px;border-radius:4px;overflow:hidden;max-width:520px}
@@ -108,10 +131,22 @@
   <p class="eyebrow">Interactive companions</p>
   <h1>Contextual evidence for categorising interactions and guiding their discovery</h1>
   <p class="authors">Kesem Abramov, Shir Miryam Nehoray, Peter J. Mucha, Rami Puzis &amp; Shai Pilosof (2026)</p>
-  <p class="lede">Link prediction returns candidate interactions, not evidence that they exist. This framework
-  reads the variation <b>between replicated networks</b> as evidence, sorting predicted links into
-  <b>eight categories</b> that each carry a specific next action: sample more, switch method, or accept
-  what you have. These two tools let you explore this taxonomy directly.</p>
+  <p class="lede">This is the interactive companion for the paper:
+  <i>Contextual evidence for categorising interactions and guiding their discovery</i>.</p>
+
+  <details class="foldcard" id="abstractCard">
+    <summary>Abstract<span class="foldx" title="Collapse" aria-hidden="true">&times;</span></summary>
+    <div class="fold-body">
+      <p>A surge of recent methods tackles incomplete ecological interaction data through link prediction. Yet the
+      same data gaps that motivate prediction also obscure how reliable these predictions are. Finding evidence for
+      their existence means going to the field to verify an immense number of potential interactions, possibly with
+      a sampling method poorly suited to the task, or searching for evidence in external sources alien to the
+      system's ecological context. We present an actionable framework that draws on several dimensions of evidence,
+      combining the guidance of link prediction and within-system variability as contextual evidence, to generate a
+      fine-tuned, ecologically aware link taxonomy. This taxonomy pinpoints the most probable holes in a network and
+      directs targeted, cost-efficient discovery actions, while increasing our confidence in predictions.</p>
+    </div>
+  </details>
 
   <div class="rule"></div>
 
