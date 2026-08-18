@@ -91,8 +91,8 @@ col_confusion <- c(
 )
 
 col_validation <- c(
-  `Observed elsewhere`     = "#F4A460",
-  `Not observed elsewhere` = "#C3BAD5"
+  `Observed in replicates`     = "#F4A460",
+  `Not observed in replicates` = "#C3BAD5"
 )
 
 COL_HAVE_EVIDENCE <- "#66CDAA"   # aquamarine3, as in the static figure
@@ -112,11 +112,11 @@ cat_display <- c(
 # Vertical ordering within each axis (small = top)
 # ggsankey draws rank 1 at the BOTTOM, so the rendered static figure reads
 # top-to-bottom as the reverse of rank_vec: TP, FP, FN, TN on axis 1;
-# "Observed elsewhere" on top of axis 2; recurrent at the top of axis 3.
+# "Observed in replicates" on top of axis 2; recurrent at the top of axis 3.
 # Here rank 1 is the TOP, so these are the static rank_vec values negated,
 # which reproduces the static figure as it actually appears.
 rank_confusion <- c(TP = -40, FP = -30, FN = -20, TN = -10)
-rank_validation <- c(`Observed elsewhere` = -20, `Not observed elsewhere` = -10)
+rank_validation <- c(`Observed in replicates` = -20, `Not observed in replicates` = -10)
 rank_category <- c(
   recurrent = -80, possibly_missing = -70, model_elusive = -60,
   locally_absent = -50, locally_unique = -40, phantom = -30,
@@ -169,7 +169,7 @@ classify_at_threshold <- function(df_method, threshold, evidence_ids) {
       is_shared     = n_obs_total >= 2,
       obs_elsewhere = (n_obs_total - as.integer(original_binary == 1)) >= 1,
 
-      validation = if_else(obs_elsewhere, "Observed elsewhere", "Not observed elsewhere"),
+      validation = if_else(obs_elsewhere, "Observed in replicates", "Not observed in replicates"),
 
       confusion = case_when(
         original_binary == 1 & predicted_bin == 1 ~ "TP",
@@ -718,7 +718,13 @@ function render(){
   const axLabels = META.axisLabels.slice();
   axLabels[3] = "Additional method: " + META.methodLabels[state.method === "obs" ? "rpi" : "obs"];
   axLabels.forEach((t, ax) => {
-    el("text", {x:COL_X[ax], y:M.top - 22, class:"axlab"}, svg).textContent = t;
+    // The axis 4 label carries the method name, so it is far longer than the
+    // others and ran off the right edge of the viewBox when left-aligned at its
+    // column. Anchor that one to the right edge instead, so it stays visible.
+    const at = (ax === 3)
+      ? {x:W - 6, y:M.top - 22, class:"axlab", "text-anchor":"end"}
+      : {x:COL_X[ax], y:M.top - 22, class:"axlab"};
+    el("text", at, svg).textContent = t;
   });
 
   // flows first, so nodes sit on top
