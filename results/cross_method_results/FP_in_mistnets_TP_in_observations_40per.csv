@@ -1,3 +1,0 @@
-higher_level,lower_level,confusion_m1,probability_m1,classification_m1,ground_truth_m1,link_m1,confusion_m2,probability_m2,classification_m2,ground_truth_m2,link_m2
-Pistacia.lentiscus,Emberiza.calandra,FP,0.53,1,0,0,TP,0.57,1,1,-1
-Pistacia.lentiscus,Sturnus.vulgaris,FP,0.53,1,0,0,TP,0.57,1,1,-1

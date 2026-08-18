@@ -1,6 +1,0 @@
-Template Info - "figure_data" Folder Content
-==============================
-The content to be in this folder is the processed data that is directly used to produce a figure.
-example: in R when you use "ggplot(df) + ...", the data that will be passed to the ggplot function, 
-the "df", will be available in this folder. or a couple's of codeline's worth of processing.
-This is done to allow quick editing to the figures further down the line, and to centralize figure production.

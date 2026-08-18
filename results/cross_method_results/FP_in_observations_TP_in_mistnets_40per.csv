@@ -1,5 +1,0 @@
-higher_level,lower_level,confusion_m2,probability_m2,classification_m2,ground_truth_m2,link_m2,confusion_m1,probability_m1,classification_m1,ground_truth_m1,link_m1
-Pistacia.lentiscus,Parus.caeruleus,FP,0.57,1,0,0,TP,0.53,1,1,-1
-Olea.europaea,Sylvia.borin,FP,0.77,1,0,0,TP,0.8,1,1,-1
-Rhamnus.lycioides,Sylvia.borin,FP,0.5,1,0,0,TP,0.8,1,1,-1
-Asparagus.acutifolius,Turdus.merula,FP,0.57,1,0,0,TP,0.73,1,1,-1

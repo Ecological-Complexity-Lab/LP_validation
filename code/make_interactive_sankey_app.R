@@ -27,7 +27,9 @@
 # Style follows possibly-missing-explorer: same CSS variables, card layout,
 # sticky control bar, info modals, tabular-numeric readouts.
 #
-# Output: results/figures/interactive_sankey_explorer.html
+# Output: docs/interactive_sankey_explorer_source.html — the source build.
+# The live app is docs/interactive_sankey_explorer.html, which carries hand edits
+# made after generation; this script never writes to it.
 
 # ---- 1. Libraries ----
 required_cran_packages <- c("dplyr", "readr", "tidyr", "purrr", "jsonlite")
@@ -47,8 +49,10 @@ library(jsonlite)
 # ---- 2. Parameters ----
 
 INPUT_CSV  <- "results/predictions/serra_martin_loo_prediction_results.csv"
-OUTPUT_DIR <- "results/interactive_sankey"
-OUTPUT_HTML <- file.path(OUTPUT_DIR, "interactive_sankey_explorer.html")
+OUTPUT_DIR <- "docs"
+# This is the source build. The live app is docs/interactive_sankey_explorer.html,
+# which carries hand edits made after generation and is never written here.
+OUTPUT_HTML <- file.path(OUTPUT_DIR, "interactive_sankey_explorer_source.html")
 
 # Threshold grid precomputed into the app. Restricted to the range where every
 # link class stays non-empty for both methods (see header note).
@@ -339,7 +343,7 @@ html_template <- '<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Link classification Sankey explorer</title>
+<title>Link categorisation Sankey explorer</title>
 <style>
   :root{
     --accent:#E07B39; --accent-d:#B4531A;
@@ -425,6 +429,14 @@ html_template <- '<!DOCTYPE html>
     color:#fff;font-size:12px;font-weight:700;cursor:pointer;line-height:1;font-style:italic;
     font-family:Georgia,"Times New Roman",serif;padding:0;box-shadow:0 1px 3px rgba(20,30,50,.22)}
   .info:hover{background:var(--accent-d)}
+  /* inline, labelled variant used for the data button under the lede */
+  .info.pill{position:static;width:auto;height:auto;border-radius:999px;padding:5px 13px;
+    font-family:inherit;font-style:normal;font-size:12px;font-weight:600;letter-spacing:.01em;
+    gap:6px;box-shadow:0 1px 3px rgba(20,30,50,.18)}
+  .info.pill::before{content:"i";font-family:Georgia,"Times New Roman",serif;font-style:italic;
+    font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+    width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,.24);font-size:11px}
+  .databar{margin:-4px 0 18px}
   .modal-back{position:fixed;inset:0;background:rgba(20,28,44,.46);z-index:100;display:none;
     align-items:center;justify-content:center;padding:24px}
   .modal-back.open{display:flex}
@@ -437,6 +449,7 @@ html_template <- '<!DOCTYPE html>
   .mbody p:last-child{margin-bottom:0}
   .mbody b{color:var(--text)}
   .mbody code{background:#eef0f3;padding:1px 4px;border-radius:4px;font-size:13px}
+  .mbody a{color:var(--accent-d)}
   .modal-close{position:absolute;top:14px;right:16px;border:none;background:#eef0f3;border-radius:8px;
     width:30px;height:30px;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;z-index:1}
   .modal-close:hover{background:#e2e5ea;color:var(--text)}
@@ -446,12 +459,16 @@ html_template <- '<!DOCTYPE html>
 <div class="wrap">
 
   <div class="topbar">
-    <h1>Link classification &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
+    <h1>Link categorisation &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
   </div>
   <p class="sub">Every link&ndash;site record flows left to right: from the <b>within-network confusion matrix</b>,
   through <b>contextual evidence</b> (was the same species pair recorded at any other site?), into the
-  <b>eight link classes</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
+  <b>eight link categories</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
   Move the threshold to rebinarise the predicted probabilities, and click any band or block to isolate its path.</p>
+
+  <div class="databar">
+    <button class="info pill" data-info="data" aria-label="About the data and study system">Data &amp; study system</button>
+  </div>
 
   <div class="card ctrlbar" id="ctrlbar">
     <button class="info" data-info="controls" aria-label="About the controls">i</button>
@@ -474,9 +491,9 @@ html_template <- '<!DOCTYPE html>
         <label><span>Cross-method evidence</span></label>
         <div class="seg-wrap" id="splitSeg">
           <button class="seg active" data-split="amb">Flagged only</button>
-          <button class="seg" data-split="all">All classes</button>
+          <button class="seg" data-split="all">All categories</button>
         </div>
-        <div class="desc">which classes are split by the independent method</div>
+        <div class="desc">which categories are split by the independent method</div>
       </div>
     </div>
   </div>
@@ -486,7 +503,7 @@ html_template <- '<!DOCTYPE html>
     <h2>Flow of link&ndash;site records <span class="muted" id="totalNote"></span></h2>
     <p class="hint" id="selHint">Click any block or band to isolate it. Click the background to clear.</p>
     <svg id="sankey" viewBox="0 0 1120 620" preserveAspectRatio="xMidYMid meet"
-         role="img" aria-label="Interactive Sankey of link classification"></svg>
+         role="img" aria-label="Interactive Sankey of link categorisation"></svg>
   </div>
 
   <div class="card" id="readoutCard">
@@ -496,10 +513,10 @@ html_template <- '<!DOCTYPE html>
   </div>
 
   <details class="card coll" id="tableCard">
-    <summary>Link class counts at this threshold <span class="muted">&mdash; all eight classes</span></summary>
+    <summary>Link categories counts at this threshold <span class="muted">&mdash; all eight categories</span></summary>
     <div class="coll-body">
       <table id="catTable"><thead><tr>
-        <th class="name">Link class</th><th>n</th><th>% of total</th>
+        <th class="name">Link category</th><th>n</th><th>% of total</th>
         <th>Have evidence</th><th>% with cross-method evidence</th>
       </tr></thead><tbody></tbody></table>
     </div>
@@ -750,7 +767,7 @@ function render(){
 
       // On axis 4, only the split nodes get a label: a pass-through node
       // repeats its axis-3 name verbatim, so labelling it duplicates the text
-      // for every class that is not split. Elsewhere, label whenever the band
+      // for every category that is not split. Elsewhere, label whenever the band
       // is tall enough to carry one.
       const isSplit = id.indexOf("::") >= 0;
       const showLab = (ax === 3) ? isSplit : (nd.h >= 9);
@@ -810,7 +827,7 @@ function renderReadout(){
 
   if (!sel){
     box.innerHTML = `<div class="empty">Nothing selected. Click a block or a band to see its ` +
-      `counts, its share of the total, and its share of the class it came from.</div>`;
+      `counts, its share of the total, and its share of the category it came from.</div>`;
     return;
   }
 
@@ -894,7 +911,7 @@ function syncLabels(){
   document.getElementById("thrDesc").textContent =
     "predicted probability above which a link is called present (range " +
     META.threshMin.toFixed(1) + "–" + META.threshMax.toFixed(1) +
-    ", where all eight classes stay populated)";
+    ", where all eight categories stay populated)";
 }
 
 sThr.addEventListener("input", () => {
@@ -924,21 +941,36 @@ window.addEventListener("scroll", () => {
 
 // ---- info modals ----
 const INFO = {
+  data: {
+    t: "Data & study system",
+    b: "<p>Plant&ndash;pollinator interaction networks recorded at six sites on Cabrera island (Balearic " +
+       "archipelago, western Mediterranean), monitored by direct field observation and automated cameras " +
+       "in parallel at every site. That second, independent method is what makes it possible to test the " +
+       "framework\'s recommendations rather than only state them.</p>" +
+       "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
+       "a leave-one-out scheme, then categorised against the other five sites as contextual evidence. " +
+       "23 plant species &times; 69 pollinator species across 6 sites.</p>" +
+       "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
+       "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
+       "Borge-Holthoefer, J., Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of " +
+       "automated and manual monitoring in comprehensive plant&ndash;pollinator communities. " +
+       "<em>Methods in Ecology and Evolution</em>, 16, 2960&ndash;2978.</p>"
+  },
   controls: {
     t: "Controls",
     b: "<p><b>Sampling method</b> selects which method is being classified. The other method " +
        "supplies the independent evidence shown on axis 4, so switching also swaps the corroborating method.</p>" +
        "<p><b>Threshold</b> rebinarises the leave-one-out predicted probabilities: a record is called " +
        "present when its probability exceeds the threshold. Raising it moves records from the " +
-       "predicted-present classes into the predicted-absent ones.</p>" +
+       "predicted-present categories into the predicted-absent ones.</p>" +
        "<p>The slider is limited to <code>" + META.threshMin.toFixed(1) + "–" +
        META.threshMax.toFixed(1) + "</code>. Probabilities are floored at 0.5 by the pre-sigmoid " +
-       "zero floor, so nothing changes below that; above the upper limit some classes empty out " +
+       "zero floor, so nothing changes below that; above the upper limit some categories empty out " +
        "entirely and their proportions become undefined.</p>" +
-       "<p><b>Cross-method evidence</b> controls which classes are broken into have / no evidence. " +
-       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two classes the framework " +
+       "<p><b>Cross-method evidence</b> controls which categories are broken into have / no evidence. " +
+       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two categories the framework " +
        "flags as needing an independent method rather than more of the same sampling effort. " +
-       "<b>All classes</b> splits every class, for inspecting how cross-method evidence lines up " +
+       "<b>All categories</b> splits every category, for inspecting how cross-method evidence lines up " +
        "across the whole taxonomy at once.</p>"
   },
   sankey: {
@@ -946,7 +978,7 @@ const INFO = {
     b: "<p>Each record is one species pair assessed at one site. Bands are scaled by the number of records.</p>" +
        "<p><b>Axis 1</b> is the within-network confusion matrix at the current threshold. " +
        "<b>Axis 2</b> asks whether the same pair was recorded at any <i>other</i> site. " +
-       "<b>Axis 3</b> is the resulting link class. <b>Axis 4</b> asks whether the independent method found it.</p>" +
+       "<b>Axis 3</b> is the resulting link category. <b>Axis 4</b> asks whether the independent method found it.</p>" +
        "<p>Clicking a block or band isolates its subgraph: everything else fades but stays visible, " +
        "so the highlighted route can be read against the whole. Click again, or click the background, to clear.</p>"
   },
@@ -998,3 +1030,5 @@ writeLines(html_out, OUTPUT_HTML, useBytes = TRUE)
 
 cat(sprintf("\nWrote %s (%.1f KB)\n", OUTPUT_HTML, file.size(OUTPUT_HTML) / 1024))
 cat("Open it in any browser; the file is self-contained, no server needed.\n")
+cat("This is the source build. The live app, docs/interactive_sankey_explorer.html,\n")
+cat("is untouched.\n")
