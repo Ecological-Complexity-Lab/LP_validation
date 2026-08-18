@@ -1,26 +1,26 @@
 # :wave: About
-This repository contains the code and data for the paper: "Contextual evidence classifies ecological interactions and guides their discovery".
+This repository contains the code and data for the paper: "Contextual evidence for categorising interactions and guiding their discovery".
 
 
 # :page_facing_up: Paper and citing
-Abramov, K., Nehoray, S. M., Puzis, R., & Pilosof, S. (2026). **Contextual evidence classifies ecological interactions and guides their discovery**. 
+Abramov, K., Nehoray, S. M., Puzis, R., & Pilosof, S. (2026). **Contextual evidence for categorising interactions and guiding their discovery**. 
 
 
 # Abstract:
-A surge of recent methods tackles incomplete ecological interaction data through link prediction. Yet the same data gaps that motivate prediction also obscure how reliable these predictions are. Finding evidence for their existence means going to the field to verify an immense number of potential interactions, possibly with a sampling method poorly suited to the task, or searching for evidence in external sources alien to the system's ecological context. We present an actionable framework that draws on several dimensions of evidence, combining the guidance of link prediction and within-system variability as contextual evidence, to generate a fine-tuned, ecologically aware link taxonomy. This taxonomy pinpoints the most probable holes in a network and directs targeted, cost-efficient discovery actions, while increasing our confidence in predictions.
+A surge of recent methods tackles incomplete ecological interaction data through link prediction. However, validating predictions means field-sampling an immense number of candidate interactions, possibly with a poorly suited method. This costly endeavour lacks operative guides grounded in strong ecological and statistical theory. We present a guided-sampling framework combining link prediction with within-system variability across replicated networks as contextual evidence, generating a fine-resolution, ecologically-aware link taxonomy. It resolves categories ecologists have long struggled to separate, such as forbidden interactions versus those merely missing from the local sample, pinpoints the most probable unknowns, and directs targeted, cost-efficient discovery. We formalise how confidence in each assignment is quantified and grows as evidence accumulates. Treating validation as evidence accumulation makes it a tractable sampling problem rather than a permanent limit on knowledge.
 
 <p align="center"><img src="results/figures/framework_flow.png" alt="Framework overview" width="600"/></p>
 
 # :computer: Code:
 Instructions for running the code and reproducing the results are in the repository Wiki under ["Code"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Code).
 
-# :bar_chart: Boxes 2 & 3 — interactive explorers
+# :bar_chart: Section Bayesian Inference & SI, Section Empirical Demonstration — interactive explorers
 
-Both boxes ship with a standalone interactive explorer, live at <https://lpguide.ecomplab.com/>.
+Both ship with a standalone interactive explorer, live at <https://lpguide.ecomplab.com/>.
 
-**Box 2 — link taxonomy & uncertainty.** The Bayesian reading of the link taxonomy: figure script, rendered figure, the interactive explorer, and a math/assumptions context doc.
+**Bayesian reading of the link taxonomy.** Accompanies the development of Section Bayesian Inference & Supplementary Information. Figure script, rendered figure, the interactive explorer, and a math/assumptions context doc.
 
-**Box 3 — link classification on Cabrera.** The framework applied to plant–pollinator networks at six sites: classification and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer.
+**The evidence accumulation framework in action.** Accompanies Section Empirical Demonstration: the framework applied to plant–pollinator networks at six sites: catrgorisation and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer.
 
 # :file_cabinet: Data:
 Detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Data).
