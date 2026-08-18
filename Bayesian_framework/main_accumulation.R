@@ -11,13 +11,6 @@
 library(ggplot2)
 library(patchwork)
 
-## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
-## the script works whether it is run from the project root or from inside
-## Bayesian_framework/, and the folder is created if it is missing.
-fig_dir <- if (dir.exists("Bayesian_framework"))
-             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
-dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
-
 eY <- 0.20; eL <- 0.30            # model and local error rates
 p1 <- 0.105; p0 <- 0.05           # per-replicate recording probability
 Rs <- 0:20
@@ -46,8 +39,8 @@ kap <- (1 - eY) * (1 - eL)                  # 0.56
 
 ## two pairs of categories, each pair differing only in the replicate bit
 lev <- c("Possibly missing","Phantom","Recurrent","Locally unique")
-key <- c("Possibly missing (1, 0, 1)", "Phantom (1, 0, 0)",
-         "Recurrent (1, 1, 1)",        "Locally unique (1, 1, 0)")
+key <- c("Possibly missing 1,0,1", "Phantom 1,0,0",
+         "Recurrent 1,1,1",        "Locally unique 1,1,0")
 dat_a <- rbind(
   data.frame(R = Rs, y = P[,"possibly missing"],   k = lev[1]),
   data.frame(R = Rs, y = P[,"phantom"],            k = lev[2]),
@@ -74,20 +67,19 @@ pa <- ggplot(dat_a, aes(R, y, colour = k, linetype = k)) +
   geom_line(linewidth = 0.8) +
   scale_colour_manual(values = cols, labels = key,
                       name = expression(bold("Category ") *
-                        bold("(") * bolditalic(Y) * bold(", ") *
-                        bolditalic(O)[bold(l)] * bold(", ") *
-                        bolditalic(O)[bold(r)] * bold(")"))) +
+                        bold("(") * bolditalic(hat(Y)) * bold(", ") *
+                        bolditalic(L)[bold(l)] * bold(", ") *
+                        bolditalic(L)[bold(r)] * bold(")"))) +
   scale_linetype_manual(values = ltys, labels = key,
                         name = expression(bold("Category ") *
-                          bold("(") * bolditalic(Y) * bold(", ") *
-                          bolditalic(O)[bold(l)] * bold(", ") *
-                          bolditalic(O)[bold(r)] * bold(")"))) +
+                          bold("(") * bolditalic(hat(Y)) * bold(", ") *
+                          bolditalic(L)[bold(l)] * bold(", ") *
+                          bolditalic(L)[bold(r)] * bold(")"))) +
   scale_y_continuous(limits = c(0, 1), labels = pct) +
   scale_x_continuous(breaks = seq(0, 20, 5)) +
-  labs(title = "evidence accumulates to a maximum",
-       x = "Replicates recording the link, R", y = "Posterior probability") +
-  guides(colour = guide_legend(nrow = 2, title.position = "top"),
-         linetype = guide_legend(nrow = 2, title.position = "top"))
+  labs(x = "Replicates recording the link, R", y = "Posterior probability") +
+  guides(colour = guide_legend(nrow = 1, title.position = "left"),
+         linetype = guide_legend(nrow = 1, title.position = "left"))
 
 ## ---- (b) the ceiling itself -------------------------------------------------
 ## ---- (b) what an informative prior does to the same evidence ---------------
@@ -135,26 +127,24 @@ pb <- ggplot(dat_b, aes(pr, y, colour = k, linetype = k)) +
   scale_linetype_manual(values = ltys, guide = "none") +
   scale_y_continuous(limits = c(0, 1), labels = pct) +
   scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
-  labs(title = "an informed prior changes which error explains it",
-       x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
+  labs(x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
        y = "Posterior probability")
 
 base <- theme_classic(base_size = 10) +
-  theme(legend.position = "bottom", legend.key.width = unit(20, "pt"),
+  theme(legend.position = "bottom", legend.key.width = unit(16, "pt"),
         legend.text = element_text(face = "bold", size = 7.5),
-        legend.title = element_text(size = 8.5),
-        plot.title = element_text(size = 9, hjust = 0, face = "bold"),
-        ## panel letter: a bare "a" / "b", set larger than the title. Carried by
-        ## patchwork's tag rather than the title string, so the letter and the
-        ## title can be sized independently.
-        plot.tag = element_text(size = 13, face = "bold", hjust = 0, vjust = 1),
-        plot.tag.position = c(0, 1),
+        legend.title = element_text(size = 8.5, vjust = 0.5),
+        legend.margin = margin(t = 0, b = 0),
+        legend.box.spacing = unit(4, "pt"),
+        plot.tag = element_text(size = 16.5, face = "bold"),
         axis.line = element_line(colour = "grey40", linewidth = 0.3),
         axis.ticks = element_line(colour = "grey40", linewidth = 0.3))
 
-fig <- ((pa + pb) & base) + plot_annotation(tag_levels = "a")
-ggsave(file.path(fig_dir, "main_accumulation.pdf"), fig, width = 9.0, height = 3.8)
-ggsave(file.path(fig_dir, "main_accumulation.png"), fig, width = 9.0, height = 3.8, dpi = 300)
+fig <- ((pa + pb) & base) +
+  plot_layout(guides = "collect") + plot_annotation(tag_levels = "a") &
+  theme(legend.position = "bottom")
+ggsave("main_accumulation.pdf", fig, width = 9.0, height = 3.8)
+ggsave("main_accumulation.png", fig, width = 9.0, height = 3.8, dpi = 300)
 
 cat(sprintf("kappa = %.3f\n", kap))
 print(round(100 * data.frame(R = Rs, pm = P[,"possibly missing"],
