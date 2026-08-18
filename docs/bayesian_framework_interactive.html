@@ -90,6 +90,17 @@
   .topbar{position:sticky;top:0;z-index:30;background:var(--bg);
     padding:14px 20px 8px;margin:0 -20px}
   .topbar h1{margin:0}
+  /* back to the landing page; "Interactive companions" is that page's own eyebrow, so
+     the link names where it goes rather than saying "back" */
+  .backlink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-decoration:none;
+    margin:0 0 7px -7px;padding:3px 10px 3px 7px;border-radius:999px;
+    transition:background .15s,color .15s}
+  .backlink:hover{color:var(--text);background:#e9edf1}
+  .backlink svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.1;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+  .backlink:hover svg{transform:translateX(-2px)}
+
   /* the currently chosen category, in the accent orange used for emphasis
      throughout; nowrap so a two-word name never breaks across lines */
   .topbar h1 #selName{color:var(--accent-d);white-space:nowrap}
@@ -240,6 +251,7 @@
 <body>
 <div class="wrap">
   <div class="topbar" id="topbar">
+    <a class="backlink" href="index.html"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4L3 8l4 4"/></svg>Interactive companions</a>
     <h1>How confident are we in a link's category?
       <span id="selName">possibly missing</span></h1>
   </div>

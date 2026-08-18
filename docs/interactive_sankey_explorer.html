@@ -40,6 +40,17 @@
   @media(max-width:520px){.seg-wrap{display:flex;width:100%}.seg{flex:1}}
   .topbar{position:sticky;top:0;z-index:30;background:var(--bg);padding:14px 0 8px}
   .topbar h1{margin:0}
+  /* back to the landing page; "Interactive companions" is that page's own eyebrow, so
+     the link names where it goes rather than saying "back" */
+  .backlink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-decoration:none;
+    margin:0 0 7px -7px;padding:3px 10px 3px 7px;border-radius:999px;
+    transition:background .15s,color .15s}
+  .backlink:hover{color:var(--text);background:#e9edf1}
+  .backlink svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.1;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+  .backlink:hover svg{transform:translateX(-2px)}
+
   .card.ctrlbar{position:sticky;top:56px;z-index:20}
   .ctrlbar.stuck{box-shadow:0 4px 16px rgba(20,30,50,.12)}
   .reset{font-size:12px;background:#eef0f3;border:1px solid var(--border);
@@ -119,6 +130,7 @@
 <div class="wrap">
 
   <div class="topbar">
+    <a class="backlink" href="index.html"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4L3 8l4 4"/></svg>Interactive companions</a>
     <h1>Link categorisation &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
   </div>
   <p class="sub">Every link&ndash;site record flows left to right: from the <b>within-network confusion matrix</b>,
