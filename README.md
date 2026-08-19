@@ -11,9 +11,6 @@ A surge of recent methods tackles incomplete ecological interaction data through
 
 <p align="center"><img src="results/figures/framework_flow.png" alt="Framework overview" width="600"/></p>
 
-# :computer: Code:
-Instructions for running the code and reproducing the results are in the repository Wiki under ["Code"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Code).
-
 # :bar_chart: Section Bayesian Inference & SI, Section Empirical Demonstration — interactive explorers
 
 Both ship with a standalone interactive explorer, live at <https://lpguide.ecomplab.com/>.
@@ -22,5 +19,8 @@ Both ship with a standalone interactive explorer, live at <https://lpguide.ecomp
 
 **The evidence accumulation framework in action.** Accompanies Section Empirical Demonstration: the framework applied to plant–pollinator networks at six sites: catrgorisation and prediction scripts, rendered alluvial figure, and the interactive alluvial explorer.
 
+# :computer: Code:
+Instructions for running the code and reproducing the results are in the repository Wiki under ["Code"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Code).
+
 # :file_cabinet: Data:
-Detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Data).
+Data used for empirical demonstration is detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/LP_validation/wiki/Data).
