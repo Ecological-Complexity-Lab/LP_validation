@@ -1,4 +1,4 @@
-# ---- Serra-Martin link classification and alluvial plots (reorganised) ----
+# ---- Serra-Marin link classification and alluvial plots (reorganised) ----
 # Loads cross-site SVD self-prediction results (6 habitat patches x 2 sampling
 # methods), classifies every predicted link via spatial corroboration across
 # the 6 sites, then corroborates each method's classifications using evidence
@@ -679,7 +679,7 @@ summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_
 # habitat patches) and per method (obs / rpi), with the ground-truth label,
 # predicted probability and binary classification at the chosen threshold.
 df_all <- read_csv(
-  "results/predictions/serra_martin_loo_prediction_results.csv",
+  "results/predictions/serra_marin_loo_prediction_results.csv",
   show_col_types = FALSE
 ) %>%
   rename(location = focal_site, classification = prediction) %>%
@@ -720,7 +720,7 @@ cat(sprintf("Cross-method (obs → rpi validation): %d interaction IDs\n",
 sites   <- sort(unique(df_all$location))
 methods <- sort(unique(df_all$method))
 
-cat("\n=== DIAGNOSTICS: Serra-Martin link classification ===\n\n")
+cat("\n=== DIAGNOSTICS: Serra-Marin link classification ===\n\n")
 cat(sprintf("Sites (n = %d): %s\n", length(sites), paste(sites, collapse = ", ")))
 cat(sprintf("Methods (n = %d): %s\n\n", length(methods), paste(methods, collapse = ", ")))
 

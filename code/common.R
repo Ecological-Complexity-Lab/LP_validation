@@ -1,6 +1,6 @@
 
 # Shared helpers for the operational pipeline. Trimmed to only what
-# code/serra_martin_svd_prediction_loo.R actually calls (sigmoid,
+# code/serra_marin_svd_prediction_loo.R actually calls (sigmoid,
 # build_interaction_matrix) — everything else (Canary/emln-specific helpers,
 # plotting functions, the old bootstrap-imputation routine) lived here for
 # the legacy scripts in code/legacy/ and isn't needed by the current

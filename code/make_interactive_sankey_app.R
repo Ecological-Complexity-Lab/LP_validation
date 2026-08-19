@@ -1,7 +1,7 @@
-# ---- Interactive Sankey app: Serra-Martin link classification ----
+# ---- Interactive Sankey app: Serra-Marin link classification ----
 #
 # Builds a single self-contained HTML file with an interactive version of the
-# 4-axis Sankey from serra_martin_link_classification_clean.R:
+# 4-axis Sankey from serra_marin_link_classification_clean.R:
 #
 #   Within-network evaluation -> Contextual evidence -> Link category
 #     -> Additional method (have / no evidence)
@@ -48,7 +48,7 @@ library(jsonlite)
 
 # ---- 2. Parameters ----
 
-INPUT_CSV  <- "results/predictions/serra_martin_loo_prediction_results.csv"
+INPUT_CSV  <- "results/predictions/serra_marin_loo_prediction_results.csv"
 OUTPUT_DIR <- "docs"
 # This is the source build. The live app is docs/interactive_sankey_explorer.html,
 # which carries hand edits made after generation and is never written here.

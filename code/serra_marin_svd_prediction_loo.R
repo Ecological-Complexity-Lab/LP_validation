@@ -1,4 +1,4 @@
-# ---- Serra-Martin SVD self-prediction (leave-one-out) ----
+# ---- Serra-Marin SVD self-prediction (leave-one-out) ----
 # For each site × method, predict every interaction in P using only the
 # within-site matrix structure — no cross-site training. Every entry in P is
 # withheld once, predicted by SVD from the remaining entries, then restored.
@@ -14,9 +14,9 @@ library(PRROC)
 ## ---- 1. Parameters ----
 set.seed(42)
 
-## ---- 2. Load and prepare Serra-Martin data ----
+## ---- 2. Load and prepare Serra-Marin data ----
 df_raw <- read_delim(
-  "data/raw_data/serra_martin_pollination/cabrera_22_23_habitat.csv",
+  "data/raw_data/serra_marin_pollination/cabrera_22_23_habitat.csv",
   delim = ";", show_col_types = FALSE
 )
 
@@ -46,7 +46,7 @@ make_aggregated_df <- function(data, method) {
 }
 
 ## ---- 3. Leave-one-out self-prediction ----
-results_file <- "results/serra_martin_loo_predictions.rds"
+results_file <- "results/serra_marin_loo_predictions.rds"
 
 combined_results <- data.frame()
 
@@ -206,5 +206,5 @@ df_out <- df_classified %>%
     method
   )
 
-write_csv(df_out, "results/predictions/serra_martin_loo_prediction_results.csv")
-print("Saved: results/predictions/serra_martin_loo_prediction_results.csv")
+write_csv(df_out, "results/predictions/serra_marin_loo_prediction_results.csv")
+print("Saved: results/predictions/serra_marin_loo_prediction_results.csv")
