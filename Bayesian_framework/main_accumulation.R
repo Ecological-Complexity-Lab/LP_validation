@@ -11,6 +11,13 @@
 library(ggplot2)
 library(patchwork)
 
+## Figures are written to Bayesian_framework/bayesian_figures. Resolved here so
+## the script works whether it is run from the project root or from inside
+## Bayesian_framework/, and the folder is created if it is missing.
+fig_dir <- if (dir.exists("Bayesian_framework"))
+             file.path("Bayesian_framework", "bayesian_figures") else "bayesian_figures"
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
 eY <- 0.20; eL <- 0.30            # model and local error rates
 p1 <- 0.105; p0 <- 0.05           # per-replicate recording probability
 Rs <- 0:20
@@ -143,8 +150,8 @@ base <- theme_classic(base_size = 10) +
 fig <- ((pa + pb) & base) +
   plot_layout(guides = "collect") + plot_annotation(tag_levels = "a") &
   theme(legend.position = "bottom")
-ggsave("main_accumulation.pdf", fig, width = 9.0, height = 3.8)
-ggsave("main_accumulation.png", fig, width = 9.0, height = 3.8, dpi = 300)
+ggsave(file.path(fig_dir, "main_accumulation.pdf"), fig, width = 9.0, height = 3.8)
+ggsave(file.path(fig_dir, "main_accumulation.png"), fig, width = 9.0, height = 3.8, dpi = 300)
 
 cat(sprintf("kappa = %.3f\n", kap))
 print(round(100 * data.frame(R = Rs, pm = P[,"possibly missing"],
