@@ -955,7 +955,7 @@ const INFO = {
        "framework\'s recommendations rather than only state them.</p>" +
        "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
        "a leave-one-out scheme, then categorised against the other five sites as contextual evidence. " +
-       "23 plant species &times; 69 pollinator species across 6 sites.</p>" +
+       "21 plant taxa &times; 71 pollinator taxa across 6 sites.</p>" +
        "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
        "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
        "Borge-Holthoefer, J., Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of " +
