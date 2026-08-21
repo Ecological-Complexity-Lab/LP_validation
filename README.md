@@ -3,7 +3,7 @@ This repository contains the code and data for the paper: "Contextual evidence f
 
 
 # :page_facing_up: Paper and citing
-Abramov, K., Nehoray, S. M., Puzis, R., Mucha, P. J., & Pilosof, S. (2026). **Contextual evidence for categorising interactions and guiding their discovery**. EcoEvoRxiv. <https://doi.org/10.32942/X2JD60>
+Abramov, K., Nehoray, S. M., Puzis, R., Mucha, P. J., & Pilosof, S. (2026). **Contextual evidence for categorising interactions and guiding their discovery**. EcoEvoRxiv. [https://doi.org/10.32942/X2JD60](https://doi.org/10.32942/X2JD60)
 
 
 # Abstract:
