@@ -172,6 +172,14 @@
   .setuptab.on .st-label{color:var(--accent-d)}
   .setuptab .st-label::before{content:'▸';font-size:9px;transition:transform .15s;display:inline-block}
   .setuptab.on .st-label::before{transform:rotate(90deg)}
+  /* an explicit close on the tile itself: clicking the tile again already collapses
+     the panel, but the rotating caret alone did not say so. No handler needed, since
+     a click on the x bubbles to the tile button that does the toggling. */
+  .setuptab .st-x{margin-left:auto;display:none;font:400 15px/1 system-ui;
+    color:var(--muted);padding:1px 3px 3px;border-radius:4px;
+    text-transform:none;letter-spacing:0}
+  .setuptab.on .st-x{display:inline-block;color:var(--accent-d)}
+  .setuptab.on:hover .st-x{background:rgba(120,70,20,.10)}
   .setuptab .st-val{display:block;font-size:13px;font-weight:600;color:var(--text);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .setuptab.on .st-val{color:var(--accent-d)}
@@ -332,15 +340,15 @@
    <div class="inner" style="position:relative">
     <div class="setuptabs" id="setupTabs">
       <button type="button" class="setuptab on" data-panel="cat">
-        <span class="st-label">Category</span>
+        <span class="st-label">Category<span class="st-x" aria-hidden="true">&times;</span></span>
         <span class="st-val" id="stCat">Possibly missing</span>
       </button>
       <button type="button" class="setuptab" data-panel="prior">
-        <span class="st-label">Prior</span>
+        <span class="st-label">Prior<span class="st-x" aria-hidden="true">&times;</span></span>
         <span class="st-val" id="stPrior">uniform</span>
       </button>
       <button type="button" class="setuptab" data-panel="rates">
-        <span class="st-label">Error rates</span>
+        <span class="st-label">Error rates<span class="st-x" aria-hidden="true">&times;</span></span>
         <span class="st-val" id="stRates">–</span>
       </button>
     </div>
