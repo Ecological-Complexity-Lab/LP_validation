@@ -46,6 +46,14 @@
   .authors a.orcid{display:inline-block;vertical-align:-2px;margin-left:3px;line-height:0}
   .authors a.orcid svg{width:13px;height:13px}
   .authors a.orcid:hover svg{opacity:.72}
+  /* preprint line: venue as a small badge, then the DOI itself as the link, so the
+     citation is copyable from the page rather than hidden behind link text */
+  .preprint{font-size:13.5px;margin:0 0 18px;display:flex;align-items:center;gap:8px;
+    flex-wrap:wrap}
+  .preprint .venue{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--accent-d);background:#fbeee2;border-radius:999px;padding:3px 9px}
+  .preprint a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)}
+  .preprint a:hover{color:var(--text);border-bottom-color:var(--muted)}
   .rule{height:1px;background:var(--border);margin:34px 0 30px}
 
   /* ---- collapsible abstract ---- */
@@ -129,6 +137,7 @@
   <p class="eyebrow">Interactive companions</p>
   <h1>Contextual evidence for categorising interactions and guiding their discovery</h1>
   <p class="authors">Kesem Abramov<a class="orcid" href="https://orcid.org/0000-0001-9652-2548" target="_blank" rel="noopener" aria-label="ORCID iD"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="128" cy="128" r="128" fill="#A6CE39"/><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM78.6 66.9a9.6 9.6 0 1 1 0-19.2 9.6 9.6 0 0 1 0 19.2zM124.3 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7 0-21.5-13.7-39.7-43.7-39.7h-23.7v79.4z"/></svg></a>, Shir Miryam Nehoray<a class="orcid" href="https://orcid.org/0009-0001-8453-4426" target="_blank" rel="noopener" aria-label="ORCID iD"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="128" cy="128" r="128" fill="#A6CE39"/><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM78.6 66.9a9.6 9.6 0 1 1 0-19.2 9.6 9.6 0 0 1 0 19.2zM124.3 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7 0-21.5-13.7-39.7-43.7-39.7h-23.7v79.4z"/></svg></a>, Rami Puzis<a class="orcid" href="https://orcid.org/0000-0002-7229-3899" target="_blank" rel="noopener" aria-label="ORCID iD"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="128" cy="128" r="128" fill="#A6CE39"/><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM78.6 66.9a9.6 9.6 0 1 1 0-19.2 9.6 9.6 0 0 1 0 19.2zM124.3 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7 0-21.5-13.7-39.7-43.7-39.7h-23.7v79.4z"/></svg></a>, Peter J. Mucha<a class="orcid" href="https://orcid.org/0000-0002-0648-7230" target="_blank" rel="noopener" aria-label="ORCID iD"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="128" cy="128" r="128" fill="#A6CE39"/><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM78.6 66.9a9.6 9.6 0 1 1 0-19.2 9.6 9.6 0 0 1 0 19.2zM124.3 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7 0-21.5-13.7-39.7-43.7-39.7h-23.7v79.4z"/></svg></a> &amp; Shai Pilosof<a class="orcid" href="https://orcid.org/0000-0003-0430-5568" target="_blank" rel="noopener" aria-label="ORCID iD"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="128" cy="128" r="128" fill="#A6CE39"/><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM78.6 66.9a9.6 9.6 0 1 1 0-19.2 9.6 9.6 0 0 1 0 19.2zM124.3 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7 0-21.5-13.7-39.7-43.7-39.7h-23.7v79.4z"/></svg></a> (2026)</p>
+  <p class="preprint"><span class="venue">Preprint</span><a href="https://doi.org/10.32942/X2JD60" target="_blank" rel="noopener">EcoEvoRxiv &middot; doi.org/10.32942/X2JD60</a></p>
   <details class="foldcard" id="abstractCard">
     <summary>Abstract<span class="foldx" title="Collapse" aria-hidden="true">&times;</span></summary>
     <div class="fold-body">
