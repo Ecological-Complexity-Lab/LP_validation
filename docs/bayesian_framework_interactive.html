@@ -183,7 +183,7 @@
   .setuptab .st-val{display:block;font-size:13px;font-weight:600;color:var(--text);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .setuptab.on .st-val{color:var(--accent-d)}
-  /* the eight-weight editor does not apply on the informative-prior version, which
+  /* the eight-weight editor does not apply on the informed-prior version, which
      sets its own prior, so the tile is disabled there rather than silently ignored */
   .setuptab[disabled]{cursor:default;background:#f7f8fa}
   .setuptab[disabled]:hover{background:#f7f8fa}
@@ -273,13 +273,15 @@
     deterministic, but every source is error-prone, so it carries uncertainty. The framework therefore treats the true
     category C as unknown and returns a posterior P(C | E) over the eight.
     <br><br>
-    <b>Scope:</b> the upper panels follow the simplest version of the framework — binary evidence, one
-    symmetric error rate per source, a uniform prior, and independent errors. The two lower panels follow the grounded
-    and cumulative version, where the local axis errs at different rates in each direction and the
-    replicate count is retained. Throughout, the illustrative rates are
+    <b>Scope:</b> the three tabs below the setup cards are alternative versions of the framework, one shown at a
+    time. <i>The simple version</i> takes binary evidence, one symmetric error rate per source, a uniform prior, and
+    independent errors. <i>Extension: many replicates</i> relaxes two of those: the replicate evidence keeps its full
+    quantitative count n, and the local axis can err at a different rate in each direction.
+    <i>Extension: informed priors</i> replaces the uniform prior with ecological belief about the species pair,
+    regionally (π<sub>r</sub>) and at the site (π<sub>l</sub>). Throughout, the rates start at
     ε<sub>Y</sub>&nbsp;=&nbsp;0.2, ε<sub>l</sub>&nbsp;=&nbsp;0.3, ε<sub>r</sub>&nbsp;=&nbsp;0.1, ρ&nbsp;=&nbsp;0.15
     and f&nbsp;=&nbsp;0.05, chosen to show the behaviour of the framework rather than to describe any particular
-    system.
+    system, and each is adjustable with the sliders.
     <br><br>
     <b>How to use:</b> pick a category on the taxonomy tree. Its error-free signature
     <code id="sigCode">z_c = (1, 0, 1)</code> becomes the observed evidence E, and the confidence in that label is
@@ -321,8 +323,8 @@
         </div>
       </div>
       <div class="sq-out">
-        <div class="sq-num" style="color:var(--muted)"><span id="sqApp">80.0%</span><span class="cap">apparent — what CV says</span></div>
-        <div class="sq-num" id="sqRealWrap"><span id="sqReal">69.5%</span><span class="cap">real — against the truth</span></div>
+        <div class="sq-num" style="color:var(--muted)"><span id="sqApp">80.0%</span><span class="cap">apparent accuracy — what CV says</span></div>
+        <div class="sq-num" id="sqRealWrap"><span id="sqReal">69.5%</span><span class="cap">real accuracy — against the truth</span></div>
         <div class="sq-num" style="font-size:19px;color:var(--text)"><span id="sqErrs">–</span><span class="cap">of Y against the ground truth</span></div>
         <button class="info inl" data-info="sqmath" aria-label="How these numbers are calculated">i</button>
         <div class="sq-presets">
@@ -396,7 +398,7 @@
         </div>
       </div>
       <button class="reset" id="reset">Reset to the illustrative rates (0.20 / 0.30 / 0.10)</button>
-      <p class="hint" style="margin:10px 0 0">ε<sub>Y</sub> and ε<sub>l</sub> drive both versions below.
+      <p class="hint" style="margin:10px 0 0">ε<sub>Y</sub> and ε<sub>l</sub> drive all versions below.
       ε<sub>r</sub> belongs to the simple version only: the extension replaces it with ρ and f, and lets the local
       axis err at a different rate in each direction.</p>
     </div>
@@ -407,7 +409,7 @@
     <div class="seg-wrap" id="verSeg">
       <button type="button" class="seg active" data-ver="simple">The simple version</button>
       <button type="button" class="seg" data-ver="ext">Extension: many replicates</button>
-      <button type="button" class="seg" data-ver="prior">Extension: informative priors</button>
+      <button type="button" class="seg" data-ver="prior">Extension: informed priors</button>
     </div>
     <p id="verLede" style="margin-top:11px"></p>
   </div>
@@ -577,7 +579,7 @@
 
   <div id="priorSec" style="display:none">
   <div class="card">
-    <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informative prior on the two ecological truths</span></h2>
+    <h2>Which source explains the evidence? <button class="info" data-info="priorl" aria-label="About this panel">i</button> <span style="font-weight:400;color:var(--muted)">— an informed prior on the two ecological truths</span></h2>
     <p class="hint"><b>Drag the marker.</b> The plot on the right follows all four categories along the dotted
     diagonal path through the marker: read it for how big a shift in belief it takes to change the answer. Evidence
     and error rates stay fixed. The vertical orange line on the right plot corresponds to the marker on the left
@@ -1263,7 +1265,7 @@ function drawEffort(){
 }
 
 // =====================================================================
-// Informative priors (SI fig. prior_l). The prior takes the SI's product
+// Informed priors (SI fig. prior_l). The prior takes the SI's product
 // form, one Bernoulli probability per truth. The three are NOT a
 // distribution over three outcomes and do not sum to one; what sums to one
 // is the prior over the eight categories, automatically:
@@ -1566,7 +1568,7 @@ document.getElementById('verSeg').addEventListener('click',e=>{
   const b=e.target.closest('.seg'); if(!b)return;
   setVersion(b.getAttribute('data-ver'));
 });
-// ---- informative-prior controls ----
+// ---- informed-prior controls ----
 function syncPriorLabels(){
   document.getElementById('vPiR').textContent=piR.toFixed(2);
   document.getElementById('vPiL').textContent=piL.toFixed(2);
@@ -1660,7 +1662,7 @@ document.getElementById('setupTabs').addEventListener('click',e=>{
 // tile summaries, refreshed whenever anything they report changes
 function syncSetupTabs(){
   document.getElementById('stCat').textContent=selected;
-  // On the informative-prior version the eight weights are not what drives the panels:
+  // On the informed-prior version the eight weights are not what drives the panels:
   // that section sets its own prior from pi_Y, pi_l and pi_r. Disable the tile there and
   // say so, rather than leaving an editor on screen that nothing below responds to.
   const pt=document.querySelector('.setuptab[data-panel="prior"]'), off=(version==='prior');
@@ -1849,7 +1851,7 @@ const INFO={
     The two off-diagonal entries are not symmetric in origin: the false negative carries the ecological failure to
     be realised together with the methodological failure to detect, whereas the false positive is methodological
     alone. The extension takes this route, replacing ε<sub>r</sub> with ρ and f.</div>`},
-  priorl:{title:'An informative prior on the two ecological truths',html:`
+  priorl:{title:'An informed prior on the two ecological truths',html:`
     <p>The evidence is fixed. What changes is what we believed <b>before</b> seeing it, and the point of this panel
     is that the belief can change <i>which source erred</i> rather than merely how sure we are.</p>
     <p><b>The ecology.</b> Ecological networks have low connectance and skewed degree distributions: most pairs do
