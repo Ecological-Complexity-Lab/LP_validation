@@ -271,42 +271,202 @@ comparison <- result %>%
 
 print(comparison)
 
-# --- 6b. FIGURE 1: the confidence matrix ----------------------------------
-# Shai's plot. One panel per site. Rows are plants, columns pollinators, both
-# ordered by regional degree so the nested core sits in the top-left. Fill is
-# the posterior probability of ONE chosen category. Recurrent links in the
-# core should be near-white; the possibly missing links should light up in the
-# sparse periphery.
+# =============================================================================
+# 6b. CONFIDENCE MAPS
+#
+# Drop-in replacement for the Figure 1 block in bayesian_empirical_example.R.
+# Paste over the existing "--- 6b. FIGURE 1 ---" section, or source this file
+# after `result` has been built.
+#
+# Three plots:
+#   map_all       all six sites, each showing only its own species
+#   map_rich      the richest site, hue = category, ALPHA = posterior
+#   map_rich_grad the richest site, single category, white -> colour
+#
+# map_rich is the one worth building the figure around. It keeps the exact
+# palette and layout of the published categorical map, so a reader who knows
+# that figure reads this one instantly. The only change is that each cell now
+# fades in proportion to how confident we are in the label it carries. Solid
+# cells are well-evidenced. Ghostly cells are guesses wearing a category name.
+# =============================================================================
 
-FOCAL_CATEGORY <- "possibly missing"   # change to view any of the eight
+## --- palette, copied from serra_marin_link_classification_clean.R ----------
+
+map_display_levels <- c(
+  "Locally unique", "Recurrent",
+  "Phantom — have evidence", "Phantom — no evidence",
+  "Possibly missing", "Weakly-supported", "Model elusive",
+  "Possibly forbidden — have evidence", "Possibly forbidden — no evidence",
+  "Locally absent"
+)
+
+map_colors <- c(
+  "Recurrent"                          = "#C05030",
+  "Model elusive"                      = "#8A3050",
+  "Possibly missing"                   = "#DBA040",
+  "Locally absent"                     = "#F9C8B0",
+  "Locally unique"                     = "#B0C4DE",
+  "Weakly-supported"                   = "#E8A8B8",
+  "Phantom — no evidence"              = "#D5C8F0",
+  "Possibly forbidden — no evidence"   = "#5E3DA0",
+  "Phantom — have evidence"            = "#76C7C0",
+  "Possibly forbidden — have evidence" = "#1F7E72"
+)
+
+## --- 1. attach the confidence in each link's OWN category ------------------
+# For every link, pull the posterior column that matches its deterministic
+# label. This single number is what drives the transparency.
+
+post_mat <- as.matrix(result[, cats$category])
+
+map_df <- result %>%
+  mutate(
+    conf_det = post_mat[cbind(seq_len(nrow(post_mat)),
+                              match(det_category, cats$category))]
+  ) %>%
+  # camera corroboration, needed for the have/no evidence split in the palette
+  left_join(cam, by = c("pollinator" = "higher_level",
+                        "plant"      = "lower_level",
+                        "focal_site" = "focal_site")) %>%
+  mutate(
+    add_obs = !is.na(cam) & cam == 1,
+    link_display = factor(case_when(
+      det_category == "phantom"            &  add_obs ~ "Phantom — have evidence",
+      det_category == "phantom"            & !add_obs ~ "Phantom — no evidence",
+      det_category == "possibly forbidden" &  add_obs ~ "Possibly forbidden — have evidence",
+      det_category == "possibly forbidden" & !add_obs ~ "Possibly forbidden — no evidence",
+      det_category == "recurrent"        ~ "Recurrent",
+      det_category == "locally unique"   ~ "Locally unique",
+      det_category == "possibly missing" ~ "Possibly missing",
+      det_category == "model-elusive"    ~ "Model elusive",
+      det_category == "weakly supported" ~ "Weakly-supported",
+      det_category == "locally absent"   ~ "Locally absent"
+    ), levels = map_display_levels)
+  )
+
+## --- 2. species ordering ---------------------------------------------------
+# Order by degree pooled across ALL sites, so a generalist sits in the same
+# place in every panel. Within a site we then keep only the species present
+# there, which is just a matter of dropping unused factor levels.
 
 pol_order <- deg_by_site %>% count(higher_level, sort = TRUE) %>% pull(higher_level)
 pla_order <- deg_by_site %>% count(lower_level,  sort = TRUE) %>% pull(lower_level)
 
-fig1 <- result %>%
+map_df <- map_df %>%
   mutate(
     pollinator = factor(pollinator, levels = pol_order),
-    plant      = factor(plant,      levels = rev(pla_order)),
-    conf       = .data[[FOCAL_CATEGORY]]
-  ) %>%
-  ggplot(aes(pollinator, plant, fill = conf)) +
-  geom_tile(colour = "grey92", linewidth = 0.1) +
-  facet_wrap(~ focal_site, ncol = 3) +
-  scale_fill_gradient(low = "white", high = "#31688E",
-                      limits = c(0, 1), name = "Posterior") +
-  labs(
-    title = paste0("Confidence that each candidate link is ", FOCAL_CATEGORY),
-    x = "Pollinator (ordered by regional degree)",
-    y = "Plant (ordered by regional degree)"
-  ) +
-  theme_minimal(base_size = 8) +
+    plant      = factor(plant,      levels = rev(pla_order))
+  )
+
+# italic species labels, as in the published map
+ital <- function(x) lapply(strsplit(x, " "),
+                           function(y) bquote(italic(.(paste(y, collapse = " ")))))
+
+## --- 3. the richest site ---------------------------------------------------
+
+richness <- map_df %>%
+  filter(O_l == 1) %>%
+  group_by(focal_site) %>%
+  summarise(n_plants      = n_distinct(plant),
+            n_pollinators = n_distinct(pollinator),
+            n_species     = n_plants + n_pollinators,
+            .groups = "drop") %>%
+  arrange(desc(n_species))
+
+print(richness)
+
+RICH_SITE <- richness$focal_site[1]     # "Rocky coastal 1": 11 plants, 46 pollinators
+cat(sprintf("\nRichest site: %s\n", RICH_SITE))
+
+# droplevels() is what restricts the axes to species present at this site.
+# The candidate set is the full plant x pollinator grid per site, so the panel
+# comes out as a complete rectangle with no empty rows or columns.
+rich_df <- map_df %>% filter(focal_site == RICH_SITE) %>% droplevels()
+
+## --- 4. MAP_RICH: category hue, posterior transparency ---------------------
+# The ceiling on contextual confidence (kappa, about 0.43 here) means no cell
+# will ever be fully opaque on a 0-1 alpha scale. Mapping alpha over the
+# observed range instead keeps the figure readable, but the legend must then
+# say what the top of the scale actually is. Do not quietly rescale to 1.
+
+ALPHA_MAX <- max(rich_df$conf_det)
+cat(sprintf("alpha scale runs 0 to %.2f (the highest posterior at this site)\n",
+            ALPHA_MAX))
+
+map_rich <- ggplot(rich_df, aes(x = pollinator, y = plant,
+                                fill = link_display, alpha = conf_det)) +
+  geom_tile(colour = "white", linewidth = 0.4) +
+  scale_fill_manual(values = map_colors, name = "Link category", drop = FALSE) +
+  scale_alpha_continuous(range = c(0.08, 1), limits = c(0, ALPHA_MAX),
+                         name = "Posterior\nconfidence") +
+  guides(fill = guide_legend(override.aes = list(alpha = 1))) +
+  labs(x = "Pollinator", y = "Plant",
+       title = paste0(RICH_SITE, ": category and confidence")) +
+  scale_x_discrete(labels = ital) +
+  scale_y_discrete(labels = ital) +
+  theme_minimal() +
   theme(
-    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 3),
-    axis.text.y = element_text(size = 4),
+    axis.text.x  = element_text(size = 11, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y  = element_text(size = 11),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text  = element_text(size = 12),
+    panel.grid   = element_blank()
+  )
+
+map_rich
+ggsave("fig_map_rich_confidence.pdf", map_rich, width = 14, height = 7)
+
+## --- 5. MAP_RICH_GRAD: one category, white to colour ----------------------
+# Shai's original request. Cleaner for a single message, and the only version
+# that shows the posterior for a category a link was NOT assigned to.
+
+FOCAL_CATEGORY <- "possibly missing"
+
+map_rich_grad <- rich_df %>%
+  mutate(conf = .data[[FOCAL_CATEGORY]]) %>%
+  ggplot(aes(x = pollinator, y = plant, fill = conf)) +
+  geom_tile(colour = "grey90", linewidth = 0.4) +
+  scale_fill_gradient(low = "white", high = unname(map_colors["Possibly missing"]),
+                      limits = c(0, ALPHA_MAX), name = "Posterior") +
+  labs(x = "Pollinator", y = "Plant",
+       title = paste0(RICH_SITE, ": confidence that each link is ",
+                      FOCAL_CATEGORY)) +
+  scale_x_discrete(labels = ital) +
+  scale_y_discrete(labels = ital) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 11, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(size = 11),
     panel.grid  = element_blank()
   )
 
-ggsave("fig_confidence_matrix.pdf", fig1, width = 14, height = 9)
+map_rich_grad
+ggsave("fig_map_rich_gradient.pdf", map_rich_grad, width = 14, height = 7)
+
+## --- 6. MAP_ALL: all six sites, each with its own species -----------------
+# scales = "free" is what lets each panel drop the species it does not have.
+# Panels come out at different sizes; space = "free" in facet_grid would fix
+# that but only for a single row, so facet_wrap with free scales is the
+# practical choice for six panels.
+
+map_all <- ggplot(map_df, aes(x = pollinator, y = plant,
+                              fill = link_display, alpha = conf_det)) +
+  geom_tile(colour = "white", linewidth = 0.2) +
+  facet_wrap(~ focal_site, ncol = 2, scales = "free") +
+  scale_fill_manual(values = map_colors, name = "Link category", drop = FALSE) +
+  scale_alpha_continuous(range = c(0.08, 1),
+                         limits = c(0, max(map_df$conf_det)),
+                         name = "Posterior\nconfidence") +
+  guides(fill = guide_legend(override.aes = list(alpha = 1))) +
+  labs(x = "Pollinator", y = "Plant") +
+  theme_minimal(base_size = 8) +
+  theme(
+    axis.text.x = element_text(size = 4, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(size = 5),
+    panel.grid  = element_blank()
+  )
+
+ggsave("fig_map_all_sites.pdf", map_all, width = 16, height = 20, limitsize = FALSE)
 
 # --- 6c. FIGURE 2: phase space over the two free rates --------------------
 # Shai's second suggestion. eps_l and f are the two rates we are least sure
