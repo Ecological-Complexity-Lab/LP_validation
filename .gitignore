@@ -11,3 +11,6 @@ main.tex
 SI.tex
 code/predictions_island_scale.rds
 **/.DS_Store
+.Rhistory
+main_NEE.tex
+SI_NEE.tex
