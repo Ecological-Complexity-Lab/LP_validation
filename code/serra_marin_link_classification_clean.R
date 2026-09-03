@@ -960,7 +960,7 @@ map_rich
 # )
 # map_rich
 # dev.off()
-#
+# 
 # ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
 #        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
 

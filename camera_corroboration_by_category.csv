@@ -1,0 +1,5 @@
+det_category,n_links,confirmed,rate
+possibly missing,34,13,0.38235294117647056
+locally absent,94,20,0.2127659574468085
+phantom,74,11,0.14864864864864866
+possibly forbidden,452,45,0.09955752212389381
