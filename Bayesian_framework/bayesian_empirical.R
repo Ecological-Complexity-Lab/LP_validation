@@ -292,7 +292,12 @@ cat("       is the point of SI Fig. S9.\n")
 #                     derives, but separable for sensitivity
 #   eps_r             optional free-standing replicate rate; scalar or a pair
 #   count             TRUE keeps n, FALSE collapses it to O_r = 1[n >= 1]
-#   pi_Y, pi_l, pi_r  prior for each truth bit; scalars or vectors
+#   pi_Y, pi_l, pi_r  prior for each truth bit; scalars or vectors. All three
+#                     at 0.5 gives 1/8 per category, the uniform prior. A bit
+#                     set to 0.5 contributes the same factor to all eight
+#                     categories and cancels in the normalisation, which is
+#                     why pi_Y = 0.5 means the model enters only through the
+#                     likelihood.
 #   s                 1 = model as evidence, 0 = model as prior. SI Section S8:
 #                     the two are exclusive, using both counts the model twice.
 #
@@ -369,7 +374,7 @@ kappa <- function(eps_Y, eps_l, f) (1 - eps_Y) * (1 - f) / ((1 - f) + eps_l)
 # =============================================================================
 # 5. CHECKING THE FUNCTION AGAINST THE SI
 # =============================================================================
-# The function is checked against the numbers printed in the SI, not against a
+# The master function is checked against the numbers printed in the SI, not against a
 # second implementation. If it reproduces all of them, the manuscript and the
 # code cannot drift apart.
 
@@ -380,34 +385,34 @@ check <- function(label, got, want, tol = 0.05) {
 
 cat("\nVALIDATION AGAINST THE SI\n")
 
-# Table S3: symmetric rates, binary evidence, uniform prior
+# Table S4: symmetric rates, binary evidence, uniform prior
 p <- posterior(1, 0, n = 1, R = 1, eps_Y = 0.2, eps_l = 0.3, f = 0.3,
                eps_r = 0.1, count = FALSE)
-check("Table S3  possibly missing", 100 * p[, "possibly missing"], 50.4)
-check("Table S3  recurrent",        100 * p[, "recurrent"],        21.6)
-check("Table S3  locally absent",   100 * p[, "locally absent"],   12.6)
-check("Table S3  phantom",          100 * p[, "phantom"],           5.6)
-check("Table S3  feasibility phi",  100 * feasibility(p),          93.0)
+check("Table S4  possibly missing", 100 * p[, "possibly missing"], 50.4)
+check("Table S4  recurrent",        100 * p[, "recurrent"],        21.6)
+check("Table S4  locally absent",   100 * p[, "locally absent"],   12.6)
+check("Table S4  phantom",          100 * p[, "phantom"],           5.6)
+check("Table S4  feasibility phi",  100 * feasibility(p),          93.0)
 
-# Section S5: directional rates, rho = 0.15 so p1 = 0.105, R = 5
+# Section S4: directional rates, rho = 0.15 so p1 = 0.105, R = 5
 p <- posterior(1, 0, n = 1, R = 5, eps_Y = 0.2, eps_l = 0.3, f = 0.05,
                p1bar = 0.105, nu = Inf, count = FALSE)
-check("Section S5  possibly missing", 100 * p[, "possibly missing"], 39.7)
-check("Section S5  phantom",          100 * p[, "phantom"],          21.1)
-check("Section S5  feasibility phi",  100 * feasibility(p),          73.6)
+check("Section S4  possibly missing", 100 * p[, "possibly missing"], 39.7)
+check("Section S4  phantom",          100 * p[, "phantom"],          21.1)
+check("Section S4  feasibility phi",  100 * feasibility(p),          73.6)
 
-# Fig. S5a: cumulative count, detected in every replicate
+# Fig. S4a: cumulative count, detected in every replicate
 for (R in c(1, 3, 5)) {
   p <- posterior(1, 0, n = R, R = R, eps_Y = 0.2, eps_l = 0.3, f = 0.05,
                  p1bar = 0.105, nu = Inf)
-  check(sprintf("Fig. S5a  n = R = %d", R), 100 * p[, "possibly missing"],
+  check(sprintf("Fig. S4a  n = R = %d", R), 100 * p[, "possibly missing"],
         c(41.2, 54.9, 59.3)[match(R, c(1, 3, 5))])
 }
 
 # R = 0: no replicate term, so the categories pair up and split at kappa / 2
 p <- posterior(1, 0, n = 0, R = 0, eps_Y = 0.2, eps_l = 0.3, f = 0.05,
                p1bar = 0.105, nu = Inf)
-check("Fig. S5   R = 0 gives kappa / 2", 100 * p[, "possibly missing"],
+check("Fig. S4   R = 0 gives kappa / 2", 100 * p[, "possibly missing"],
       100 * kappa(0.2, 0.3, 0.05) / 2)
 check("kappa at the SI illustrative rates", 100 * kappa(0.2, 0.3, 0.05), 60.8)
 
@@ -426,38 +431,96 @@ cat("  No link can exceed this, however many replicates are added.\n")
 # SI Section S8 forbids doing both at once, so these are separate runs.
 # Comparing A with B is Fig. S9 on real data.
 
+
 # --- the degree prior -------------------------------------------------------
-# Degree is read off the network, so it is already part of the evidence. We
-# compute it from the five non-focal sites, which keeps prior and evidence
-# disjoint. Co-occurrence is deliberately left out: it already lives in rho,
-# and Table S6 warns against counting the same knowledge twice.
+# WHAT THIS DOES. Before looking at the evidence for a link, what should we
+# believe about it? Degree answers both bits, with no free parameters.
+#
+#   pi_l  is it realised HERE? Under a configuration model, a pair with
+#         degrees d1 and d2 in a network of L links connects at rate d1*d2/L.
+#   pi_r  is it realisable ANYWHERE in the replicates? Same per-site chance,
+#         R chances instead of one: 1 - (1 - pi_l)^R.
+#
+# There is no transfer ratio to set. The relationship between the two priors
+# is derived from R, not assumed.
+#
+# Degrees come from the five non-focal sites, so the prior never sees the
+# evidence it is about to be combined with. R is nominal (5), matching the
+# decision that every site is a replicate; co-occurrence stays in rho.
 
-PI_L <- c(0.05, 0.50)   # prior that the link is realised here
-PI_R <- c(0.10, 0.80)   # prior that it is realisable in the replicates
+R_NOMINAL <- 5
 
-degrees <- obs %>%
-  filter(ground_truth == 1) %>%
+links <- obs %>% filter(ground_truth == 1) %>%
   distinct(focal_site, higher_level, lower_level)
 
 regional <- ev %>%
   distinct(focal_site, pollinator, plant) %>%
-  left_join(count(degrees, focal_site, higher_level, name = "d_here_pol"),
-            by = c("focal_site", "pollinator" = "higher_level")) %>%
-  left_join(count(degrees, higher_level, name = "d_all_pol"),
+  left_join(count(links, higher_level, name = "d_pol_all"),
             by = c("pollinator" = "higher_level")) %>%
-  left_join(count(degrees, focal_site, lower_level, name = "d_here_pla"),
-            by = c("focal_site", "plant" = "lower_level")) %>%
-  left_join(count(degrees, lower_level, name = "d_all_pla"),
+  left_join(count(links, focal_site, higher_level, name = "d_pol_here"),
+            by = c("focal_site", "pollinator" = "higher_level")) %>%
+  left_join(count(links, lower_level, name = "d_pla_all"),
             by = c("plant" = "lower_level")) %>%
-  mutate(across(starts_with("d_"), ~ replace_na(.x, 0)),
-         d_pol = d_all_pol - d_here_pol,      # degree excluding this site
-         d_pla = d_all_pla - d_here_pla,
-         g = (d_pol / max(d_pol)) * (d_pla / max(d_pla)),   # both generalists
-         pi_l_deg = PI_L[1] + (PI_L[2] - PI_L[1]) * g,
-         pi_r_deg = PI_R[1] + (PI_R[2] - PI_R[1]) * g) %>%
-  select(focal_site, pollinator, plant, d_pol, d_pla, g, pi_l_deg, pi_r_deg)
+  left_join(count(links, focal_site, lower_level, name = "d_pla_here"),
+            by = c("focal_site", "plant" = "lower_level")) %>%
+  left_join(count(links, focal_site, name = "L_here"), by = "focal_site") %>%
+  mutate(across(starts_with(c("d_", "L_")), ~ replace_na(.x, 0)),
+         d_pol = d_pol_all - d_pol_here,
+         d_pla = d_pla_all - d_pla_here,
+         L_reg = nrow(links) - L_here,
+         pi_l_deg = pmin(d_pol * d_pla / L_reg, 0.99),
+         pi_r_deg = 1 - (1 - pi_l_deg)^R_NOMINAL) %>%
+  select(focal_site, pollinator, plant, d_pol, d_pla, pi_l_deg, pi_r_deg)
 
 ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
+
+# ---- run scenarios ----
+
+# --- the four runs ----------------------------------------------------------
+# Two things can be varied independently, so we run all four combinations.
+#
+# AXIS 1: where the model goes.
+#   A "evidence"  We use the model's hard call Y, and the likelihood pays a
+#                 price eps_Y whenever Y disagrees with a category. pi_Y is
+#                 then 1/2, which contributes the same factor to all eight
+#                 categories and cancels in the normalisation. The model
+#                 speaks once, through the likelihood.
+#   B "prior"     We use the calibrated score q instead. pi_Y = q tilts the
+#                 prior towards the four model-says-yes categories in
+#                 proportion to how confident the model is, and the model
+#                 factor is switched off in the likelihood. The model speaks
+#                 once, through the prior.
+#
+#   These cannot be combined. SI Section S8: Y is q thresholded, so using both
+#   would count the same model twice. The `s` argument enforces it.
+#
+#   The practical difference is the 147 links that are predicted (Y = 1) yet
+#   calibrate below 0.5. Run A treats them exactly like any other predicted
+#   link. Run B treats them as slightly more likely absent than present. This
+#   is Fig. S9 on real data.
+#
+# AXIS 2: what we assume about the other two bits before seeing any evidence.
+#   "uniform"  pi_l = pi_r = 1/2. Since each category is one combination of
+#              the three bits, this gives (1/2)^3 = 1/8 to every category, so
+#              it IS the uniform prior over the eight. Note what uniformity
+#              implies: four of the eight categories have z_l = 1, so a
+#              uniform prior necessarily believes a candidate link is realised
+#              here with probability 1/2, against an observed rate of 0.24.
+#              That is not an extra assumption, it is what uniform means here,
+#              and it is a reason to run the degree prior alongside.
+#   "degree"   pi_l and pi_r from the configuration model above. Two
+#              generalists start higher than two specialists, and the mean
+#              pi_l of 0.09 is conservative against the observed 0.24.
+#
+# WHAT THE COMPARISONS ANSWER.
+#   A-uniform            the baseline, and the direct counterpart of the
+#                        deterministic categorisation
+#   A-uniform vs A-degree   how much does ecological prior information move
+#                        the answer, holding the model's role fixed?
+#   A-uniform vs B-uniform  how much does keeping the model's score instead of
+#                        its threshold move the answer, holding the prior
+#                        fixed?
+#   B-degree             both together, the most informed run
 
 run_settings <- list(
   "A-uniform" = list(model_as = "evidence", pi_Y = 0.5,
@@ -509,7 +572,7 @@ results <- imap_dfr(run_settings, function(cfg, run_name) {
     )
 })
 
-write_csv(results, file.path(OUT_DIR, "posteriors.csv"))
+write_csv(results, file.path(OUT_DIR, "posteriors_bayesian_example.csv"))
 
 # --- headline table: hard counts against expected counts -------------------
 # The deterministic version puts each link in one box; the posterior spreads
@@ -517,7 +580,8 @@ write_csv(results, file.path(OUT_DIR, "posteriors.csv"))
 
 cat("\nDETERMINISTIC COUNT vs EXPECTED COUNT (run A-uniform)\n")
 
-one <- filter(results, run == "A-uniform")
+one <- filter(results, run == "A-uniform") # B-degree, the most realistic model,
+# gives the closest results to the deterministic categorisation
 
 left_join(
   count(one, category = det_category, name = "deterministic"),
@@ -574,7 +638,7 @@ cat(sprintf("\n  Expected 'possibly missing' ranges %.1f to %.1f as f goes 0 to 
 # ordering and same look as map_richest_site in the deterministic script, so
 # the two can be laid side by side. An asterisk marks links the cameras found.
 
-MAP_RUN      <- "A-uniform"          # the direct counterpart of the hard map. Switch to A-degree, B-uniform, B-degree if desirable
+MAP_RUN      <- "B-uniform"          # the direct counterpart of the hard map is A-uniform. Switch to A-degree, B-uniform, B-degree if desirable
 MAP_CATEGORY <- "possibly missing"
 
 richest <- ev %>%
@@ -585,8 +649,8 @@ richest <- ev %>%
 
 # order species by overall degree, as in the deterministic map, then keep only
 # those present at this site
-pol_levels <- degrees %>% count(higher_level, sort = TRUE) %>% pull(higher_level)
-pla_levels <- degrees %>% count(lower_level,  sort = TRUE) %>% pull(lower_level)
+pol_levels <- links %>% count(higher_level, sort = TRUE) %>% pull(higher_level)
+pla_levels <- links %>% count(lower_level,  sort = TRUE) %>% pull(lower_level)
 
 map_df <- results %>%
   filter(run == MAP_RUN, focal_site == richest) %>%
