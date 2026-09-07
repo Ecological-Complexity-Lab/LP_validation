@@ -1,4 +1,4 @@
-# Bayesian categorisation of predicted links: the Cabrera worked example
+# ---- Bayesian reading of of predicted links taxonomy: the Cabrera worked example ----
 #
 # Every candidate link gets eight posterior probabilities, one per category,
 # instead of a single hard label.
@@ -89,11 +89,21 @@ ev <- ev %>%
 # ---- 2. The rates ----
 
 # --- eps_Y: model error -----------------------------------------------------
-# 1 - balanced accuracy. This equals the mean of the two directional error
-# rates, so it is a rate measured at the threshold actually used, and it is
-# symmetric, which is what SI Table S4 asks for. Table S1 defines this error
-# against the observations; whether the observations are the truth is handled
-# downstream by eps_l and f, so it is not also a concern here.
+# Cross-validation returns delta, the error of Y against the OBSERVATIONS, not
+# eps_Y, its error against the truth-fitted prediction. No held-out set can
+# give eps_Y, so delta is the stand-in, as the SI prescribes. It understates
+# the model error, leaving the posterior somewhat overconfident. The SI wants a
+# blocked delta; these predictions are leave-one-out by site, so this one is. 
+# Here we use 1 - balanced accuracy as delta.
+#
+# Symmetric here, directional elsewhere, following the SI: it makes the two
+# OBSERVATION axes directional (eps_l vs f, p1 vs p0) and carries the model as
+# one rate. So this returns 1 - balanced accuracy and posterior() expands the
+# scalar to both directions. That also keeps kappa as the SI prints it, since
+# its (1-eps_Y) factor equals P(z_Y=1 | Y=1) only under symmetry. The two
+# directions are far apart here (false negative 0.43, false positive 0.13);
+# passing eps_Y = c(0.43, 0.13) instead raises kappa to 0.60 and expected
+# possibly missing from 166 to 194.
 
 estimate_eps_Y <- function(d) {
   tp <- sum(d$ground_truth == 1 & d$prediction == 1)
@@ -353,8 +363,25 @@ posterior <- function(Y, O_l, n, R,
 # feasibility confidence: realised locally, or realisable somewhere else
 feasibility <- function(post) 1 - rowSums(post[, NOT_FEASIBLE, drop = FALSE])
 
-# maximum contextual confidence, directional form with O_l = 0 (Fig. S3)
-kappa <- function(eps_Y, eps_l, f) (1 - eps_Y) * (1 - f) / ((1 - f) + eps_l)
+# Maximum contextual confidence. Under asymmetric rates the SI gives kappa in
+# TWO branches, because the ceiling depends on which way the local observation
+# ran (SI, glossary entry for kappa):
+#
+#   O_l = 0   (1 - eps_Y)(1 - f)     / ((1 - f)     + eps_l)
+#   O_l = 1   (1 - eps_Y)(1 - eps_l) / ((1 - eps_l) + f)
+#
+# They differ because a non-detection is weak evidence of absence when f is
+# small, whereas a detection is strong evidence of presence. With the rates
+# fitted here the two are 0.533 and 0.673, so a single number would misstate
+# the ceiling for half the dataset: links recorded locally legitimately reach
+# 0.672, which is above the O_l = 0 branch but below their own.
+# The default is O_l = 0, which is the case the SI illustrates throughout and
+# the one the accumulation figures use.
+kappa <- function(eps_Y, eps_l, f, O_l = 0) {
+  ifelse(O_l == 0,
+         (1 - eps_Y) * (1 - f)     / ((1 - f)     + eps_l),
+         (1 - eps_Y) * (1 - eps_l) / ((1 - eps_l) + f))
+}
 
 
 # ---- 5. Checking the function against the SI ----
@@ -474,7 +501,7 @@ ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
 #   These cannot be combined. SI Section S8: Y is q thresholded, so using both
 #   would count the same model twice. The `s` argument enforces it.
 #
-#   The practical difference is the 147 links that are predicted (Y = 1) yet
+#   The practical difference is the 148 links that are predicted (Y = 1) yet
 #   calibrate below 0.5. Run A treats them exactly like any other predicted
 #   link. Run B treats them as slightly more likely absent than present. This
 #   is Fig. S9 on real data.
@@ -489,8 +516,11 @@ ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
 #              That is not an extra assumption, it is what uniform means here,
 #              and it is a reason to run the degree prior alongside.
 #   "degree"   pi_l and pi_r from the configuration model above. Two
-#              generalists start higher than two specialists, and the mean
-#              pi_l of 0.09 is conservative against the observed 0.24.
+#              generalists start higher than two specialists. Its mean pi_l is
+#              0.23, essentially the observed local rate of 0.24, so on average
+#              it is neither conservative nor generous. What it changes is the
+#              SPREAD: specialist pairs move down and generalist pairs up,
+#              where the uniform prior puts every pair at 1/2.
 #
 # WHAT THE COMPARISONS ANSWER.
 #   A-uniform            the baseline, and the direct counterpart of the
@@ -808,7 +838,7 @@ camera_mark_summary <- function(run = "A-uniform", site = richest,
     arrange(desc(rate_covered), desc(confirmed))
 }
 
-MARK_RUN <- "A-degree"
+MARK_RUN <- "A-uniform"
 mark_tbl <- camera_mark_summary(MARK_RUN)
 
 cat(sprintf("\nCAMERA CORROBORATION AT %s (run %s)\n", richest, MARK_RUN))
@@ -823,21 +853,66 @@ mark_tbl %>%
                                 sprintf("%.1f%%", 100 * rate_covered))) %>%
   print(n = 8, width = Inf)
 
-# --- produce chosen map ---------------------------------------------
-MAP_RUN      <- "A-degree"          # the direct counterpart of the hard map;
-                                     # A-degree, B-uniform, B-degree also valid
-MAP_CATEGORY <- "model-elusive"
+# --- produce the maps -------------------------------------------------------
+# Three categories x four runs x three formats = 36 files. Written as a grid
+# rather than as repeated blocks so a change to size or marking applies to all
+# of them at once, and so no combination can be silently missed or misnamed.
+#
+# Each map is also left in the session under the name it is saved as, e.g.
+# map_bayes_forbidden_A_uniform, for interactive use.
 
-camera_marks <- "assigned"
+MAP_CATEGORIES <- c("possibly forbidden", "possibly missing", "phantom")
+MAP_RUNS       <- names(run_settings)
+MAP_FORMATS    <- c("pdf", "svg", "png")
+MAP_MARKS      <- "assigned"     # asterisks only on this category's own links
+MAP_W          <- 14
+MAP_H          <- 7
 
-map_bayes <- make_map(run = MAP_RUN, category = MAP_CATEGORY)
+# short, file-safe stems: category words and the run name without its hyphen
+map_stem <- c("possibly forbidden" = "forbidden",
+              "possibly missing"   = "missing",
+              "phantom"            = "phantom")
 
-ggsave(file.path(OUT_DIR, "map_bayesian_richest_site.pdf"), map_bayes,
-       width = 14, height = 7)
+map_grid <- expand_grid(category = MAP_CATEGORIES, run = MAP_RUNS) %>%
+  mutate(object = sprintf("map_bayes_%s_%s",
+                          map_stem[category], gsub("-", "_", run)))
 
-cat(sprintf("\nDone. Map for %s written (run %s, %s); scale tops out at %.3f, %d asterisks.\n",
-            richest, MAP_RUN, MAP_CATEGORY, attr(map_bayes, "conf_max"),
-            attr(map_bayes, "n_marked")))
+map_log <- vector("list", nrow(map_grid))
+
+for (i in seq_len(nrow(map_grid))) {
+  cat_i <- map_grid$category[i]
+  run_i <- map_grid$run[i]
+  obj_i <- map_grid$object[i]
+
+  p <- make_map(run = run_i, category = cat_i, camera_marks = MAP_MARKS)
+  assign(obj_i, p)                       # available in the session by name
+
+  for (fmt in MAP_FORMATS) {
+    ggsave(file.path(OUT_DIR, paste0(obj_i, ".", fmt)), p,
+           width = MAP_W, height = MAP_H)
+  }
+
+  map_log[[i]] <- tibble(
+    object   = obj_i,
+    run      = run_i,
+    category = cat_i,
+    conf_max = attr(p, "conf_max"),
+    asterisks = attr(p, "n_marked")
+  )
+}
+
+map_log <- bind_rows(map_log)
+
+cat(sprintf("\n\nMAPS WRITTEN: %d combinations x %d formats = %d files in %s\n",
+            nrow(map_grid), length(MAP_FORMATS),
+            nrow(map_grid) * length(MAP_FORMATS), OUT_DIR))
+cat(sprintf("site: %s, camera marks: %s\n", richest, MAP_MARKS))
+cat("conf_max is where each colour scale tops out, so it differs between maps;\n")
+cat("pass limit = <value> to make_map() to hold several on one scale.\n\n")
+map_log %>%
+  mutate(conf_max = round(conf_max, 3)) %>%
+  arrange(category, match(run, MAP_RUNS)) %>%
+  print(n = Inf, width = Inf)
 
 # Any other combination is one call, for example
 #   make_map("B-degree", "phantom")
@@ -1193,3 +1268,137 @@ cam_report %>%
 write_csv(cam_report, file.path(OUT_DIR, "camera_validation_by_category.csv"))
 cat(sprintf("\nWritten: %s\n",
             file.path(OUT_DIR, "camera_validation_by_category.csv")))
+
+
+# ---- 10. Evidence accumulation on the empirical rates (Fig. 3a applied) ----
+#
+# Figure 3a of the manuscript shows confidence climbing as replicates keep
+# recording a link, and stopping at kappa. That figure uses illustrative rates.
+# This is the same construction driven by the rates fitted here, so it says
+# what replication is actually worth in this system.
+#
+# CONSTRUCTION
+# The evidence is the possibly-missing signature: predicted (Y = 1), not seen
+# locally (O_l = 0), and detected in every replicate that could have found it
+# (n = R). R is then swept. Curves come from posterior() itself rather than a
+# second implementation, so this figure and the analysis cannot drift apart.
+#
+# WHAT THE SOLID AND DASHED PARTS MEAN
+#   solid   R <= 5, which six sites can deliver. This is the study as built.
+#   dashed  R > 5, hypothetical extra replicate sites that do not exist.
+# The dashed section is the answer to "how many more sites would we need?", and
+# here it is flat: nothing is left to gain.
+#
+# WHAT THE FIGURE SHOWS ON THESE RATES
+# p1 = 0.32 against f = 0.05 makes each replicate strong evidence, so the
+# posterior reaches kappa by R = 3 and never moves again. Two or three
+# replicates exhaust what replication can buy. The ceiling is a property of the
+# model and the local method, not of the sampling design, so the way past it is
+# a better model (lower eps_Y) or a better local method (lower eps_l), which is
+# exactly the action the taxonomy prescribes. For reference, no real
+# possibly-missing link in this dataset exceeds R = 3.
+#
+# COLOURS
+# Each category keeps the colour it carries in the maps, which frees linetype
+# to mean observed versus hypothetical. The manuscript figure uses linetype to
+# pair categories instead, because it has no extrapolation to mark.
+
+R_MAX_DESIGN <- 5      # six sites, so five replicates at most
+R_SHOW       <- 12     # far enough past saturation to make the plateau obvious
+
+accum <- map_dfr(0:R_SHOW, function(R) {
+  p <- posterior(Y = 1, O_l = 0, n = R, R = R)      # detected in every replicate
+  tibble(R = R, category = colnames(p), P = as.numeric(p))
+})
+
+KAPPA_EMP <- kappa(EPS_Y, EPS_L, F_POS)
+
+# the four categories of Fig. 3a: the two the evidence is deciding between,
+# and the two they would become if the local axis had erred
+FIG3A_CATS <- c("possibly missing", "phantom", "recurrent", "locally unique")
+
+acc_plot <- accum %>%
+  filter(category %in% FIG3A_CATS) %>%
+  mutate(category = factor(category, levels = FIG3A_CATS))
+
+# feasibility confidence: realised here, or realisable in the replicates
+phi_emp <- accum %>%
+  group_by(R) %>%
+  summarise(phi = 1 - sum(P[category %in% NOT_FEASIBLE]), .groups = "drop")
+
+# the replicate count at which each category first reaches a target
+r_needed <- function(cat, target) {
+  s <- acc_plot %>% filter(category == cat, P >= target)
+  if (nrow(s) == 0) NA_integer_ else min(s$R)
+}
+TARGET <- 0.50
+R_STAR <- r_needed("possibly missing", TARGET)
+
+cat("\n\nEVIDENCE ACCUMULATION ON THE FITTED RATES\n")
+cat(sprintf("  kappa = %.3f, the ceiling for a link not recorded locally\n",
+            KAPPA_EMP))
+cat(sprintf("  P(possibly missing) reaches %.2f at R = %s, and %.3f at R = 3\n",
+            TARGET, ifelse(is.na(R_STAR), "never", R_STAR),
+            acc_plot$P[acc_plot$category == "possibly missing" & acc_plot$R == 3]))
+cat("  beyond R = 3 the curve is flat: replication is exhausted, and only a\n")
+cat("  better model or a better local method raises the ceiling.\n")
+print(acc_plot %>% filter(R <= 6) %>%
+        pivot_wider(names_from = category, values_from = P) %>%
+        mutate(across(-R, ~round(.x, 3))) %>% as.data.frame(), row.names = FALSE)
+
+si_base10 <- theme_classic(base_size = 10) +
+  theme(axis.line       = element_line(colour = "grey40", linewidth = 0.3),
+        axis.ticks      = element_line(colour = "grey40", linewidth = 0.3),
+        legend.position = "bottom",
+        legend.title    = element_blank(),
+        legend.key.width = unit(18, "pt"),
+        legend.margin   = margin(t = 0, b = 0))
+
+fig_accum <- ggplot(acc_plot, aes(R, P, colour = category)) +
+  # the ceiling, and the design limit
+  geom_hline(yintercept = KAPPA_EMP, linetype = "22", colour = "grey45",
+             linewidth = 0.4) +
+  annotate("text", x = R_SHOW, y = KAPPA_EMP, label = "kappa == 0.533",
+           parse = TRUE, hjust = 1, vjust = -0.6, size = 3, colour = "grey35",
+           fontface = "bold") +
+  geom_vline(xintercept = R_MAX_DESIGN, linetype = "dotted",
+             colour = "grey60", linewidth = 0.35) +
+  annotate("text", x = R_MAX_DESIGN, y = 0.02, label = "six sites",
+           hjust = -0.1, size = 2.8, colour = "grey45") +
+  # feasibility confidence, as in the manuscript figure
+  geom_line(data = phi_emp, aes(R, phi), inherit.aes = FALSE,
+            colour = "#2A9D8F", linewidth = 0.8, linetype = "12") +
+  annotate("text", x = R_SHOW, y = 1, label = "feasibility confidence",
+           hjust = 1, vjust = 1.6, size = 2.9, colour = "#2A9D8F",
+           fontface = "bold") +
+  # solid where the design reaches, dashed where it does not
+  geom_line(data = ~ filter(.x, R <= R_MAX_DESIGN), linewidth = 0.85) +
+  geom_line(data = ~ filter(.x, R >= R_MAX_DESIGN), linewidth = 0.85,
+            linetype = "22") +
+  scale_colour_manual(values = CATEGORY_COLOUR[FIG3A_CATS],
+                      labels = c("possibly missing (1,0,1)", "phantom (1,0,0)",
+                                 "recurrent (1,1,1)", "locally unique (1,1,0)")) +
+  scale_y_continuous(limits = c(0, 1), labels = function(x) paste0(round(100*x), "%")) +
+  scale_x_continuous(breaks = seq(0, R_SHOW, 2)) +
+  labs(x = "Replicates recording the link, R",
+       y = "Posterior probability",
+       # two lines, because one would run past the panel and be clipped
+       caption = paste0(
+         "Solid: within the six-site design. Dashed: hypothetical extra replicates.\n",
+         # plain ASCII: the pdf device cannot encode Greek or subscripts here
+         # and silently substitutes dots for them
+         "Fitted rates eps_Y = ", round(EPS_Y, 2),
+         ", eps_l = ", round(EPS_L, 2),
+         ", f = ", F_POS, ", p1 = ", round(P1, 2),
+         ", nu = ", round(NU, 2), ".")) +
+  guides(colour = guide_legend(nrow = 2, byrow = TRUE)) +
+  si_base10 +
+  theme(plot.caption = element_text(hjust = 0, size = 7.5, colour = "grey35",
+                                    lineheight = 1.2))
+
+ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.pdf"), fig_accum,
+       width = 6.5, height = 5)
+ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.png"), fig_accum,
+       width = 6.5, height = 5, dpi = 300)
+cat(sprintf("\nWritten: %s\n",
+            file.path(OUT_DIR, "fig_accumulation_empirical.pdf")))
