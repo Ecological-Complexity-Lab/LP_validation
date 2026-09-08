@@ -1,0 +1,9 @@
+category,expect,n,confirmed,pct_conf,A-uniform,A-degree,B-uniform,B-degree,verdict,site,chance
+recurrent,higher,100,73,73,1.88***,1.41***,1.75***,1.42***,supported in 4/4,holds,25-26 -> 32-38
+locally unique,higher,77,45,58,0.89,0.91,0.94,0.96,no signal (0/4),,--
+possibly missing,higher,34,13,38,1.60***,1.43***,1.57***,1.39***,supported in 4/4,holds,28-29 -> 33-35
+phantom,unclear,74,11,15,0.83,0.82*,1.06,0.93,no direction predicted (1/4 signal),,27 -> 24
+model-elusive,higher,54,28,52,0.93,1.05,0.92,1.04,no signal (0/4),,--
+weakly-supported,lower,66,27,41,0.67***,0.77***,0.69***,0.77***,supported in 4/4,holds,28 -> 23-24
+locally absent,lower,94,20,21,1.09,1.34**,1.13,1.37**,CONTRADICTED in 2/4,holds,28 -> 32-33
+possibly forbidden,lower,452,45,10,0.55***,0.61***,0.50***,0.61***,supported in 4/4,holds,24-26 -> 14-18

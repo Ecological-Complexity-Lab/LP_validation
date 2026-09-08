@@ -1,0 +1,544 @@
+---
+title: "Bayesian posteriors for the Cabrera link categories"
+subtitle: "Overview, results and conclusions for discussion"
+author: "Kesem Abramov"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+    toc_depth: 2
+    number_sections: false
+    theme: journal
+    highlight: tango
+    df_print: kable
+---
+
+```{=html}
+<style>
+/* the journal theme's accent is red; this is a calmer blue-violet */
+:root { --accent: #7b7bb8; --accent-dark: #5b5b93; --accent-pale: #eeeef8; }
+
+#TOC .list-group-item.active,
+#TOC .list-group-item.active:hover,
+#TOC .list-group-item.active:focus {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+#TOC .list-group-item:hover { background-color: var(--accent-pale); }
+#TOC .list-group-item { border-color: #e4e4ef; }
+
+a, a:visited { color: var(--accent-dark); }
+a:hover, a:focus { color: var(--accent); }
+
+h1, h2, h3 { color: var(--accent-dark); }
+
+blockquote {
+  border-left: 5px solid var(--accent);
+  background: var(--accent-pale);
+  color: #333;
+}
+
+/* method notes: a quiet aside, visually distinct from the takeaways */
+.method {
+  background: #f7f7fb;
+  border-left: 3px solid #c6c6de;
+  padding: 0.6em 1em;
+  margin: 1em 0;
+  font-size: 0.94em;
+}
+.method p:last-child { margin-bottom: 0; }
+
+table { font-size: 0.94em; }
+</style>
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.align = "center", out.width = "100%")
+suppressMessages({library(tidyverse); library(knitr); library(kableExtra)})
+
+# Every number below is computed from the files the pipeline writes, so this
+# note cannot drift from the analysis. Nothing is transcribed by hand.
+OUT  <- "results/bayesian_empirical"
+FIG  <- "results/figures"
+DATA <- "results/predictions/serra_marin_loo_prediction_results.csv"
+
+need <- c(DATA,
+          file.path(OUT, "posteriors_bayesian_example.csv"),
+          file.path(OUT, "camera_validation_summary.csv"),
+          file.path(OUT, "panel_runs_missing.png"),
+          file.path(OUT, "panel_runs_phantom.png"),
+          file.path(OUT, "panel_runs_forbidden.png"),
+          file.path(OUT, "fig_category_distributions.png"),
+          file.path(OUT, "fig_accumulation_empirical.png"),
+          file.path(FIG, "richest_site_map_obs_validated_with_rpi.png"))
+missing <- need[!file.exists(need)]
+if (length(missing))
+  stop("Run Bayesian_framework/bayesian_empirical.R first. Missing:\n  ",
+       paste(missing, collapse = "\n  "))
+
+post <- read_csv(file.path(OUT, "posteriors_bayesian_example.csv"),
+                 show_col_types = FALSE)
+camsum <- read_csv(file.path(OUT, "camera_validation_summary.csv"),
+                   show_col_types = FALSE)
+
+CATS <- c("recurrent", "locally unique", "possibly missing", "phantom",
+          "model-elusive", "weakly-supported", "locally absent",
+          "possibly forbidden")
+RUNS <- c("A-uniform", "A-degree", "B-uniform", "B-degree")
+
+# a plain kable with the house look, used everywhere below
+show <- function(x, ...)
+  kable(x, format = "html", escape = FALSE, ...) %>%
+  kable_styling(bootstrap_options = c("condensed"), full_width = FALSE,
+                position = "left")
+```
+
+```{r rates}
+# The rates, recomputed here exactly as Section 2 of the script does, so this
+# note is self-contained.
+raw <- read_csv(DATA, show_col_types = FALSE)
+obs <- raw %>% filter(method == "obs") %>%
+  mutate(pair = paste(higher_level, lower_level, sep = "||"))
+cam <- raw %>% filter(method == "rpi") %>%
+  transmute(higher_level, lower_level, focal_site, camera = ground_truth)
+
+tp <- sum(obs$ground_truth == 1 & obs$prediction == 1)
+fp <- sum(obs$ground_truth == 0 & obs$prediction == 1)
+fn <- sum(obs$ground_truth == 1 & obs$prediction == 0)
+tn <- sum(obs$ground_truth == 0 & obs$prediction == 0)
+EPS_Y <- 1 - (tp / (tp + fn) + tn / (tn + fp)) / 2
+
+both   <- obs %>% inner_join(cam, by = c("higher_level", "lower_level",
+                                         "focal_site"))
+TPc    <- sum(both$ground_truth == 1 & both$camera == 1)
+A_only <- sum(both$ground_truth == 1 & both$camera == 0)
+B_only <- sum(both$ground_truth == 0 & both$camera == 1)
+EPS_L  <- 1 - TPc / (TPc + B_only)
+JACC   <- TPc / (TPc + A_only + B_only)
+F_POS  <- 0.05
+
+# p1 and nu: zero-truncated beta-binomial, the same likelihood as the script
+pairs_tbl <- obs %>% group_by(pair) %>%
+  summarise(R = n_distinct(focal_site), n = sum(ground_truth), .groups = "drop") %>%
+  filter(R >= 2, n >= 1)
+nll <- function(par) {
+  m <- plogis(par[1]); nu <- exp(par[2])
+  a <- m * nu; b <- (1 - m) * nu
+  lp <- function(k, N) lbeta(k + a, N - k + b) - lbeta(a, b)
+  -sum(lp(pairs_tbl$n, pairs_tbl$R) - log1p(-exp(lp(0, pairs_tbl$R))))
+}
+fit <- optim(c(0, log(5)), nll)
+P1 <- plogis(fit$par[1]); NU <- exp(fit$par[2])
+
+KAPPA <- (1 - EPS_Y) * (1 - F_POS) / ((1 - F_POS) + EPS_L)
+N_CLIP <- sum(obs$probability == 0.5)
+
+one   <- post %>% filter(run == "A-uniform")
+N_PF  <- sum(one$det_category == "possibly forbidden")
+```
+
+> Every candidate link at Cabrera carries eight posterior probabilities, one per
+> link category, instead of a single hard label. Four of the eight categories
+> behave the way they claim to when tested against camera records the posterior
+> never saw. Replication saturates after three replicates, so what uncertainty
+> remains is not something more sites can fix.
+
+```{r glance}
+tibble(
+  Quantity = c("Candidate links, six sites",
+               "Inside the camera grid",
+               "Camera records among them",
+               "Prior and model settings compared",
+               "Categories confirmed against cameras in all four settings",
+               "Ceiling on confidence for a link not seen locally"),
+  Value = c(format(nrow(one), big.mark = ","),
+            sprintf("%d (%.0f%%)", sum(!is.na(one$camera)),
+                    100 * mean(!is.na(one$camera))),
+            as.character(sum(one$camera == 1, na.rm = TRUE)),
+            "4", "4 of 8", sprintf("%.3f", KAPPA))
+) %>% show()
+```
+
+# Overview
+
+## Motivation
+
+The framework sorts every candidate link into one of eight categories using
+three yes/no facts: does the model predict it, was it seen at this site, was it
+seen at another site in the same system. Three bits, eight boxes.
+
+The weakness is that the answer is a **label**. A link that only just qualified
+looks identical to one that clearly belongs, and the label says nothing about
+which links to chase or what would settle the question.
+
+The posterior replaces the label with a probability spread across all eight
+categories. It says how much of a link's evidence really supports its assigned
+category, which alternative the doubt points toward, and what the cheapest way
+to raise confidence would be.
+
+## What the pipeline does
+
+1. **Estimates the error rates** from the data itself.
+2. **Calibrates the raw model scores** so they read as probabilities, and checks
+   that the hard categorisation is unchanged.
+3. **Builds one posterior function** holding every ingredient from the SI.
+4. **Checks that function against the SI's published worked values.**
+5. **Runs it under four settings** of prior and model handling.
+6. **Produces** category maps, category distributions, a test against camera
+   records, and an evidence-accumulation curve.
+
+::: {.method}
+**Methodological decisions.** The posterior is one function, and each setting
+below is an argument to it rather than a separate implementation, so the
+equation in the manuscript and the code cannot drift apart. Calibration is Platt
+scaling fitted **site-blocked**, so no site calibrates itself. Platt is monotone
+and therefore cannot reorder links, which we verify rather than assert: the hard
+predictions survive intact and only the number on the threshold moves.
+:::
+
+## The rates
+
+```{r rate-table}
+tibble(
+  Rate = c("$\\epsilon_Y$", "$\\epsilon_l$", "$f$", "$p_1$", "$\\nu$"),
+  Meaning = c("model error, 1 - balanced accuracy",
+              "chance direct observation misses a link that is present",
+              "chance a record is spurious",
+              "chance a replicate site records a link that is present",
+              "how variable that chance is between links"),
+  Value = c(sprintf("%.3f", EPS_Y), sprintf("%.3f", EPS_L),
+            sprintf("%.2f", F_POS), sprintf("%.3f", P1), sprintf("%.2f", NU))
+) %>% show()
+```
+
+::: {.method}
+**Methodological decisions.** $f$ is the one rate nothing in the data
+identifies, because the usual negative control (pairs that never co-occur) is
+excluded from the candidate set by construction. It is fixed a priori and swept
+in a sensitivity check rather than fitted.
+
+$\epsilon_l$ comes from the camera contrast: both methods watch the same site at
+the same time, so the difference between them is detection alone. We condition
+on the links the **cameras** recorded, which makes the estimate directional, as
+"chance of missing something present" requires. That is the Lincoln-Petersen
+two-sample estimator. A symmetric alternative gives the wrong answer: Jaccard
+between the two methods is `r sprintf("%.2f", JACC)`, and $1-J$ =
+`r sprintf("%.2f", 1 - JACC)` because it also charges direct observation for
+links the *cameras* missed.
+
+$p_1$ and $\nu$ are fitted with a zero-truncated likelihood, because we only see
+pairs recorded at least once, and ignoring that truncation would bias $p_1$
+upward.
+:::
+
+**Open question.** $\nu$ = `r sprintf("%.2f", NU)` sits outside the range the SI
+illustrates and implies a beta shape parameter below 1. Widen the SI wording, or
+constrain the fit? Separately, `r N_CLIP` links
+(`r sprintf("%.0f%%", 100 * N_CLIP / nrow(obs))`) sit at the floor of the
+prediction pipeline's sigmoid and carry no model information to calibrate.
+
+## The four settings
+
+|                                                       | uniform prior | degree-based prior |
+|-------------------------------------------------------|---------------|--------------------|
+| **A** model enters through the posterior as $\delta$   | A-uniform     | A-degree           |
+| **B** calibrated model score enters as the prior       | B-uniform     | B-degree           |
+
+Degree priors are global and replicate-based, so a link between two
+well-connected species starts with more prior weight on the present-side
+categories.
+
+::: {.method}
+**Methodological decision.** Four settings rather than one, because the prior is
+the most arguable choice in the whole construction. Showing that a conclusion
+holds in all four is stronger than defending any single prior.
+:::
+
+**Open question.** A and B may be redundant for the camera test. Under a product
+prior the posterior factorises into three independent parts, and the local part
+does not depend on the model bit, so any test keyed to the local axis cannot
+separate A from B. The camera results below bear this out exactly. Worth
+deciding whether the manuscript presents four settings or two.
+
+# The starting point
+
+The deterministic assignment at the richest site. Each cell is one candidate
+link, coloured by its single assigned category.
+
+```{r det-map}
+include_graphics(file.path(FIG, "richest_site_map_obs_validated_with_rpi.png"))
+```
+
+This is the reference the posterior is compared against. It is complete and
+unambiguous, and that is the problem: nothing in it separates a link the
+evidence strongly supports from one that only just fell on that side of a
+boundary.
+
+**Takeaway.** The deterministic map is a reference, not a truth. Anything the
+posterior does differently has to be judged against independent evidence, not
+against this figure.
+
+# Results
+
+Categories appear in taxonomy order: the predicted classes first, then the
+unpredicted class that dominates the candidate set.
+
+In every map below, **colour intensity is the posterior** for that category, a
+**black frame** marks cells the deterministic rule assigned to it, and an
+**asterisk** marks a link the cameras recorded. All four panels of a figure
+share one colour scale, so shades are comparable between settings.
+
+## Possibly missing
+
+Predicted, recorded at other sites, not recorded here. The framework's
+highest-priority category, and the one where the prescribed action is simply
+more effort with the same method.
+
+```{r fig-missing}
+include_graphics(file.path(OUT, "panel_runs_missing.png"))
+```
+
+A-uniform is the counterpart of the deterministic assignment and B-uniform looks
+much like it. The degree-based priors visibly change the picture.
+
+```{r missing-agree}
+post %>%
+  filter(det_category == "possibly missing") %>%
+  group_by(run) %>%
+  summarise(Links = n(),
+            `Mean posterior on the assigned category` = round(mean(det_conf), 3),
+            `Most likely category is the assigned one` =
+              sprintf("%d%%", round(100 * mean(top_category == det_category))),
+            .groups = "drop") %>%
+  arrange(match(run, RUNS)) %>%
+  rename(Setting = run) %>% show()
+```
+
+::: {.method}
+**Methodological decision.** Frames come from the deterministic rule and are
+identical in all four panels, so any difference between panels is the prior
+talking and nothing else.
+:::
+
+**Takeaway.** The label and the confidence are different quantities. A link can
+sit in possibly missing under the hard rule while the posterior puts most of its
+weight elsewhere. That is not a bug: the hard rule reads three bits as if they
+were certain, and the posterior does not.
+
+
+## Possibly forbidden
+
+Neither predicted nor recorded anywhere: `r format(N_PF, big.mark = ",")` of
+`r format(nrow(one), big.mark = ",")` links, by far the largest category.
+
+```{r fig-forbidden}
+include_graphics(file.path(OUT, "panel_runs_forbidden.png"))
+```
+
+**Takeaway.** Triage matters most here. A category holding well over half the
+grid is unusable as a to-do list. The posterior orders it, and the cameras
+corroborate that ordering, as shown two sections below.
+
+**Discuss** Which model to use?
+
+## Phantom
+
+Predicted, but recorded nowhere. Genuinely ambiguous: either the model is wrong,
+and an independent method finds nothing, or the interaction is invisible to the
+method in use, and it does. The two readings predict opposite outcomes, which is
+why the prescribed action is a different method rather than more effort.
+
+```{r fig-phantom}
+include_graphics(file.path(OUT, "panel_runs_phantom.png"))
+```
+
+**Takeaway.** Phantom is the one category with no predicted direction, so the
+camera test below cannot confirm or refute it. The framework says as much
+already, and the data does not contradict it.
+
+
+## Where the posterior weight goes
+
+```{r fig-dist}
+include_graphics(file.path(OUT, "fig_category_distributions.png"))
+```
+
+Panel **a** is the expected number of links per category, panel **b** the spread
+of per-link posteriors. The tick in panel a is the deterministic count, the same
+in all four panels, so the gap between tick and bar is exactly what each prior
+moves.
+
+```{r run-table}
+det_counts <- one %>% count(det_category, name = "det")
+dev <- map_dfr(RUNS, function(rn) {
+  s <- post %>% filter(run == rn)
+  expct <- sapply(CATS, function(k) sum(s[[k]]))
+  tibble(run = rn,
+         abs_dev = sum(abs(expct[det_counts$det_category] - det_counts$det)))
+})
+post %>% group_by(run) %>%
+  summarise(sharp = round(mean(det_conf), 3),
+            mode_ok = round(100 * mean(top_category == det_category)),
+            .groups = "drop") %>%
+  left_join(dev, by = "run") %>%
+  arrange(match(run, RUNS)) %>%
+  transmute(Setting = run,
+            `Mean posterior on the assigned label` = sharp,
+            `Most likely category is the assigned one` = sprintf("%d%%", mode_ok),
+            `Total gap from the deterministic counts` = round(abs_dev)) %>%
+  show()
+```
+
+::: {.method}
+**Methodological decision.** Once a label becomes a distribution, the honest
+headline number for a category is the **sum of its posterior column**, not a
+count of links. That is what panel a plots. The dashed line in panel b is
+$\kappa$ = `r sprintf("%.3f", KAPPA)`, the ceiling for a link not recorded
+locally under a uniform prior; it is drawn only in the A-uniform panel because
+the other three relax one of its two conditions.
+:::
+
+Two things are worth pausing on. A-uniform reproduces the deterministic label
+most faithfully yet sits **farthest** from the deterministic counts, because it
+holds the least weight on that label and so spreads the most. And the degree
+settings are the **sharpest**, which is not the same as the most accurate.
+
+**Takeaway.** Resembling the deterministic counts is not evidence of being
+right, because those counts are not truth. The next section supplies a criterion
+external to both.
+
+## Does confidence buy anything?
+
+The question the whole exercise turns on: if we chase the links the posterior is
+confident about, do we find more? For possibly forbidden the prediction runs the
+other way, so the test is whether cameras find **fewer** records among links with
+a high forbidden posterior.
+
+::: {.method}
+**Methodological decisions.** This is the measurement to scrutinise, so it is
+worth being explicit about each choice.
+
+*Independent evidence.* Cameras ran in parallel with direct observation and the
+posterior never saw them, so they are a fourth source of evidence rather than a
+restatement of the three the posterior uses.
+
+*Who is in the test.* A link is inside the **camera grid** when both partners
+appear in that site's camera data. A zero then means the cameras saw both
+species there but never together, which is a real negative. Links outside the
+grid are dropped, since they can neither confirm nor refute.
+
+*How agreement is measured.* One logistic regression per category per setting,
+predicting whether the cameras recorded a link from that category's posterior.
+The effect is reported as an odds ratio per one standard deviation of the
+posterior, so categories with different spreads stay comparable.
+
+*The adjustment that makes it a real test.* The direct observation is held
+fixed. Categories are defined partly by that observation, so without this the
+posterior would largely be re-describing it. Holding it fixed asks: among links
+whose direct observation was the same, does the posterior still say which ones
+the cameras find? A second model also adjusts for site, since camera coverage
+runs from 41% to 82% across sites.
+
+*The expected direction* is set from what each category **claims
+ecologically**, not from its observation bit. These differ. Possibly missing
+carries "not seen here", yet its whole claim is that the interaction is present
+and was missed, so cameras should find it *more* often.
+:::
+
+```{r cam-table}
+run_cols <- RUNS[RUNS %in% names(camsum)]
+all_sig <- camsum %>% select(all_of(run_cols)) %>%
+  mutate(across(everything(), ~ str_detect(.x, fixed("*")))) %>%
+  rowSums() == length(run_cols)
+
+camsum %>%
+  rename(Category = category, Expect = expect,
+         `Camera-confirmed` = confirmed, `%` = pct_conf,
+         Verdict = verdict, `Site-adjusted` = site,
+         `Camera chance, mean -> +1 SD` = chance) %>%
+  show() %>%
+  row_spec(which(all_sig), bold = TRUE)
+```
+
+Rows in **bold** are the four categories where the effect is significant in all
+four settings.
+
+Reading the table: the four setting columns are odds ratios per one standard
+deviation of that category's posterior, with the direct observation held fixed.
+Above 1, a higher posterior goes with more camera records. Stars are `***`
+$p<0.001$, `**` $p<0.01$, `*` $p<0.05$. The last column translates the same
+effect onto the probability scale, which is the figure to quote in prose.
+
+`n` counts links of that category **inside the camera grid**, not the whole
+category: possibly forbidden has `r format(N_PF, big.mark = ",")` links in total
+and `r camsum$n[camsum$category == "possibly forbidden"]` here.
+
+Four categories are supported in all four settings, and all four survive the
+site adjustment:
+
+- **recurrent** and **possibly missing** go the right way upward. Possibly
+  missing is the one that matters, because its claim is that the interaction is
+  present and direct observation missed it.
+- **weakly-supported** and **possibly forbidden** go the right way downward. For
+  possibly forbidden, one standard deviation up the posterior takes the chance
+  of a camera record from about 25% to about 16%.
+
+**Takeaway.** The posterior is not merely re-describing the observations.
+Holding the direct observation fixed, it still orders links by how likely an
+independent method is to find them, in the direction each category claims. That
+is the operational value of the confidence layer: it turns a category into a
+ranked list. And with `r format(N_PF, big.mark = ",")` possibly-forbidden links,
+separating a 25% chance from a 16% chance is what makes the category actionable
+at all.
+
+**Takeaway.** Sharper is not better. The degree settings concentrate more weight
+on the assigned label and sit closer to the deterministic counts, and they are
+the worse calibrated of the four against the camera data: calibration slope 0.64
+against 1.34 for the uniform settings, and Brier skill 0.11 against 0.20.
+
+**Open questions.**
+
+- The deck calls B-degree "the most informed model". It uses the most inputs,
+  but the calibration numbers just quoted say it is the worst of the four. The
+  accurate phrasing is *uses the most inputs*.
+- **Locally absent contradicts its expected direction** in the two degree
+  settings. Its claim is that the link is feasible in the system but not
+  realised here, so cameras should find it less often, and under degree priors
+  they find it more. This needs an explanation before it reaches the manuscript.
+- $\epsilon_l$ is fitted on the same camera records this test uses. Holding the
+  direct observation fixed limits the exposure, since $\epsilon_l$ enters
+  through the local axis, but a leave-one-site-out refit would remove what
+  remains.
+
+## How much is replication worth here?
+
+```{r fig-accum}
+include_graphics(file.path(OUT, "fig_accumulation_empirical.png"))
+```
+
+Figure 3a of the manuscript, driven by the rates fitted here rather than
+illustrative ones. Solid within the six-site design, dashed for hypothetical
+extra sites.
+
+::: {.method}
+**Methodological decision.** The curve comes from the same posterior function as
+everything above, swept over the number of replicates, so this figure and the
+analysis cannot drift apart. The evidence swept is the possibly-missing
+signature: predicted, not seen here, detected in every replicate that could have
+found it.
+:::
+
+With $p_1$ = `r sprintf("%.2f", P1)` against $f$ = `r sprintf("%.2f", F_POS)`,
+each replicate is strong evidence, and the posterior reaches $\kappa$ by the
+third replicate and never moves again.
+
+**Takeaway.** Two or three replicates exhaust what replication can buy here.
+$\kappa$ = `r sprintf("%.3f", KAPPA)` follows from the error rates by algebra: it
+is a structural ceiling, not a measurement, and no amount of sampling passes it.
+The way past it is a better model or a better local method, which is exactly the
+corroboration action the framework already prescribes for the categories sitting
+against it. That is an argument for the framework, not a limitation of it.
