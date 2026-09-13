@@ -160,6 +160,16 @@ F_POS <- 0.05
 # distribution, so the naive proportion is biased upward. The zero-truncated
 # likelihood corrects for it. The beta-binomial version also returns nu, the
 # concentration that SI Section S7 needs.
+#
+# The homogeneous alternative is fitted alongside it. Dropping heterogeneity
+# means REMOVING nu, not estimating it as infinite: the binomial is the
+# beta-binomial at nu -> Inf, and under that constraint p1 is the only free
+# parameter left. It has to be refitted, because the mean of a beta-binomial is
+# not the binomial MLE and passing P1 with nu = Inf would be neither model.
+# Here that matters: 0.321 against 0.493 on the same 200 pairs.
+#
+# The two are nested, so which one the data prefer is testable rather than a
+# matter of taste, and the likelihood ratio is reported with the rates below.
 
 estimate_p1 <- function(obs) {
   pairs <- obs %>%
@@ -177,8 +187,17 @@ estimate_p1 <- function(obs) {
     -sum(lp(pairs$n, pairs$R) - log1p(-exp(lp(0, pairs$R))))
   }
 
+  # the same expression with nu removed: one detection rate shared by all links
+  nll_hom <- function(par) {
+    p  <- plogis(par)
+    lp <- function(k, N) k * log(p) + (N - k) * log1p(-p)
+    -sum(lp(pairs$n, pairs$R) - log1p(-exp(lp(0, pairs$R))))
+  }
+
   fit <- optim(c(0, log(5)), nll)
-  list(p1 = plogis(fit$par[1]), nu = exp(fit$par[2]),
+  hom <- optimize(nll_hom, c(-8, 8))
+  list(p1 = plogis(fit$par[1]), nu = exp(fit$par[2]), ll = -fit$value,
+       p1_hom = plogis(hom$minimum),                  ll_hom = -hom$objective,
        n_pairs = nrow(pairs),
        n_all   = n_distinct(obs$pair),
        set     = "species pairs co-occurring at 2+ sites and recorded at 1+ of them")
@@ -187,6 +206,7 @@ estimate_p1 <- function(obs) {
 rep_fit <- estimate_p1(obs)
 P1  <- rep_fit$p1
 NU  <- rep_fit$nu
+P1_HOM <- rep_fit$p1_hom    # the same rate with link heterogeneity removed
 P0  <- F_POS
 RHO <- P1 / (1 - EPS_L)     # derived and reported, never an input
 
@@ -197,6 +217,28 @@ cat(sprintf("  f     = %.3f   (fixed a priori)\n", F_POS))
 cat(sprintf("  p1    = %.3f   nu = %.2f\n", P1, NU))
 cat(sprintf("          estimated on %d of %d species pairs: %s\n",
             rep_fit$n_pairs, rep_fit$n_all, rep_fit$set))
+
+# Heterogeneity is a nested hypothesis (nu -> Inf removes it), so the choice is
+# testable. nu -> Inf sits on the boundary of the parameter space, which is why
+# the null is the 50:50 mixture of chi2_0 and chi2_1 and the p-value is halved.
+# The verdict here is "weakly supported, and poorly determined": nu is bounded
+# away from infinity, but a 95% profile interval runs from about 1 to 100, and
+# nu = 4 costs 0.12 in log-likelihood while putting the beta shape parameter
+# back above 1, inside the range the SI illustrates.
+#
+# Reading the printed line. The model with nu has one extra parameter, so it
+# always fits at least as well; the question is whether the gain is worth it.
+#   LR       twice the gain in log-likelihood from adding nu; 1 df = one extra
+#            parameter
+#   p        chance of a gain this large if all links truly shared one rate
+#   dAIC     AIC with nu minus AIC without. AIC charges 2 per parameter, so
+#            negative means nu still wins after paying for itself; a gap of
+#            2 to 4 is weak support
+LR_NU <- 2 * (rep_fit$ll - rep_fit$ll_hom)
+cat(sprintf("  p1    = %.3f   with heterogeneity removed (nu absent, refitted)\n",
+            P1_HOM))
+cat(sprintf("          keeping nu: LR = %.2f on 1 df, boundary p = %.3f, dAIC = %.1f\n",
+            LR_NU, 0.5 * pchisq(LR_NU, 1, lower.tail = FALSE), 2 - LR_NU))
 
 # ---- 3. Calibrating the model score ----
 # The `probability` column is not a probability. The prediction pipeline clips
@@ -544,9 +586,26 @@ ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
 #   A-uniform vs B-uniform  how much does keeping the model's score instead of
 #                        its threshold move the answer, holding the prior
 #                        fixed?
-#   B-degree             both together, the most informed run
+#   B-degree             both together, the run using the most inputs
+#
+# A SECOND AXIS: THE LIKELIHOOD. The four above vary the prior and the model's
+# role, all of them carrying heterogeneous p1 (Section S7). Each one also gets a
+# twin with heterogeneity removed (Section S6), carrying the p1 refitted without
+# it, 0.493 rather than 0.321.
+#
+# Every prior needs its own twin, because nu and the prior do not act
+# independently. nu enters the replicate factor for the four z_r = 1 categories
+# only, and the posterior is normalised, so how far a change in that factor
+# moves the final probabilities depends on how much prior weight sat on those
+# categories to begin with. A uniform prior spreads that weight evenly; a degree
+# prior concentrates it on well-connected pairs. Testing nu under the uniform
+# prior alone would test it where it has the least room to matter, and the
+# degree runs are the ones that carry the within-category ranking.
+#
+# The twins are derived from the same list rather than written out again, so a
+# change to a prior cannot reach one twin and miss the other.
 
-run_settings <- list(
+base_runs <- list(
   "A-uniform" = list(model_as = "evidence", pi_Y = 0.5,
                      pi_l = 0.5,         pi_r = 0.5),
   "A-degree"  = list(model_as = "evidence", pi_Y = 0.5,
@@ -556,6 +615,15 @@ run_settings <- list(
   "B-degree"  = list(model_as = "prior",    pi_Y = ev$q,
                      pi_l = ev$pi_l_deg, pi_r = ev$pi_r_deg)
 )
+
+# only the twins override p1bar and nu; the base runs inherit the globals
+hom_runs <- setNames(
+  lapply(base_runs, function(cfg) c(cfg, list(p1bar = P1_HOM, nu = Inf))),
+  paste0(names(base_runs), " (no nu)"))
+
+run_settings <- c(base_runs, hom_runs)
+PRIOR_RUNS <- names(base_runs)     # the four that vary the prior
+HOM_RUNS   <- names(hom_runs)      # their heterogeneity-removed twins
 
 # The list element is called `cfg`, not `s`, because `s` is the posterior
 # function's own model switch and shadowing it here would be a silent bug.
@@ -569,8 +637,10 @@ results <- imap_dfr(run_settings, function(cfg, run_name) {
     eps_Y = EPS_Y,
     eps_l = EPS_L,
     f     = F_POS,
-    p1bar = P1,
-    nu    = NU,                  # finite: heterogeneous p1, Section S7
+    # finite nu is heterogeneous p1 (Section S7); a run may override both to
+    # remove heterogeneity, and must then supply the p1 refitted without it
+    p1bar = if (is.null(cfg$p1bar)) P1 else cfg$p1bar,
+    nu    = if (is.null(cfg$nu))    NU else cfg$nu,
     count = TRUE,                # keep the full count, Eq. S5
     pi_Y  = cfg$pi_Y,
     pi_l  = cfg$pi_l,
@@ -904,20 +974,26 @@ mark_tbl %>%
 # map_bayes_forbidden_A_uniform, for interactive use.
 
 MAP_CATEGORIES <- c("possibly forbidden", "possibly missing", "phantom")
-MAP_RUNS       <- names(run_settings)
+# single maps for the four prior runs. The heterogeneity twins are shown as
+# their own four-panel figures instead, which is where they are read against
+# the four-panel figure they mirror.
+MAP_RUNS       <- PRIOR_RUNS
 MAP_FORMATS    <- c("pdf", "svg", "png")
 MAP_MARKS      <- "assigned"     # asterisks only on this category's own links
 MAP_W          <- 14
 MAP_H          <- 7
 
-# short, file-safe stems: category words and the run name without its hyphen
+# short, file-safe stems: category words, and the run name with anything not
+# valid in a filename or an object name collapsed to "_"
 map_stem <- c("possibly forbidden" = "forbidden",
               "possibly missing"   = "missing",
               "phantom"            = "phantom")
 
+run_stem <- function(x) gsub("^_+|_+$", "", gsub("[^A-Za-z0-9]+", "_", x))
+
 map_grid <- expand_grid(category = MAP_CATEGORIES, run = MAP_RUNS) %>%
   mutate(object = sprintf("map_bayes_%s_%s",
-                          map_stem[category], gsub("-", "_", run)))
+                          map_stem[category], run_stem(run)))
 
 map_log <- vector("list", nrow(map_grid))
 
@@ -977,7 +1053,7 @@ map_log %>%
 #   category      one of cats$category
 #   runs          which runs, in order; defaults to all four
 #   site, camera_marks, frame_assigned, ...  passed through to make_map().
-#                 The black frames are identical in all four panels, since the
+#                 The black frames are identical in every panel, since the
 #                 deterministic assignment does not depend on the run, so they
 #                 double as a fixed reference against which the shading moves.
 #   ncol          2 gives a 2 x 2 block; 1 or 4 give a strip
@@ -988,7 +1064,10 @@ map_log %>%
 library(patchwork)
 
 make_run_panel <- function(category,
-                           runs         = names(run_settings),
+                           # the four prior/model runs. The likelihood
+                           # sensitivity run gets its own single maps instead,
+                           # so this figure stays a 2 x 2 comparison of priors.
+                           runs         = PRIOR_RUNS,
                            site         = richest,
                            camera_marks = "assigned",
                            frame_assigned = TRUE,
@@ -1070,8 +1149,18 @@ make_run_panel <- function(category,
 # caption = FALSE: these panels go into note_empirical_bayesian_overview.Rmd,
 # which states the site, scale, frames and marks in its own prose, so the
 # footnote is redundant there and the four grids get the space instead.
+#
+# Two figures per category: the four prior runs, and their heterogeneity twins
+# in the same panel order, so the pair can be read side by side. Each figure
+# takes its own shared colour scale, so compare shapes across the pair and
+# shades only within a figure.
 cat("\n\nFOUR-RUN PANELS\n")
-for (k in MAP_CATEGORIES) invisible(make_run_panel(k, caption = FALSE))
+for (k in MAP_CATEGORIES) {
+  invisible(make_run_panel(k, caption = FALSE))
+  invisible(make_run_panel(
+    k, runs = HOM_RUNS, caption = FALSE,
+    file = file.path(OUT_DIR, sprintf("panel_runs_%s_no_nu.png", map_stem[k]))))
+}
 
 # Any other combination is one call, for example
 #   make_map("B-degree", "phantom")
@@ -1082,9 +1171,10 @@ for (k in MAP_CATEGORIES) invisible(make_run_panel(k, caption = FALSE))
 #   make_map("A-uniform", "possibly missing", limit = 0.6)
 
 
-# ---- 8. Category distributions across the four runs ----
-# Two views of the same four posteriors, sharing one category colour key taken
-# from the maps.
+# ---- 8. Category distributions across the runs ----
+# Two views of the same posteriors, sharing one category colour key taken from
+# the maps. Produced twice: once for the four prior/model runs, and once for
+# A-uniform against A-uniform (no nu), which isolates the likelihood.
 #
 #   a  where the mass goes. Summing a posterior column gives the EXPECTED
 #      number of links in that category, which is the honest headline number
@@ -1101,7 +1191,7 @@ for (k in MAP_CATEGORIES) invisible(make_run_panel(k, caption = FALSE))
 #
 #   1. A uniform prior. B replaces the flat pi_Y with the calibrated score and
 #      the degree runs add ecological priors, so the line is drawn only in the
-#      A-uniform panel; the other three exceed it and should.
+#      uniform-prior panels; the others exceed it and should.
 #   2. A link NOT recorded locally (O_l = 0). The derivation is the ceiling for
 #      a non-detection, where the local factor contributes only eps_l against
 #      1 - f. A positive local detection contributes 1 - eps_l against f, a far
@@ -1113,32 +1203,14 @@ for (k in MAP_CATEGORIES) invisible(make_run_panel(k, caption = FALSE))
 # Each row mixes both local conditions, so the line cannot be drawn per row.
 # The axis label states what it bounds instead.
 
-library(patchwork)
-
 CAT_ORDER <- cats$category          # taxonomy order: predicted four, then not
-RUN_ORDER <- names(run_settings)
-
-post_long <- results %>%
-  select(run, all_of(CAT_ORDER)) %>%
-  pivot_longer(all_of(CAT_ORDER), names_to = "category", values_to = "p") %>%
-  mutate(category = factor(category, levels = rev(CAT_ORDER)),
-         run      = factor(run, levels = RUN_ORDER))
 
 # the deterministic counts are a property of the labelling, not of a run, so
 # the same reference is drawn in every panel
 det_counts <- results %>%
-  filter(run == RUN_ORDER[1]) %>%
+  filter(run == names(run_settings)[1]) %>%
   count(category = det_category, name = "deterministic") %>%
   mutate(category = factor(category, levels = rev(CAT_ORDER)))
-
-expected_tbl <- post_long %>%
-  group_by(run, category) %>%
-  summarise(expected = sum(p), .groups = "drop") %>%
-  left_join(det_counts, by = "category")
-
-# kappa bounds the uniform-prior run only (see the note above)
-kappa_line <- tibble(run = factor("A-uniform", levels = RUN_ORDER),
-                     k   = kappa(EPS_Y, EPS_L, F_POS))
 
 si_base <- theme_classic(base_size = 10) +
   theme(axis.line        = element_line(colour = "grey40", linewidth = 0.3),
@@ -1149,50 +1221,103 @@ si_base <- theme_classic(base_size = 10) +
         plot.tag         = element_text(size = 13, face = "bold"),
         legend.position  = "none")
 
-p_mass <- ggplot(expected_tbl, aes(expected, category, fill = category)) +
-  geom_col(width = 0.72, colour = "grey35", linewidth = 0.2) +
-  geom_point(aes(x = deterministic), shape = 124, size = 2.6, colour = "grey15") +
-  facet_wrap(~ run, nrow = 1) +
-  scale_fill_manual(values = CATEGORY_COLOUR) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.06))) +
-  labs(x = "Expected number of links   (| = deterministic count)", y = NULL) +
-  si_base
+# Built as a function so the same two panels serve both the prior comparison
+# and the heterogeneity sensitivity, rather than the second being a copy that
+# can drift from the first.
+#   runs        which runs to show, left to right
+#   kappa_runs  panels that get the kappa line: uniform-prior runs only
+distribution_figure <- function(runs, stem, width = 11, height = 7,
+                                kappa_runs = runs[1]) {
 
-p_spread <- ggplot(post_long, aes(p, category, fill = category)) +
-  geom_vline(data = kappa_line, aes(xintercept = k), linetype = "22",
-             colour = "grey45", linewidth = 0.35) +
-  # outliers carry the story here (the links that pass kappa), so they are
-  # drawn large enough to count rather than as faint dust
-  geom_boxplot(width = 0.62, colour = "grey35", linewidth = 0.25,
-               outlier.size = 0.55, outlier.colour = "grey30",
-               outlier.alpha = 0.45, outlier.stroke = 0) +
-  geom_text(data = kappa_line, aes(x = k, y = 8.72, label = "kappa"),
-            parse = TRUE, inherit.aes = FALSE, hjust = -0.2, size = 2.9,
-            colour = "grey35") +
-  facet_wrap(~ run, nrow = 1) +
-  scale_fill_manual(values = CATEGORY_COLOUR) +
-  # headroom so the kappa label sits inside the panel rather than being clipped
-  scale_y_discrete(expand = expansion(add = c(0.6, 1.0))) +
-  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
-  labs(x = expression("P(category) per link"),
-       y = NULL) +
-  si_base +
-  theme(strip.text = element_blank())      # run names already label panel a
+  post_long <- results %>%
+    filter(run %in% runs) %>%
+    select(run, all_of(CAT_ORDER)) %>%
+    pivot_longer(all_of(CAT_ORDER), names_to = "category", values_to = "p") %>%
+    mutate(category = factor(category, levels = rev(CAT_ORDER)),
+           run      = factor(run, levels = runs))
 
-fig_runs <- (p_mass / p_spread) +
-  plot_annotation(tag_levels = "a") &
-  theme(plot.tag = element_text(size = 13, face = "bold"))
+  expected_tbl <- post_long %>%
+    group_by(run, category) %>%
+    summarise(expected = sum(p), .groups = "drop") %>%
+    left_join(det_counts, by = "category")
 
-ggsave(file.path(OUT_DIR, "fig_category_distributions.pdf"), fig_runs,
-       width = 11, height = 7)
-ggsave(file.path(OUT_DIR, "fig_category_distributions.png"), fig_runs,
-       width = 11, height = 7, dpi = 300)
+  # kappa does not involve p1 or nu, so it bounds the homogeneous run exactly
+  # as it bounds A-uniform
+  kappa_line <- tibble(run = factor(kappa_runs, levels = runs),
+                       k   = kappa(EPS_Y, EPS_L, F_POS))
+
+  p_mass <- ggplot(expected_tbl, aes(expected, category, fill = category)) +
+    geom_col(width = 0.72, colour = "grey35", linewidth = 0.2) +
+    geom_point(aes(x = deterministic), shape = 124, size = 2.6,
+               colour = "grey15") +
+    facet_wrap(~ run, nrow = 1) +
+    scale_fill_manual(values = CATEGORY_COLOUR) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.06))) +
+    labs(x = "Expected number of links   (| = deterministic count)", y = NULL) +
+    si_base
+
+  p_spread <- ggplot(post_long, aes(p, category, fill = category)) +
+    geom_vline(data = kappa_line, aes(xintercept = k), linetype = "22",
+               colour = "grey45", linewidth = 0.35) +
+    # outliers carry the story here (the links that pass kappa), so they are
+    # drawn large enough to count rather than as faint dust
+    geom_boxplot(width = 0.62, colour = "grey35", linewidth = 0.25,
+                 outlier.size = 0.55, outlier.colour = "grey30",
+                 outlier.alpha = 0.45, outlier.stroke = 0) +
+    geom_text(data = kappa_line, aes(x = k, y = 8.72, label = "kappa"),
+              parse = TRUE, inherit.aes = FALSE, hjust = -0.2, size = 2.9,
+              colour = "grey35") +
+    facet_wrap(~ run, nrow = 1) +
+    scale_fill_manual(values = CATEGORY_COLOUR) +
+    # headroom so the kappa label sits inside the panel rather than clipped
+    scale_y_discrete(expand = expansion(add = c(0.6, 1.0))) +
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+    labs(x = expression("P(category) per link"), y = NULL) +
+    si_base +
+    theme(strip.text = element_blank())    # run names already label panel a
+
+  fig <- (p_mass / p_spread) +
+    plot_annotation(tag_levels = "a") &
+    theme(plot.tag = element_text(size = 13, face = "bold"))
+
+  ggsave(file.path(OUT_DIR, paste0(stem, ".pdf")), fig,
+         width = width, height = height)
+  ggsave(file.path(OUT_DIR, paste0(stem, ".png")), fig,
+         width = width, height = height, dpi = 300)
+  invisible(list(fig = fig, expected = expected_tbl))
+}
+
+main_dist <- distribution_figure(PRIOR_RUNS, "fig_category_distributions")
 
 cat("\nEXPECTED COUNTS BY RUN (deterministic count in the first column)\n")
-expected_tbl %>%
+main_dist$expected %>%
   mutate(expected = round(expected, 1)) %>%
   select(category, run, deterministic, expected) %>%
   pivot_wider(names_from = run, values_from = expected) %>%
+  arrange(desc(deterministic)) %>%
+  print(n = 8, width = Inf)
+
+# --- heterogeneity sensitivity, as its own figure ---------------------------
+# The same figure for the four twins, in the same panel order, so it can be
+# read directly against the one above. Each pair of panels differs by the
+# likelihood alone: same prior, same model role, same rates, one carrying
+# heterogeneous p1 and the other the single p1 refitted without it. Anything
+# that moves between a panel and its counterpart is nu, and nothing else.
+hom_dist <- distribution_figure(HOM_RUNS, "fig_category_distributions_no_nu",
+                                kappa_runs = HOM_RUNS[1])
+
+# Paired by prior, since the question is what nu does WITHIN a prior, not which
+# prior is closer to the deterministic counts.
+cat("\nHETEROGENEITY SENSITIVITY: shift in expected counts when nu is removed\n")
+bind_rows(main_dist$expected %>% mutate(nu = "het"),
+          hom_dist$expected  %>% mutate(nu = "hom",
+                                        run = sub(" \\(no nu\\)$", "", run))) %>%
+  mutate(run = as.character(run)) %>%
+  select(category, run, nu, deterministic, expected) %>%
+  pivot_wider(names_from = nu, values_from = expected) %>%
+  mutate(shift = round(hom - het, 1)) %>%
+  select(category, run, deterministic, shift) %>%
+  pivot_wider(names_from = run, values_from = shift) %>%
   arrange(desc(deterministic)) %>%
   print(n = 8, width = Inf)
 
@@ -1432,7 +1557,11 @@ cam_report %>%
 # read down a column to answer.
 
 SIG    <- 0.05
-N_RUNS <- length(run_settings)
+# The verdict counts agreement among the four PRIOR runs. The likelihood
+# sensitivity run keeps its column, so its verdicts can be read off directly,
+# but it does not count toward the tally: it is a near-copy of A-uniform and
+# would inflate the appearance of independent replication.
+N_RUNS <- length(PRIOR_RUNS)
 
 stars <- function(p) case_when(is.na(p) ~ "",
                                p < 0.001 ~ "***",
@@ -1447,10 +1576,28 @@ rng_txt <- function(x, fmt = "%.0f") {
 }
 
 cam_by_run <- cam_report %>%
+  filter(run %in% PRIOR_RUNS) %>%
   mutate(cell = ifelse(is.na(OR_adj), "--",
                        sprintf("%.2f%s", OR_adj, stars(p_adj)))) %>%
   select(category, run, cell) %>%
   pivot_wider(names_from = run, values_from = cell)
+
+# Eight odds-ratio columns would be unreadable, and the question the twins
+# answer is narrow: does removing nu change the CALL? So each twin is compared
+# with its own base run and the four comparisons collapse to one column. A call
+# is the pair (significant or not, and which way), which is exactly what the
+# verdict is built from.
+cam_no_nu <- cam_report %>%
+  mutate(call = case_when(is.na(p_adj) ~ "na",
+                          p_adj >= SIG ~ "none",
+                          OR_adj > 1   ~ "up",
+                          TRUE         ~ "down"),
+         base = sub(" \\(no nu\\)$", "", run)) %>%
+  # exactly two rows per (category, base): a run and its twin. They agree when
+  # the two calls are the same, so no reshaping is needed.
+  group_by(category, base) %>%
+  summarise(same = n_distinct(call) == 1, .groups = "drop_last") %>%
+  summarise(no_nu = sprintf("%d/%d same", sum(same), n()), .groups = "drop")
 
 cam_summary <- cam_report %>%
   mutate(
@@ -1466,18 +1613,22 @@ cam_summary <- cam_report %>%
     confirmed = first(confirmed_in_category),
     pct_conf  = round(100 * first(confirmed_in_category) /
                             first(links_in_category)),
-    n_sig     = sum(p_adj < SIG,   na.rm = TRUE),
-    supports  = sum(right_way,     na.rm = TRUE),
-    against   = sum(wrong_way,     na.rm = TRUE),
+    n_sig     = sum(p_adj < SIG & run %in% PRIOR_RUNS,   na.rm = TRUE),
+    supports  = sum(right_way    & run %in% PRIOR_RUNS,  na.rm = TRUE),
+    against   = sum(wrong_way    & run %in% PRIOR_RUNS,  na.rm = TRUE),
     # of the runs that found a directional effect, how many keep it once
     # camera placement is adjusted for as well
-    site_ok   = sum((right_way | wrong_way) & p_adj2 < SIG, na.rm = TRUE),
+    site_ok   = sum((right_way | wrong_way) & p_adj2 < SIG &
+                    run %in% PRIOR_RUNS, na.rm = TRUE),
     # the probability translation, ranged over the runs that found an effect.
     # scalar if(), not ifelse(), because ifelse evaluates both branches and
     # the range of an empty selection would be -Inf
-    chance    = if (sum(p_adj < SIG, na.rm = TRUE) == 0) "--" else
-      sprintf("%s -> %s", rng_txt(100 * pr_avg[p_adj < SIG]),
-                          rng_txt(100 * pr_1sd[p_adj < SIG])),
+    chance    = local({
+      keep <- !is.na(p_adj) & p_adj < SIG & run %in% PRIOR_RUNS
+      if (!any(keep)) "--" else
+        sprintf("%s -> %s", rng_txt(100 * pr_avg[keep]),
+                            rng_txt(100 * pr_1sd[keep]))
+    }),
     .groups   = "drop"
   ) %>%
   mutate(
@@ -1497,8 +1648,9 @@ cam_summary <- cam_report %>%
 
 cam_summary_tbl <- cam_summary %>%
   left_join(cam_by_run, by = "category") %>%
+  left_join(cam_no_nu,  by = "category") %>%
   select(category, expect, n, confirmed, pct_conf,
-         all_of(names(run_settings)), verdict, site, chance) %>%
+         all_of(PRIOR_RUNS), verdict, site, no_nu, chance) %>%
   arrange(match(category, cats$category))
 
 # COLUMNS
@@ -1515,6 +1667,10 @@ cam_summary_tbl <- cam_summary %>%
 #                 expect, which is the ecological claim, not the z_l bit.
 #   site          of those runs, how many survive adjusting for camera
 #                 placement too. Blank where no run found a direction.
+#   no_nu         how many of the four priors give the SAME call once link
+#                 heterogeneity is removed. A call is "significant and upward",
+#                 "significant and downward", or "no signal", which is what the
+#                 verdict is built from. 4/4 means nu changes nothing here.
 #   chance        camera-record chance in percent at the average posterior ->
 #                 one SD above it, ranged over the significant runs. This is
 #                 the figure to quote in prose, not the odds ratio.
