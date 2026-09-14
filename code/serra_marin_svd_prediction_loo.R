@@ -112,8 +112,13 @@ if (file.exists(results_file)) {
 }
 
 ## ---- 4. Classification and evaluation ----
+# raw_score keeps the softImpute reconstruction exactly as it came out, before
+# negatives are set to zero and before the sigmoid, so a later calibration
+# (e.g. Platt scaling) can work from the full range rather than from the
+# clipped value, which maps every negative prediction to the same 0.5.
 df <- combined_results %>%
-  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
+  mutate(raw_score        = predicted_values,
+         predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
 ### ---- Select optimal threshold (max F0.5) ----
 # Every entry is a leave-one-out prediction so the full data set can be used
@@ -203,7 +208,8 @@ df_out <- df_classified %>%
     probability    = predicted_prob,
     prediction = as.integer(predicted_bin_sigm),
     focal_site,
-    method
+    method,
+    raw_score                                        # unclipped, pre-sigmoid
   )
 
 write_csv(df_out, "results/predictions/serra_marin_loo_prediction_results.csv")
