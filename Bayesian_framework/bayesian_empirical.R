@@ -84,7 +84,7 @@ ev <- obs %>%
     Y   = prediction,                      # hard model call
     O_l = ground_truth,                    # seen here?
     n, R,
-    score = qlogis(probability)            # raw softImpute value, see step 3
+    score = raw_score                      # raw softImpute value, see step 3
   ) %>%
   left_join(cam, by = c("pollinator" = "higher_level",
                         "plant"      = "lower_level",

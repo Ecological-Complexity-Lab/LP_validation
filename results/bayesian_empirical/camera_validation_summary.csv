@@ -1,9 +1,9 @@
 category,expect,n,confirmed,pct_conf,A-uniform,A-degree,B-uniform,B-degree,verdict,site,no_nu,chance
-recurrent,higher,100,73,73,1.74***,1.38***,1.63***,1.40***,supported in 4/4,holds,4/4 same,25-26 -> 32-36
+recurrent,higher,100,73,73,1.74***,1.38***,1.64***,1.40***,supported in 4/4,holds,4/4 same,25-26 -> 32-36
 locally unique,higher,77,45,58,1.20,0.97,1.24*,1.01,supported in 1/4,0 of 1,3/4 same,27 -> 30
-possibly missing,higher,34,13,38,1.55***,1.38***,1.52***,1.35***,supported in 4/4,holds,4/4 same,28-29 -> 32-35
-phantom,unclear,74,11,15,1.16,0.85,1.30**,0.97,no direction predicted (1/4 signal),,4/4 same,28 -> 32
-model-elusive,higher,54,28,52,0.79*,1.03,0.79*,1.03,CONTRADICTED in 2/4,holds,4/4 same,29 -> 25
-weakly-supported,lower,66,27,41,0.68***,0.80**,0.69***,0.81**,supported in 4/4,holds,4/4 same,28-29 -> 24-25
-locally absent,lower,94,20,21,0.84,1.30**,0.79,1.32**,CONTRADICTED in 2/4,holds,4/4 same,28 -> 32
-possibly forbidden,lower,452,45,10,0.52***,0.63***,0.42***,0.62***,supported in 4/4,holds,4/4 same,23-26 -> 11-19
+possibly missing,higher,34,13,38,1.55***,1.38***,1.54***,1.36***,supported in 4/4,holds,4/4 same,28-29 -> 32-35
+phantom,unclear,74,11,15,1.16,0.85,1.31**,0.96,no direction predicted (1/4 signal),,4/4 same,28 -> 32
+model-elusive,higher,54,28,52,0.79*,1.03,0.78*,1.03,CONTRADICTED in 2/4,holds,4/4 same,29 -> 25
+weakly-supported,lower,66,27,41,0.68***,0.80**,0.68***,0.81**,supported in 4/4,holds,4/4 same,28-29 -> 24-25
+locally absent,lower,94,20,21,0.84,1.30**,0.78,1.32**,CONTRADICTED in 2/4,holds,4/4 same,28 -> 32
+possibly forbidden,lower,452,45,10,0.52***,0.63***,0.42***,0.63***,supported in 4/4,holds,4/4 same,23-26 -> 11-19
