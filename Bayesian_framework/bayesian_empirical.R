@@ -37,20 +37,33 @@ NOT_FEASIBLE <- c("phantom", "possibly forbidden")
 # ---- 1. The evidence ----
 # Each link needs four things: Y, O_l, n and R.
 #
-# On R. Every site is a replicate, so R = 5 everywhere. Co-occurrence lives in
-# the realisation rate instead, as SI Table S6 prescribes: rho(k) = c(k) * r,
-# where c(k) = 1 only where both partners are present. At a site where they do
-# not co-occur, p1 and p0 are both zero, that replicate contributes the same
-# factor of 1 to all eight categories, and it cancels. So the arithmetic
-# reduces to counting only the sites where the pair could have been found,
-# which is what R below holds. 582 of 1624 links have R = 0: their replicate
-# evidence is silent rather than negative, and the posterior will say so.
+# On R. Every other site is a replicate, so R is the same for every link: the
+# number of sites minus the focal one. A link can go unrecorded at a replicate
+# for two reasons, and the SI does not separate them: the partners were not
+# there, or they were there and the interaction was not realised or not
+# detected. Both sit inside the per-replicate detection rate
+# p1 = rho * (1 - eps_l) (SI Section S4), where rho is the whole ecological
+# step, co-occurrence included (SI Table S7: "Co-occurrence, phenology -> rho").
+# So a site where the partners were never recorded together still counts, as a
+# replicate that did not record the link.
+#
+# There is also an ecological reason not to drop those sites. A species enters a
+# site's data only if it was recorded interacting there, and co-occurring species
+# are not always detected. A site without both partners in its data may well
+# have held both, so excluding it would treat an undetected species as an absent
+# one.
+#
+# n counts the replicates that recorded the link. A pair appears in a site's
+# candidate grid only where both partners were recorded, so every detection
+# comes from a row that exists, and a site with no row contributes n = 0.
 
 raw <- read_csv(DATA_OBS, show_col_types = FALSE)
 
 obs <- raw %>%
   filter(method == "obs") %>%
   mutate(pair = paste(higher_level, lower_level, sep = "||"))
+
+N_REPLICATES <- n_distinct(obs$focal_site) - 1     # every site but the focal one
 
 # camera records, used twice: to estimate the miss rate, and to mark the map
 cam <- raw %>%
@@ -60,8 +73,8 @@ cam <- raw %>%
 ev <- obs %>%
   group_by(pair) %>%
   mutate(
-    R = n_distinct(focal_site) - 1,        # co-occurring replicate sites
-    n = sum(ground_truth) - ground_truth   # detections among them
+    R = N_REPLICATES,                      # every other site
+    n = sum(ground_truth) - ground_truth   # replicates that recorded the link
   ) %>%
   ungroup() %>%
   transmute(
@@ -102,8 +115,7 @@ ev <- ev %>%
 # scalar to both directions. That also keeps kappa as the SI prints it, since
 # its (1-eps_Y) factor equals P(z_Y=1 | Y=1) only under symmetry. The two
 # directions are far apart here (false negative 0.43, false positive 0.13);
-# passing eps_Y = c(0.43, 0.13) instead raises kappa to 0.60 and expected
-# possibly missing from 166 to 194.
+# passing eps_Y = c(0.43, 0.13) instead raises kappa to 0.60.
 
 estimate_eps_Y <- function(d) {
   tp <- sum(d$ground_truth == 1 & d$prediction == 1)
@@ -152,21 +164,32 @@ EPS_L <- estimate_eps_l(obs, cam)
 F_POS <- 0.05
 
 # --- p1 and nu: replicate detection -----------------------------------------
-# p1 = rho * (1 - eps_l), Eq. S4. Only the product ever enters the replicate
-# factor, so we estimate it directly and never assume rho (we cannot separate rho from eps_l).
+# p1 = rho * (1 - eps_l), SI Section S4. Only the product ever enters the
+# replicate factor, so we estimate it directly and never assume rho (we cannot
+# separate rho from eps_l).
 #
-# Fit to pairs seen at least once, which is our working definition of
+# Every site is a trial for every pair, as in Section 1, so p1 is the chance
+# that a given site records the link, whatever stopped it: the partners absent,
+# the interaction not realised, or the interaction missed. This is the SI's own
+# estimate of p1, "the proportion of networks in which the interaction is
+# recorded" (Section S9), taken over all networks rather than only those where
+# the partners were recorded together. Fitting over the co-occurring sites alone
+# would leave out the absent-partner step and overstate p1, and every empty
+# replicate would then count as a far stronger sign of absence than it is. It
+# would also rest on the recorded co-occurrence being complete, which it is not:
+# co-occurring species are not always detected (Section 1).
+#
+# Fit to pairs recorded at least once, which is our working definition of
 # "realisable in the replicates". Conditioning on n >= 1 truncates the
 # distribution, so the naive proportion is biased upward. The zero-truncated
 # likelihood corrects for it. The beta-binomial version also returns nu, the
-# concentration that SI Section S7 needs.
+# concentration that SI Section S6 needs.
 #
 # The homogeneous alternative is fitted alongside it. Dropping heterogeneity
 # means REMOVING nu, not estimating it as infinite: the binomial is the
 # beta-binomial at nu -> Inf, and under that constraint p1 is the only free
 # parameter left. It has to be refitted, because the mean of a beta-binomial is
 # not the binomial MLE and passing P1 with nu = Inf would be neither model.
-# Here that matters: 0.321 against 0.493 on the same 200 pairs.
 #
 # The two are nested, so which one the data prefer is testable rather than a
 # matter of taste, and the likelihood ratio is reported with the rates below.
@@ -174,9 +197,9 @@ F_POS <- 0.05
 estimate_p1 <- function(obs) {
   pairs <- obs %>%
     group_by(pair) %>%
-    summarise(R = n_distinct(focal_site), n = sum(ground_truth),
-              .groups = "drop") %>%
-    filter(R >= 2, n >= 1)
+    summarise(n = sum(ground_truth), .groups = "drop") %>%
+    mutate(R = N_REPLICATES + 1) %>%                  # every site is a trial
+    filter(n >= 1)
 
   # log P(n | R) for a beta-binomial, without the binomial coefficient (it
   # cancels everywhere), minus log P(n >= 1) to correct the truncation
@@ -200,7 +223,7 @@ estimate_p1 <- function(obs) {
        p1_hom = plogis(hom$minimum),                  ll_hom = -hom$objective,
        n_pairs = nrow(pairs),
        n_all   = n_distinct(obs$pair),
-       set     = "species pairs co-occurring at 2+ sites and recorded at 1+ of them")
+       set     = "species pairs recorded at 1+ site, every site a trial")
 }
 
 rep_fit <- estimate_p1(obs)
@@ -221,10 +244,6 @@ cat(sprintf("          estimated on %d of %d species pairs: %s\n",
 # Heterogeneity is a nested hypothesis (nu -> Inf removes it), so the choice is
 # testable. nu -> Inf sits on the boundary of the parameter space, which is why
 # the null is the 50:50 mixture of chi2_0 and chi2_1 and the p-value is halved.
-# The verdict here is "weakly supported, and poorly determined": nu is bounded
-# away from infinity, but a 95% profile interval runs from about 1 to 100, and
-# nu = 4 costs 0.12 in log-likelihood while putting the beta shape parameter
-# back above 1, inside the range the SI illustrates.
 #
 # Reading the printed line. The model with nu has one extra parameter, so it
 # always fits at least as well; the question is whether the gain is worth it.
@@ -319,9 +338,9 @@ cat(sprintf("  note %d links are predicted (Y = 1) yet calibrate below 0.5.\n",
 # Nothing is hardcoded: every SI section is a setting of the arguments, not a separate branch.
 #
 #   Section S2  eps_r supplied, count = FALSE   symmetric binary evidence
-#   Section S5  eps_r = NULL,   count = FALSE   directional rates from p1 and f
-#   Section S6  count = TRUE,   nu = Inf        cumulative binomial
-#   Section S7  count = TRUE,   nu finite       heterogeneous p1
+#   Section S4  eps_r = NULL,   count = FALSE   directional rates from p1 and f
+#   Section S5  count = TRUE,   nu = Inf        cumulative binomial
+#   Section S6  count = TRUE,   nu finite       heterogeneous p1
 #   Section S8  s = 0, pi_Y = q                 model as prior
 #
 # The binary forms are not an alternative formula. They are the same replicate
@@ -331,7 +350,7 @@ cat(sprintf("  note %d links are predicted (Y = 1) yet calibrate below 0.5.\n",
 #
 # eps_r is the one genuine override. Section S2 treats the replicate error as a
 # free-standing rate, before it is grounded in rho and eps_l, so no value of p1
-# reproduces it. Leave it NULL for everything from Section S5 onwards.
+# reproduces it. Leave it NULL for everything from Section S4 onwards.
 #
 # Arguments
 #   Y, O_l, n, R      evidence; vectors of equal length
@@ -339,7 +358,7 @@ cat(sprintf("  note %d links are predicted (Y = 1) yet calibrate below 0.5.\n",
 #   eps_l, f          local miss rate and false-detection rate
 #   p1bar, nu         mean and concentration of p1 across links; nu = Inf for
 #                     one shared rate
-#   p0                replicate false detection; defaults to f as Table S4
+#   p0                replicate false detection; defaults to f as Table S5
 #                     derives, but separable for sensitivity
 #   eps_r             optional free-standing replicate rate; scalar or a pair
 #   count             TRUE keeps n, FALSE collapses it to O_r = 1[n >= 1]
@@ -388,7 +407,7 @@ posterior <- function(Y, O_l, n, R,
 
     # --- replicates. One distribution, read at three levels of detail.
     #     Heterogeneity applies to p1 only: p0 = f is methodological, so the
-    #     non-realisable categories keep a fixed rate (Section S7).
+    #     non-realisable categories keep a fixed rate (Section S6).
     p_c  <- if (zr == 1) p1bar else p0
     nu_c <- if (zr == 1) nu else Inf
 
@@ -428,8 +447,8 @@ feasibility <- function(post) 1 - rowSums(post[, NOT_FEASIBLE, drop = FALSE])
 # They differ because a non-detection is weak evidence of absence when f is
 # small, whereas a detection is strong evidence of presence. With the rates
 # fitted here the two are 0.533 and 0.673, so a single number would misstate
-# the ceiling for half the dataset: links recorded locally legitimately reach
-# 0.672, which is above the O_l = 0 branch but below their own.
+# the ceiling for half the dataset: links recorded locally can legitimately
+# rise above the O_l = 0 branch, though never above their own.
 # The default is O_l = 0, which is the case the SI illustrates throughout and
 # the one the accumulation figures use.
 kappa <- function(eps_Y, eps_l, f, O_l = 0) {
@@ -510,10 +529,9 @@ cat(sprintf("\n  kappa for THIS dataset = %.3f\n", kappa(EPS_Y, EPS_L, F_POS)))
 # is derived from R, not assumed.
 #
 # Degrees come from the five non-focal sites, so the prior never sees the
-# evidence it is about to be combined with. R is nominal (5), matching the
-# decision that every site is a replicate; co-occurrence stays in rho.
-
-R_NOMINAL <- 5
+# evidence it is about to be combined with. R is the same N_REPLICATES the
+# likelihood uses (Section 1), so the prior and the evidence agree on how many
+# chances a link had; co-occurrence stays in rho.
 
 links <- obs %>% filter(ground_truth == 1) %>%
   distinct(focal_site, higher_level, lower_level)
@@ -534,7 +552,7 @@ regional <- ev %>%
          d_pla = d_pla_all - d_pla_here,
          L_reg = nrow(links) - L_here,
          pi_l_deg = pmin(d_pol * d_pla / L_reg, 0.99),
-         pi_r_deg = 1 - (1 - pi_l_deg)^R_NOMINAL) %>%
+         pi_r_deg = 1 - (1 - pi_l_deg)^N_REPLICATES) %>%
   select(focal_site, pollinator, plant, d_pol, d_pla, pi_l_deg, pi_r_deg)
 
 ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
@@ -589,9 +607,9 @@ ev <- ev %>% left_join(regional, by = c("focal_site", "pollinator", "plant"))
 #   B-degree             both together, the run using the most inputs
 #
 # A SECOND AXIS: THE LIKELIHOOD. The four above vary the prior and the model's
-# role, all of them carrying heterogeneous p1 (Section S7). Each one also gets a
-# twin with heterogeneity removed (Section S6), carrying the p1 refitted without
-# it, 0.493 rather than 0.321.
+# role, all of them carrying heterogeneous p1 (Section S6). Each one also gets a
+# twin with heterogeneity removed (Section S5), carrying the p1 refitted without
+# it.
 #
 # Every prior needs its own twin, because nu and the prior do not act
 # independently. nu enters the replicate factor for the four z_r = 1 categories
@@ -637,7 +655,7 @@ results <- imap_dfr(run_settings, function(cfg, run_name) {
     eps_Y = EPS_Y,
     eps_l = EPS_L,
     f     = F_POS,
-    # finite nu is heterogeneous p1 (Section S7); a run may override both to
+    # finite nu is heterogeneous p1 (Section S6); a run may override both to
     # remove heterogeneity, and must then supply the p1 refitted without it
     p1bar = if (is.null(cfg$p1bar)) P1 else cfg$p1bar,
     nu    = if (is.null(cfg$nu))    NU else cfg$nu,
@@ -1038,8 +1056,8 @@ map_log %>%
 # between files.
 #
 # The important argument is `shared_limit`. Each map on its own stretches the
-# colour ramp to its own maximum, and those maxima differ a lot between runs:
-# possibly forbidden tops out at 0.36 under A-uniform and 0.92 under B-degree.
+# colour ramp to its own maximum, and those maxima differ a lot between runs,
+# most of all between the uniform and the degree priors.
 # Four panels on four different scales would make an identical shade mean four
 # different probabilities, so the default holds every panel on one scale, the
 # highest reached by any of them. That also lets the four legends collapse into
@@ -1154,12 +1172,20 @@ make_run_panel <- function(category,
 # in the same panel order, so the pair can be read side by side. Each figure
 # takes its own shared colour scale, so compare shapes across the pair and
 # shades only within a figure.
+#
+# Figures are printed only in an interactive session. Under Rscript, R would
+# send them to its default device and leave a stray Rplots.pdf duplicating the
+# files already written.
 cat("\n\nFOUR-RUN PANELS\n")
 for (k in MAP_CATEGORIES) {
-  invisible(make_run_panel(k, caption = FALSE))
-  invisible(make_run_panel(
+  panel_het <- make_run_panel(k, caption = FALSE)
+  panel_hom <- make_run_panel(
     k, runs = HOM_RUNS, caption = FALSE,
-    file = file.path(OUT_DIR, sprintf("panel_runs_%s_no_nu.png", map_stem[k]))))
+    file = file.path(OUT_DIR, sprintf("panel_runs_%s_no_nu.png", map_stem[k])))
+  if (interactive()) {
+    print(panel_het)        # the four prior runs
+    print(panel_hom)        # their heterogeneity twins
+  }
 }
 
 # Any other combination is one call, for example
@@ -1185,9 +1211,16 @@ for (k in MAP_CATEGORIES) {
 #      link, which says whether a category's mass is a few confident links or
 #      many diffuse ones.
 #
-# On the kappa line in panel b. kappa = (1 - eps_Y)(1 - f) / ((1 - f) + eps_l)
-# carries TWO conditions, and points sit to the right of it whenever either is
-# relaxed, which is a result rather than a violation.
+# On the kappa line in panel b. kappa, the ceiling on confidence, has two
+# versions depending on what the local observation said (see kappa() in
+# Section 4):
+#
+#   O_l = 0, link not recorded locally  (1 - eps_Y)(1 - f)     / ((1 - f) + eps_l)
+#   O_l = 1, link recorded locally      (1 - eps_Y)(1 - eps_l) / ((1 - eps_l) + f)
+#
+# The line in panel b is the first. It carries TWO conditions, and points sit to
+# the right of it whenever either is relaxed, which is a result rather than a
+# violation.
 #
 #   1. A uniform prior. B replaces the flat pi_Y with the calibrated score and
 #      the degree runs add ecological priors, so the line is drawn only in the
@@ -1195,10 +1228,9 @@ for (k in MAP_CATEGORIES) {
 #   2. A link NOT recorded locally (O_l = 0). The derivation is the ceiling for
 #      a non-detection, where the local factor contributes only eps_l against
 #      1 - f. A positive local detection contributes 1 - eps_l against f, a far
-#      sharper contrast, so those links can go higher. Under A-uniform every
-#      category peaks at 0.533 = kappa among O_l = 0 links, while 138 O_l = 1
-#      links reach 0.672, all of them recurrent or model-elusive, the two
-#      categories with z_l = 1 and z_r = 1.
+#      sharper contrast, so those links can go higher, up to the O_l = 1
+#      version of kappa above. The ones that do are recurrent or model-elusive,
+#      the two categories with z_l = 1 and z_r = 1.
 #
 # Each row mixes both local conditions, so the line cannot be drawn per row.
 # The axis label states what it bounds instead.
@@ -1288,6 +1320,7 @@ distribution_figure <- function(runs, stem, width = 11, height = 7,
 }
 
 main_dist <- distribution_figure(PRIOR_RUNS, "fig_category_distributions")
+if (interactive()) print(main_dist$fig)
 
 cat("\nEXPECTED COUNTS BY RUN (deterministic count in the first column)\n")
 main_dist$expected %>%
@@ -1305,6 +1338,7 @@ main_dist$expected %>%
 # that moves between a panel and its counterpart is nu, and nothing else.
 hom_dist <- distribution_figure(HOM_RUNS, "fig_category_distributions_no_nu",
                                 kappa_runs = HOM_RUNS[1])
+if (interactive()) print(hom_dist$fig)
 
 # Paired by prior, since the question is what nu does WITHIN a prior, not which
 # prior is closer to the deterministic counts.
@@ -1399,15 +1433,13 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #                  and once one SD above it (pct_1sd), then averaged across
 #                  links; pct_diff is the gap in percentage points. Averaging
 #                  is necessary because a fixed odds ratio implies DIFFERENT
-#                  probability changes at different starting points: for
-#                  possibly forbidden, OR 0.55 costs about 7 points among
-#                  locally unobserved links and about 13 among observed ones.
-#                  Averaging over the links respects the real mix of O_l and
-#                  answers "for a typical link here, how much does the chance
-#                  of a camera record move?".
-#                  Read these two together with p_adj: the percentage-point
-#                  gaps are modest (5 to 13 points) even where p is tiny, which
-#                  reflects a clean signal in a large sample rather than a large
+#                  probability changes at different starting points, smaller
+#                  among locally unobserved links, where camera records are
+#                  rare, than among observed ones. Averaging over the links
+#                  respects the real mix of O_l and answers "for a typical link
+#                  here, how much does the chance of a camera record move?".
+#                  Read these together with p_adj: a tiny p with a gap of a few
+#                  points is a clean signal in a large sample, not a large
 #                  effect.
 #   verdict        does the significant effect run the way the category
 #                  predicts? The expected direction is set below per category,
@@ -1419,8 +1451,8 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #   p_site         coverage runs from 41% to 82% across sites.
 #   OR_raw, p_raw  reference only, no covariates. Close to tautological, since
 #                  categories are defined partly BY O_l. It can even carry the
-#                  opposite sign to OR_adj: possibly missing is 0.66 raw and
-#                  1.60 adjusted. Never read it against the verdict.
+#                  opposite sign to OR_adj, as possibly missing has done. Never
+#                  read it against the verdict.
 
 # What each category claims, and therefore what the cameras should show.
 cam_expectation <- tibble::tribble(
@@ -1466,9 +1498,10 @@ cam_fit_one <- function(d, k) {
 
   # The same effect on the probability scale, which is what a reader without a
   # regression background can act on. An odds ratio is constant by
-  # construction, but the probability change it implies is not: -0.55 in odds
-  # costs about 7 points among locally unobserved links and about 13 among
-  # observed ones. So rather than quote one stratum, predict every link twice,
+  # construction, but the probability change it implies is not: the same odds
+  # ratio moves the chance less where it starts low (locally unobserved links)
+  # than where it starts higher. So rather than quote one stratum, predict every
+  # link twice,
   # once at the average posterior and once a standard deviation above it, and
   # average over the links. That respects the actual mix of O_l in the data and
   # answers "for a typical link here, how much does the chance move?".
@@ -1522,8 +1555,8 @@ cam_report <- map_dfr(names(run_settings), camera_validation)
 # Printed as one table. Column order matters here: the verdict is decided by
 # the O_l-adjusted model, so OR_adj sits next to it. The raw OR is kept for
 # reference but must not be read against the verdict, because it can carry the
-# opposite sign: possibly missing is 0.66 raw and 1.60 adjusted, and only the
-# adjusted figure is a claim about anything the direct observation had not
+# opposite sign, as possibly missing has done, and only the adjusted figure is
+# a claim about anything the direct observation had not
 # already said. n and confirmed describe the deterministic category, not the
 # regression, which uses all links inside the camera grid.
 cam_report %>%
@@ -1700,24 +1733,25 @@ cat(sprintf("\nWritten: %s\n         %s\n",
 # WHAT THE SOLID AND DASHED PARTS MEAN
 #   solid   R <= 5, which six sites can deliver. This is the study as built.
 #   dashed  R > 5, hypothetical extra replicate sites that do not exist.
-# The dashed section is the answer to "how many more sites would we need?", and
-# here it is flat: nothing is left to gain.
+# The dashed section is the answer to "how many more sites would we need?": the
+# closer the solid line already sits to kappa at the design limit, the less
+# extra sites can add.
 #
 # WHAT THE FIGURE SHOWS ON THESE RATES
-# p1 = 0.32 against f = 0.05 makes each replicate strong evidence, so the
-# posterior reaches kappa by R = 3 and never moves again. Two or three
-# replicates exhaust what replication can buy. The ceiling is a property of the
-# model and the local method, not of the sampling design, so the way past it is
-# a better model (lower eps_Y) or a better local method (lower eps_l), which is
-# exactly the action the taxonomy prescribes. For reference, no real
-# possibly-missing link in this dataset exceeds R = 3.
+# How fast the curve climbs is set by how far p1 sits above f: the wider the
+# gap, the stronger each recording replicate is as evidence. The value it
+# climbs to is kappa, and kappa does not involve p1 at all. The ceiling is a
+# property of the model and the local method, not of the sampling design, so
+# the way past it is a better model (lower eps_Y) or a better local method
+# (lower eps_l), which is exactly the action the taxonomy prescribes. The
+# printout below gives the posterior at the design limit, to set against kappa.
 #
 # COLOURS
 # Each category keeps the colour it carries in the maps, which frees linetype
 # to mean observed versus hypothetical. The manuscript figure uses linetype to
 # pair categories instead, because it has no extrapolation to mark.
 
-R_MAX_DESIGN <- 5      # six sites, so five replicates at most
+R_MAX_DESIGN <- N_REPLICATES   # every other site, the most the design provides
 R_SHOW       <- 12     # far enough past saturation to make the plateau obvious
 
 accum <- map_dfr(0:R_SHOW, function(R) {
@@ -1751,9 +1785,11 @@ R_STAR <- r_needed("possibly missing", TARGET)
 cat("\n\nEVIDENCE ACCUMULATION ON THE FITTED RATES\n")
 cat(sprintf("  kappa = %.3f, the ceiling for a link not recorded locally\n",
             KAPPA_EMP))
-cat(sprintf("  P(possibly missing) reaches %.2f at R = %s, and %.3f at R = 3\n",
+cat(sprintf("  P(possibly missing) reaches %.2f at R = %s, and %.3f at the design limit R = %d\n",
             TARGET, ifelse(is.na(R_STAR), "never", R_STAR),
-            acc_plot$P[acc_plot$category == "possibly missing" & acc_plot$R == 3]))
+            acc_plot$P[acc_plot$category == "possibly missing" &
+                         acc_plot$R == R_MAX_DESIGN],
+            R_MAX_DESIGN))
 print(acc_plot %>% filter(R <= 6) %>%
         pivot_wider(names_from = category, values_from = P) %>%
         mutate(across(-R, ~round(.x, 3))) %>% as.data.frame(), row.names = FALSE)
@@ -1812,5 +1848,6 @@ ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.pdf"), fig_accum,
        width = 6.5, height = 5)
 ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.png"), fig_accum,
        width = 6.5, height = 5, dpi = 300)
+if (interactive()) print(fig_accum)
 cat(sprintf("\nWritten: %s\n",
             file.path(OUT_DIR, "fig_accumulation_empirical.pdf")))

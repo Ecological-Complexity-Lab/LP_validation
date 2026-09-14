@@ -149,9 +149,12 @@ JACC   <- TPc / (TPc + A_only + B_only)
 F_POS  <- 0.05
 
 # p1 and nu: zero-truncated beta-binomial, the same likelihood as the script
+# every site is a trial for every pair, as in the script (Section 1 and 2)
+N_SITES <- n_distinct(obs$focal_site)
 pairs_tbl <- obs %>% group_by(pair) %>%
-  summarise(R = n_distinct(focal_site), n = sum(ground_truth), .groups = "drop") %>%
-  filter(R >= 2, n >= 1)
+  summarise(n = sum(ground_truth), .groups = "drop") %>%
+  mutate(R = N_SITES) %>%
+  filter(n >= 1)
 nll <- function(par) {
   m <- plogis(par[1]); nu <- exp(par[2])
   a <- m * nu; b <- (1 - m) * nu
@@ -170,6 +173,7 @@ nll_hom <- function(par) {
 hom <- optimize(nll_hom, c(-8, 8))
 P1_HOM <- plogis(hom$minimum); LL_B <- -hom$objective
 LR_NU  <- 2 * (LL_BB - LL_B)
+P_NU   <- 0.5 * pchisq(LR_NU, 1, lower.tail = FALSE)
 NPAIRS <- nrow(pairs_tbl)
 
 KAPPA <- (1 - EPS_Y) * (1 - F_POS) / ((1 - F_POS) + EPS_L)
@@ -256,9 +260,9 @@ Each candidate link $i$ carries four pieces of evidence $E_i$:
 
 - $\hat Y_i \in \{0,1\}$, whether the model predicts it
 - $O_{l,i} \in \{0,1\}$, whether it was recorded at the focal site
-- $R_i$, the number of other sites where both partners were recorded, so the
-  pair could have been found there
-- $n_i \le R_i$, how many of those sites recorded the interaction
+- $R$, the number of replicates, which is every site except the focal one, the
+  same for every link
+- $n_i \le R$, how many of those replicates recorded the interaction
 
 Each category is one combination of three **true** states, which the evidence
 reports with error: $z_Y$, an error-free model would predict it; $z_l$, it is
@@ -315,9 +319,23 @@ f^{\,n}\,(1-f)^{R-n} & \text{when } z_r = 0
 $$
 
 $B$ is the beta function. The binomial coefficient is left out because it is the
-same for every category and cancels. When $R = 0$ the factor equals 1 for every
-category: no other site could have found the link, so the replicates are silent
-rather than negative.
+same for every category and cancels.
+
+::: {.method}
+**Methodological decision: every other site is a replicate.** A link can go
+unrecorded at a replicate because the partners were not there, or because they
+were there and the interaction was not realised or not detected. The SI does not
+separate these: both sit inside the per-replicate rate
+$p_1 = \rho\,(1-\epsilon_l)$, where the realisation rate $\rho$ is the whole
+ecological step, co-occurrence included (SI Section S4, Table S7). So $R$ counts
+every other site for every link, including sites where the two partners were
+never recorded together.
+
+There is also an ecological reason not to drop those sites. A species enters a
+site's data only if it was recorded interacting there, and co-occurring species
+are not always detected. A site without both partners in its data may well have
+held both, so excluding it would treat an undetected species as an absent one.
+:::
 
 **Prior.** One probability per true state, multiplied:
 
@@ -396,9 +414,11 @@ control (pairs that never co-occur) is excluded from the candidate set by
 construction. It is fixed a priori.
 
 $p_1$ and $\nu$ maximise a zero-truncated beta-binomial likelihood over the
-`r NPAIRS` species pairs present at two or more sites and recorded at one or
-more, with $R_j$ the sites where pair $j$'s partners were both recorded and $n_j$
-the sites that recorded the interaction:
+`r NPAIRS` species pairs recorded at one or more sites. Every site is a trial
+for every pair, so $R_j$ = `r N_SITES` for all of them, and $n_j$ is the number
+of sites that recorded the interaction. This is the SI's own estimate of $p_1$,
+the proportion of networks in which the interaction is recorded (SI Section S9),
+so $p_1$ covers the absent-partner step as well as realisation and detection:
 
 $$
 \ell(p_1, \nu) = \sum_j \log \frac{BB(n_j \mid R_j)}{1 - BB(0 \mid R_j)},
@@ -536,14 +556,11 @@ tibble(
 ```
 
 The likelihood ratio is `r sprintf("%.2f", LR_NU)` on 1 df, boundary-corrected
-$p$ = `r sprintf("%.3f", 0.5 * pchisq(LR_NU, 1, lower.tail = FALSE))`. **The data
-mildly prefer keeping $\nu$**, so this run exists to show the conclusions do not
-depend on that preference, not to replace the model.
+$p$ = `r sprintf("%.3f", P_NU)`, so
+**`r if (P_NU < 0.05) "the data support keeping $\\nu$" else "the data give no support for keeping $\\nu$"`**.
+The twins show what that choice does to the results.
 
-**Open question.** $\nu$ = `r sprintf("%.2f", NU)` sits outside the range the SI
-illustrates: it implies a beta shape parameter $a = p_1\nu$ =
-`r sprintf("%.2f", P1 * NU)`, below 1. Widen the SI wording, or constrain the
-fit?
+`r if (P1 * NU < 1) sprintf("**Open question.** $\\nu$ = %.2f sits outside the range the SI illustrates: it implies a beta shape parameter $a = p_1\\nu$ = %.2f, below 1. Widen the SI wording, or constrain the fit?", NU, P1 * NU) else ""`
 
 # The starting point
 
@@ -763,15 +780,27 @@ The largest single shift is
 `r format(nrow(one), big.mark = ",")`. $\kappa$ does not change at all, because
 $\nu$ does not appear in it.
 
-Every shift runs the same way and comes in equal and opposite pairs. Each
-category that says "realisable in the replicates" ($z_r = 1$) loses exactly what
-its partner saying "not realisable" ($z_r = 0$) gains: recurrent to locally
-unique, possibly missing to phantom, model-elusive to weakly-supported, locally
-absent to possibly forbidden. $\nu$ acts only through the replicate factor, so
-it can move probability only across $z_r$. The direction follows from the refit:
-without $\nu$, $p_1$ rises from `r sprintf("%.2f", P1)` to
-`r sprintf("%.2f", P1_HOM)`, so a run of empty replicates counts more strongly
-against the link being realisable.
+```{r het-direction}
+# net expected links moved into the four "not realisable" categories, per prior,
+# from unrounded values so a small shift keeps its sign
+ZR0 <- c("locally unique", "phantom", "weakly-supported", "possibly forbidden")
+to_zr0 <- sapply(RUNS, function(rn)
+  sum(expected_by(paste0(rn, " (no nu)"))[ZR0] - expected_by(rn)[ZR0]))
+HET_DIRECTION <- if (all(to_zr0 > 0)) {
+  'from "realisable in the replicates" toward "not realisable"'
+} else if (all(to_zr0 < 0)) {
+  'from "not realisable" toward "realisable in the replicates"'
+} else {
+  "in different directions under different priors"
+}
+```
+
+The shifts come in equal and opposite pairs. Each category that says
+"realisable in the replicates" ($z_r = 1$) loses exactly what its partner saying
+"not realisable" ($z_r = 0$) gains: recurrent and locally unique, possibly
+missing and phantom, model-elusive and weakly-supported, locally absent and
+possibly forbidden. $\nu$ acts only through the replicate factor, so it can
+move probability only across $z_r$. Here the movement runs `r HET_DIRECTION`.
 
 Totals can hide movement at the level of single links, so the same comparison
 link by link, with $\Delta_i = \max_k \left| P(k \mid E_i)_{\text{without }\nu} - P(k \mid E_i)_{\text{with }\nu} \right|$:
@@ -820,18 +849,18 @@ include_graphics(c(file.path(OUT, "panel_runs_missing_no_nu.png"),
 Each figure carries its own shared colour scale, so compare **shapes** between a
 figure and its counterpart above, and shades only within one figure.
 
-**Takeaway.** Removing $\nu$ changes little, and what it changes is systematic.
-It moves at most `r round(max(abs(as.matrix(shift_tbl[RUNS]))))` expected links,
-always from "realisable in the replicates" toward "not realisable". The share
-of links whose most likely category changes is
+**Takeaway.** Removing $\nu$ moves at most
+`r round(max(abs(as.matrix(shift_tbl[RUNS]))))` expected links, `r HET_DIRECTION`.
+The share of links whose most likely category changes is
 `r sprintf("%.1f%%", 100 * (1 - min(het_links$same_top[grepl("uniform", het_links$Setting)])))`
 at most under the uniform priors and
 `r sprintf("%.1f%%", 100 * (1 - min(het_links$same_top[grepl("degree", het_links$Setting)])))`
 at most under the degree priors, so the priors do respond differently. Within-category rankings stay
 nearly identical (lowest Spearman `r sprintf("%.2f", min(het_links$min_rho))`),
-and every camera call is unchanged. The data mildly prefer keeping $\nu$; the
-conclusions do not depend on it. This is a sentence in the assumptions section,
-not a modelling decision to defend.
+and `r sum(camsum$no_nu == sprintf("%d/%d same", length(RUNS), length(RUNS)))`
+of the `r nrow(camsum)` camera calls are unchanged under every prior.
+`r if (P_NU < 0.05) "The data support keeping $\\nu$" else "The data give no support for keeping $\\nu$"`
+(boundary $p$ = `r sprintf("%.3f", P_NU)`).
 
 ## Does confidence buy anything?
 
@@ -1009,9 +1038,10 @@ The dashed horizontal line is $\kappa$, defined under the posterior weight
 figure above.
 :::
 
-With $p_1$ = `r sprintf("%.2f", P1)` against $f$ = `r sprintf("%.2f", F_POS)`,
-each replicate is strong evidence, and the posterior reaches $\kappa$ within the
-six-site design and never moves again.
+How fast the curve climbs is set by how far $p_1$ = `r sprintf("%.2f", P1)`
+sits above $f$ = `r sprintf("%.2f", F_POS)`: the wider that gap, the more each
+recording replicate is worth. The level it climbs toward is $\kappa$, which does
+not involve $p_1$ at all.
 
 **Takeaway.** A few replicates exhaust what replication can buy here.
 $\kappa$ = `r sprintf("%.3f", KAPPA)` follows from the error rates by algebra: it
