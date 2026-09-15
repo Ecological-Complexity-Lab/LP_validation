@@ -1851,3 +1851,192 @@ ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.png"), fig_accum,
 if (interactive()) print(fig_accum)
 cat(sprintf("\nWritten: %s\n",
             file.path(OUT_DIR, "fig_accumulation_empirical.pdf")))
+
+
+# ---- 11. A per-species view ----
+# PURPOSE   Field effort is often planned per species. How many of each plant's
+#           candidate links does the posterior place in each category?
+# WHAT      Per plant at the richest site, sum each category's posterior over
+#           the plant's links (expected count) and give its SD.
+# DECISIONS The sum, not the mean share or a count of most-likely categories.
+#           B-uniform and B-degree, since the prior moves the posterior far more
+#           than where the model enters. nu kept. Rationale and caveats are in
+#           the note, section "Where to look, species by species".
+
+SPECIES_RUNS <- c("B-uniform", "B-degree")
+
+per_plant <- results %>%
+  filter(run %in% SPECIES_RUNS, focal_site == richest) %>%
+  select(run, focal_site, plant, det_category, all_of(CAT_ORDER)) %>%
+  pivot_longer(all_of(CAT_ORDER), names_to = "category", values_to = "p") %>%
+  group_by(run, focal_site, plant, category) %>%
+  summarise(candidates    = n(),
+            deterministic = sum(det_category == category),
+            expected      = sum(p),
+            sd            = sqrt(sum(p * (1 - p))),   # links taken as independent
+            share         = expected / candidates,     # average posterior
+            .groups = "drop")
+
+write_csv(per_plant,file.path(OUT_DIR, "per_plant_expected_counts.csv"))
+
+# a plant's eight expected counts must add up to its candidate links
+sum_gap <- per_plant %>%
+  group_by(run, plant) %>%
+  summarise(gap = abs(sum(expected) - first(candidates)), .groups = "drop")
+cat(sprintf("  [%s] per plant, expected counts sum to the candidate links (max gap %.1e)\n",
+            ifelse(max(sum_gap$gap) < 1e-8, "OK", "!!"), max(sum_gap$gap)))
+
+# same ordering rule as make_map: this site's plants by pooled degree
+pla_site <- per_plant %>% distinct(plant) %>%
+  left_join(deg_pla, by = c("plant" = "lower_level")) %>%
+  arrange(desc(deg)) %>% pull(plant)
+
+species_figure <- function(run_name) {
+  d <- per_plant %>%
+    filter(run == run_name) %>%
+    mutate(plant    = factor(plant, levels = pla_site),
+           category = factor(category, levels = CAT_ORDER))
+
+  ggplot(d, aes(y = plant)) +
+    # whisker is expected +/- SD, cut at zero
+    geom_segment(aes(x = pmax(expected - sd, 0), xend = expected + sd,
+                     yend = plant), colour = "grey45", linewidth = 0.5) +
+    geom_point(aes(x = deterministic), shape = 124, size = 3,
+               colour = "grey15") +
+    geom_point(aes(x = expected, fill = category), shape = 21, size = 2.4,
+               colour = "grey25", stroke = 0.3) +
+    # predicted four on the top row, unpredicted four below
+    facet_wrap(~ category, nrow = 2, scales = "free_x") +
+    scale_fill_manual(values = CATEGORY_COLOUR) +
+    scale_y_discrete(labels = ital) +
+    scale_x_continuous(limits = c(0, NA),
+                       expand = expansion(mult = c(0.02, 0.08))) +
+    # plain ASCII: the pdf device cannot encode the plus-minus sign
+    labs(title = sprintf("%s, %s", richest, run_name),
+         x = "Links per plant: expected +/- SD (dot and whisker), deterministic count (|)",
+         y = NULL) +
+    si_base +
+    theme(panel.grid.major.y = element_line(colour = "grey92", linewidth = 0.3),
+          plot.title         = element_text(size = 10, face = "bold"))
+}
+
+for (rn in SPECIES_RUNS) {
+  fig_sp <- species_figure(rn)
+  stem <- file.path(OUT_DIR, paste0("fig_per_plant_", run_stem(rn)))
+  ggsave(paste0(stem, ".pdf"), fig_sp, width = 12, height = 7)
+  ggsave(paste0(stem, ".png"), fig_sp, width = 12, height = 7, dpi = 300)
+  if (interactive()) print(fig_sp)
+}
+
+cat("\nEXPECTED LINKS PER PLANT (richest site)\n")
+per_plant %>%
+  mutate(expected = round(expected, 1),
+         category = factor(category, levels = CAT_ORDER)) %>%
+  arrange(category) %>%
+  select(run, plant, category, expected) %>%
+  pivot_wider(names_from = category, values_from = expected) %>%
+  arrange(run, match(plant, pla_site)) %>%
+  print(n = Inf, width = Inf)
+
+# --- step 1, heatmap: each plant's average posterior ------------------------
+# PURPOSE   See every plant's composition at once.
+# WHAT      Plants x categories, cell = average posterior over the plant's
+#           links (expected count / candidates), so each row sums to 1.
+# DECISIONS Each column runs white -> its category colour from the map key, on
+#           one intensity scale for all cells, so a row is read across
+#           categories. Values printed, as small shares are hard to read by hue
+#           and pale category colours never get dark.
+
+share_gap <- per_plant %>% group_by(run, plant) %>%
+  summarise(gap = abs(sum(share) - 1), .groups = "drop")
+cat(sprintf("  [%s] per plant, average posteriors sum to 1 (max gap %.1e)\n",
+            ifelse(max(share_gap$gap) < 1e-8, "OK", "!!"), max(share_gap$gap)))
+
+share_heatmap <- function(run_name) {
+  top <- max(per_plant$share[per_plant$run == run_name])
+
+  d <- per_plant %>%
+    filter(run == run_name) %>%
+    mutate(plant    = factor(plant, levels = pla_site),
+           category = factor(category, levels = CAT_ORDER),
+           # white -> category colour, as in make_map, one intensity scale
+           fill = map2_chr(as.character(category), share / top, function(k, v)
+             colorRampPalette(c("white", CATEGORY_COLOUR[[k]]))(101)[round(100 * v) + 1]),
+           # dark text on light cells, white on dark, by perceived luminance
+           lum  = colSums(col2rgb(fill) * c(0.299, 0.587, 0.114)) / 255,
+           ink  = if_else(lum < 0.5, "white", "grey15"))
+
+  ggplot(d, aes(category, plant)) +
+    geom_tile(aes(fill = fill), colour = "white", linewidth = 0.6) +
+    geom_text(aes(label = sprintf("%.2f", share), colour = ink), size = 2.8) +
+    scale_fill_identity() +
+    scale_colour_identity() +
+    scale_x_discrete(position = "top") +
+    scale_y_discrete(labels = ital) +
+    labs(title = sprintf("%s, %s", richest, run_name), x = NULL, y = NULL) +
+    coord_cartesian(clip = "off") +
+    theme_minimal(base_size = 10) +
+    theme(panel.grid  = element_blank(),
+          axis.text.x = element_text(angle = 30, hjust = 0, vjust = 0),
+          plot.title  = element_text(size = 10, face = "bold"),
+          # room for the last angled column label
+          plot.margin = margin(5, 60, 5, 5))
+}
+
+for (rn in SPECIES_RUNS) {
+  fig_hm <- share_heatmap(rn)
+  stem <- file.path(OUT_DIR, paste0("fig_per_plant_share_", run_stem(rn)))
+  ggsave(paste0(stem, ".pdf"), fig_hm, width = 8, height = 5)
+  ggsave(paste0(stem, ".png"), fig_hm, width = 8, height = 5, dpi = 300)
+  if (interactive()) print(fig_hm)
+}
+
+# --- step 2: one plant, where its posterior mass goes ------------------------
+# PURPOSE   For a chosen plant, compare its categories with each other.
+# WHAT      The step-1 values for that plant, one row per category, one figure
+#           per run.
+# DECISIONS One axis for all eight rows, and the same axis in both runs'
+#           figures, so categories and runs compare directly. Rationale in the
+#           note.
+
+# choose the plants to draw; any plant at the richest site works
+FOCAL_PLANTS <- c("Sedum sediforme", "Teucrium capitatum")
+
+stopifnot(all(FOCAL_PLANTS %in% pla_site))
+
+plant_figure <- function(plant_name, run_name) {
+  d_all <- per_plant %>% filter(plant == plant_name)
+  # shared by both runs, so their figures sit on one scale
+  x_max <- max(d_all$expected + d_all$sd, d_all$deterministic)
+
+  d <- d_all %>%
+    filter(run == run_name) %>%
+    mutate(category = factor(category, levels = rev(CAT_ORDER)))
+
+  ggplot(d, aes(y = category)) +
+    geom_segment(aes(x = pmax(expected - sd, 0), xend = expected + sd,
+                     yend = category), colour = "grey45", linewidth = 0.5) +
+    geom_point(aes(x = deterministic), shape = 124, size = 3.2,
+               colour = "grey15") +
+    geom_point(aes(x = expected, fill = category), shape = 21, size = 2.8,
+               colour = "grey25", stroke = 0.3) +
+    scale_fill_manual(values = CATEGORY_COLOUR) +
+    scale_x_continuous(limits = c(0, x_max),
+                       expand = expansion(mult = c(0.02, 0.06))) +
+    labs(title = bquote(italic(.(plant_name)) ~ "at" ~ .(richest) * "," ~
+                          .(run_name) * "," ~ .(unique(d$candidates)) ~
+                          "candidate links"),
+         x = "Links: expected +/- SD (dot and whisker), deterministic count (|)",
+         y = NULL) +
+    si_base +
+    theme(panel.grid.major.y = element_line(colour = "grey92", linewidth = 0.3),
+          plot.title         = element_text(size = 10, face = "bold"))
+}
+
+for (pl in FOCAL_PLANTS) for (rn in SPECIES_RUNS) {
+  fig_pl <- plant_figure(pl, rn)
+  stem <- file.path(OUT_DIR, sprintf("fig_plant_%s_%s", run_stem(pl), run_stem(rn)))
+  ggsave(paste0(stem, ".pdf"), fig_pl, width = 6.5, height = 4)
+  ggsave(paste0(stem, ".png"), fig_pl, width = 6.5, height = 4, dpi = 300)
+  if (interactive()) print(fig_pl)
+}

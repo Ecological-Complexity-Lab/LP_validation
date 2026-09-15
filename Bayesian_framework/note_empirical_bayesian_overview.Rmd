@@ -81,6 +81,14 @@ FIG  <- file.path(ROOT, "results", "figures")
 DATA <- file.path(ROOT, "results", "predictions",
                   "serra_marin_loo_prediction_results.csv")
 
+# the plants shown in the per-species step 2; each must be in FOCAL_PLANTS in
+# the script, which writes their figures
+NOTE_PLANTS <- c("Sedum sediforme", "Teucrium capitatum")
+plant_fig <- function(plant, run)
+  file.path(OUT, sprintf("fig_plant_%s_%s.png",
+                         gsub("[^A-Za-z0-9]+", "_", plant),
+                         gsub("[^A-Za-z0-9]+", "_", run)))
+
 need <- c(DATA,
           file.path(OUT, "posteriors_bayesian_example.csv"),
           file.path(OUT, "camera_validation_summary.csv"),
@@ -93,6 +101,13 @@ need <- c(DATA,
           file.path(OUT, "fig_category_distributions.png"),
           file.path(OUT, "fig_category_distributions_no_nu.png"),
           file.path(OUT, "fig_accumulation_empirical.png"),
+          file.path(OUT, "per_plant_expected_counts.csv"),
+          file.path(OUT, "fig_per_plant_B_uniform.png"),
+          file.path(OUT, "fig_per_plant_B_degree.png"),
+          file.path(OUT, "fig_per_plant_share_B_uniform.png"),
+          file.path(OUT, "fig_per_plant_share_B_degree.png"),
+          plant_fig(NOTE_PLANTS, "B-uniform"),
+          plant_fig(NOTE_PLANTS, "B-degree"),
           file.path(FIG, "richest_site_map_obs_validated_with_rpi.png"))
 missing <- need[!file.exists(need)]
 # the source data never comes from the script, so if it is missing the paths
@@ -736,6 +751,48 @@ settings are the **sharpest**, which is not the same as the most accurate.
 right, because those counts are not truth. The next section supplies a criterion
 external to both.
 
+Which of the two choices moves the posterior more, where the model enters or
+the prior? Each row compares two settings that differ in one choice only.
+
+```{r axis-compare}
+key <- c("focal_site", "pollinator", "plant")
+compare_runs <- function(r1, r2, changed) {
+  a <- post %>% filter(run == r1) %>% arrange(across(all_of(key)))
+  b <- post %>% filter(run == r2) %>% arrange(across(all_of(key)))
+  d <- apply(abs(as.matrix(a[CATS]) - as.matrix(b[CATS])), 1, max)
+  tibble(Changed = changed, Comparison = paste(r1, "vs", r2),
+         gap  = sum(abs(colSums(a[CATS]) - colSums(b[CATS]))),
+         mean_change = mean(d),
+         same_top = mean(a$top_category == b$top_category))
+}
+axis_tbl <- bind_rows(
+  compare_runs("A-uniform", "B-uniform", "where the model enters"),
+  compare_runs("A-degree",  "B-degree",  "where the model enters"),
+  compare_runs("A-uniform", "A-degree",  "prior"),
+  compare_runs("B-uniform", "B-degree",  "prior"))
+axis_tbl %>%
+  transmute(Changed, Comparison,
+            `Total gap in expected counts` = round(gap),
+            `Mean change per link` = round(mean_change, 3),
+            `Same most likely category` = sprintf("%.1f%%", 100 * same_top)) %>%
+  show()
+by_model <- filter(axis_tbl, Changed != "prior")
+by_prior <- filter(axis_tbl, Changed == "prior")
+PRIOR_DOMINATES <- min(by_prior$gap) > max(by_model$gap) &&
+  max(by_prior$same_top) < min(by_model$same_top)
+```
+
+The total gap is $\sum_k |E[N_k]_a - E[N_k]_b|$ between the two settings, and
+the change per link is the largest shift in any one category,
+$\max_k |P(k \mid E_i)_a - P(k \mid E_i)_b|$.
+
+**Takeaway.** `r if (PRIOR_DOMINATES) "The settings differ mostly through the prior, not through where the model enters." else "Neither choice consistently dominates: compare the rows before choosing a setting."`
+Moving the model from evidence to prior shifts at most
+`r round(max(by_model$gap))` expected links and changes the most likely category
+of at most `r sprintf("%.1f%%", 100 * (1 - min(by_model$same_top)))` of links.
+Adding the degree prior shifts at least `r round(min(by_prior$gap))` and changes
+at least `r sprintf("%.1f%%", 100 * (1 - max(by_prior$same_top)))`.
+
 **B-degree is the only run in which the mean confidence in assignment is higher than 0.5 (might be an artifact how the model).**
 
 ## Does heterogeneity matter?
@@ -1004,6 +1061,261 @@ ranked list, which is what makes a category of
   direct observation fixed limits the exposure, since $\epsilon_l$ enters
   through the local axis, but a leave-one-site-out refit would remove what
   remains.
+
+## Where to look, species by species
+
+```{r per-plant}
+pp <- read_csv(file.path(OUT, "per_plant_expected_counts.csv"),
+               show_col_types = FALSE)
+SITE   <- unique(pp$focal_site)
+N_CAND <- unique(pp$candidates)
+N_PLANTS <- n_distinct(pp$plant)
+
+# winner-takes-all: how many links have a category as their single most likely
+site_post <- post %>% filter(focal_site == SITE, run == "B-uniform")
+PM_TOP <- sum(site_post$top_category == "possibly missing")
+PM_EXP <- sum(site_post$`possibly missing`)
+
+# possibly missing per plant, per run
+pm <- pp %>% filter(category == "possibly missing") %>%
+  group_by(run) %>%
+  summarise(lo = min(expected), hi = max(expected),
+            top = plant[which.max(expected)],
+            top_e = max(expected), top_sd = sd[which.max(expected)],
+            .groups = "drop")
+pm_u <- filter(pm, run == "B-uniform"); pm_d <- filter(pm, run == "B-degree")
+
+# plant x category cells where the deterministic count falls outside +/- 1 SD
+outside <- pp %>% group_by(run) %>%
+  summarise(n = sum(abs(deterministic - expected) > sd), total = n(),
+            .groups = "drop")
+
+# the degree prior: species recorded at one site only
+links_obs <- obs %>% filter(ground_truth == 1)
+one_site <- function(col) links_obs %>% distinct(.data[[col]], focal_site) %>%
+  count(.data[[col]]) %>% summarise(one = sum(n == 1), all = n())
+PLA1 <- one_site("lower_level"); POL1 <- one_site("higher_level")
+REALISED <- c("recurrent", "locally unique", "model-elusive", "weakly-supported")
+zero_real <- pp %>% filter(run == "B-degree", category %in% REALISED) %>%
+  group_by(plant) %>%
+  summarise(exp = sum(expected), det = sum(deterministic), .groups = "drop") %>%
+  filter(exp < 0.05, det > 0)
+```
+
+Field effort is often planned per species: a camera or an extra observation
+round goes to a plant. Two steps: first all plants at `r SITE` side by side,
+then one plant at a time.
+
+### Step 1: all plants, category by category
+
+For each of the `r N_PLANTS` plants, how many of its `r N_CAND` candidate links
+the posterior places in each category.
+
+```{r fig-per-plant-uniform}
+include_graphics(file.path(OUT, "fig_per_plant_B_uniform.png"))
+```
+
+```{r fig-per-plant-degree}
+include_graphics(file.path(OUT, "fig_per_plant_B_degree.png"))
+```
+
+Each dot is the expected number of the plant's links in that category, the
+whisker $\pm 1$ SD (cut at zero), and the tick the deterministic count. Plants
+are ordered by degree, highest at the bottom, as in the maps. Every panel has
+its own axis, because possibly forbidden runs to tens of links and possibly
+missing to a few.
+
+The same posteriors as each plant's composition: a cell is the plant's average
+posterior for that category, so every row sums to 1 and a row shows where that
+plant's mass goes.
+
+```{r fig-share-uniform}
+include_graphics(file.path(OUT, "fig_per_plant_share_B_uniform.png"))
+```
+
+```{r fig-share-degree}
+include_graphics(file.path(OUT, "fig_per_plant_share_B_degree.png"))
+```
+
+```{r daucus-me}
+dc <- post %>% filter(focal_site == SITE, plant == "Daucus carota", run == "B-degree")
+DC_OBS_PRED <- sum(dc$O_l == 1 & dc$Y == 1)
+DC_ME <- pp %>% filter(plant == "Daucus carota", category == "model-elusive")
+# under B the split recovers q exactly: q = P(rec) / (P(rec) + P(model-elusive))
+dc_q <- dc %>% filter(O_l == 1, Y == 1, recurrent + `model-elusive` > 1e-9) %>%
+  mutate(q = recurrent / (recurrent + `model-elusive`))
+DC_WEAK <- sum(dc_q$q < 0.6)
+```
+
+**Observation.** Model-elusive mass on a plant does not mean its links went
+unpredicted. *Daucus carota* has no model-elusive links in the deterministic
+assignment, yet an average posterior of
+`r sprintf("%.2f", DC_ME$share[DC_ME$run == "B-degree"])` under B-degree. It
+comes from its `r DC_OBS_PRED` observed links, all of which the model predicted.
+Model-elusive and recurrent differ only in the model bit, so the posterior
+splits a realised link between them by how far it trusts the model's call:
+$1 - q_i$ under B. `r DC_WEAK` of them have a calibrated score below 0.6, so
+the mass flags weak model calls, not new ecology.
+
+::: {.method}
+**Methodological decisions.**
+
+*What is summed.* For plant $j$, over its candidate links $i \in j$:
+
+$$
+E[N_{kj}] = \sum_{i \in j} P(k \mid E_i),
+\qquad
+\operatorname{SD}(N_{kj}) = \sqrt{\sum_{i \in j} P(k \mid E_i)\,\bigl(1 - P(k \mid E_i)\bigr)}
+$$
+
+A link's eight posteriors sum to 1, so a plant's eight expected counts sum to
+its number of candidate links, `r N_CAND` here, not to 1.
+
+*Why the sum and not the average.* The average posterior, the sum divided by
+the number of candidates, is also a valid summary: it is the **share** of the
+plant's candidate links in each category, and its eight values add up to 1. We
+use the sum for three reasons.
+
+```{r share-example}
+cand_by_site <- post %>% filter(run == "B-uniform") %>%
+  group_by(focal_site) %>% summarise(cand = n_distinct(pollinator))
+SMALL <- cand_by_site %>% slice_min(cand, n = 1, with_ties = FALSE)
+N_POL_CAND <- post %>% filter(run == "B-uniform", focal_site == SITE) %>%
+  pull(plant) %>% n_distinct()
+```
+
+1. **Effort is planned in links, not in shares.** The field question is how
+   many links a plant holds that still need corroboration. The sum answers it
+   directly; the share has to be multiplied back by the number of candidates.
+2. **A share means different amounts in different places.** A share of 0.10 is
+   `r sprintf("%.1f", 0.10 * N_CAND)` links for a plant at `r SITE`
+   (`r N_CAND` candidates), `r sprintf("%.1f", 0.10 * SMALL$cand)` at
+   `r SMALL$focal_site` (`r SMALL$cand` candidates), and
+   `r sprintf("%.1f", 0.10 * N_POL_CAND)` for a pollinator at `r SITE`
+   (`r N_POL_CAND` candidates). Sums stay comparable across sites and between
+   plants and pollinators; shares do not.
+3. **The SD is in the same units as the answer.** The SD of the sum is in links.
+   The SD of a share shrinks as candidates grow, so it looks more certain for a
+   species with many candidates without saying anything about how many links
+   are at stake.
+
+Within this one site every plant has the same `r N_CAND` candidates, so the two
+rank plants identically, and the choice only matters once plants are compared
+with other sites or with pollinators.
+
+One more alternative was set aside:
+
+- **Counting each link's most likely category** is winner takes all. A
+  category that is rarely any link's first choice counts as zero even when it
+  holds real probability across many links: under B-uniform at this site,
+  `r PM_TOP` links have possibly missing as their most likely category, against
+  `r sprintf("%.1f", PM_EXP)` expected. It repeats the problem of hard labels.
+
+The single most probable count was also considered. It always lies within one
+of the sum (Darroch 1964), so it adds nothing, and unlike the sums the eight do
+not add up to the candidates.
+
+*The heatmap uses the average.* With $n_j$ the plant's candidate links,
+
+$$
+\bar P_{kj} = \frac{E[N_{kj}]}{n_j} = \frac{1}{n_j}\sum_{i \in j} P(k \mid E_i),
+\qquad \sum_k \bar P_{kj} = 1
+$$
+
+Here the question is a plant's composition, read across a row, and a share is
+its natural scale. At this site every $n_j$ is `r N_CAND`, so the heatmap and
+the counts above carry the same information. Each column runs from white to its
+category's colour in the map key, on one intensity scale for all cells: full
+colour is the highest average posterior in that figure. Values are printed
+because small shares are hard to tell apart by shade, and the palest category
+colours never get dark.
+
+*What the SD shows.* How far the true count could plausibly sit from the
+expected one. Two limits: it treats a plant's links as independent, but links
+sharing a plant also share its sampling effort (SI Section S7), so the real
+spread is wider; and at small counts the spread is skewed, so the whisker is
+cut at zero rather than read as symmetric.
+
+*Which runs.* B-uniform and B-degree. Both carry the calibrated score, and the
+prior is the choice that moves the posterior (takeaway under "Where the
+posterior weight goes"). Heterogeneity is kept, since removing it changes little
+(takeaway under "Does heterogeneity matter?").
+:::
+
+**Takeaway.** Summed per plant, the posterior turns categories into an effort
+plan with its uncertainty attached. For possibly missing, the category that
+calls for more of the same method, expected counts run from
+`r sprintf("%.1f", pm_u$lo)` to `r sprintf("%.1f", pm_u$hi)` per plant under
+B-uniform and from `r sprintf("%.1f", pm_d$lo)` to `r sprintf("%.1f", pm_d$hi)`
+under B-degree, led by *`r pm_u$top`*
+(`r sprintf("%.1f ± %.1f", pm_u$top_e, pm_u$top_sd)`) and
+*`r pm_d$top`* (`r sprintf("%.1f ± %.1f", pm_d$top_e, pm_d$top_sd)`)
+respectively. `r if (pm_d$hi - pm_d$lo > pm_u$hi - pm_u$lo) "The degree prior separates plants more." else "The uniform prior separates plants at least as well."`
+The deterministic count falls outside $\pm 1$ SD in
+`r outside$n[outside$run == "B-uniform"]` of `r outside$total[1]` plant–category
+cells under B-uniform and `r outside$n[outside$run == "B-degree"]` under
+B-degree: the cells where the posterior and the hard labels disagree most about
+a plant.
+
+### Step 2: one plant, where its posterior mass goes
+
+Step 1 compares plants within a category. Step 2 turns this around: for one
+plant, it compares its eight categories with each other, to see where that
+plant's posterior mass goes. Shown for *`r NOTE_PLANTS[1]`* and
+*`r NOTE_PLANTS[2]`*; the script draws any plant listed in `FOCAL_PLANTS`.
+
+```{r fig-plant-1}
+include_graphics(c(plant_fig(NOTE_PLANTS[1], "B-uniform"),
+                   plant_fig(NOTE_PLANTS[1], "B-degree")))
+```
+
+```{r fig-plant-2}
+include_graphics(c(plant_fig(NOTE_PLANTS[2], "B-uniform"),
+                   plant_fig(NOTE_PLANTS[2], "B-degree")))
+```
+
+::: {.method}
+**Methodological decisions.** The values are the step-1 expected counts and SDs
+for that plant, with the same formulas, so the eight rows add up to its
+`r N_CAND` candidate links. Dot, whisker and tick mean what they mean in step 1.
+
+*One axis for all eight rows*, unlike step 1, because the comparison is now
+between categories of the same plant. *The same axis in both runs' figures*, so
+the two can be read against each other directly.
+:::
+
+```{r plant-takeaway}
+plant_summary <- pp %>%
+  filter(plant %in% NOTE_PLANTS) %>%
+  group_by(plant, run) %>%
+  summarise(top = category[which.max(expected)],
+            top_e = max(expected),
+            top_share = max(expected) / first(candidates),
+            n_out = sum(abs(deterministic - expected) > sd),
+            .groups = "drop")
+plant_line <- function(pl) {
+  s <- plant_summary %>% filter(plant == pl)
+  u <- filter(s, run == "B-uniform"); d <- filter(s, run == "B-degree")
+  sprintf("*%s*: most mass in %s under B-uniform (%.1f links, %.0f%%) and in %s under B-degree (%.1f links, %.0f%%); the deterministic count falls outside $\\pm 1$ SD in %d and %d of the eight categories.",
+          pl, u$top, u$top_e, 100 * u$top_share,
+          d$top, d$top_e, 100 * d$top_share, u$n_out, d$n_out)
+}
+```
+
+**Takeaway.** Per plant, the posterior shows which categories hold its mass and
+how far that departs from the hard labels.
+
+- `r plant_line(NOTE_PLANTS[1])`
+- `r plant_line(NOTE_PLANTS[2])`
+
+**Open question: the degree prior. `r PLA1$one` of `r PLA1$all` plants and
+`r POL1$one` of `r POL1$all` pollinators are recorded at a single site. Their
+degree in the replicates is 0, so $\pi_l^{\deg} = \pi_r^{\deg} = 0$ and their
+locally observed links are forced into categories not realised here:
+`r if (nrow(zero_real)) paste0("under B-degree, *", paste(zero_real$plant, collapse = "* and *"), "* get no expected links realised here despite ", sum(zero_real$det), " observed") else "no plant at this site is affected"`.
+The degree prior also draws on the same five sites as the replicate evidence
+$n$, a partial double count. One fix to weigh: degrees from all six sites,
+leaving out the pair's own records.**
 
 ## How much is replication worth here?
 
