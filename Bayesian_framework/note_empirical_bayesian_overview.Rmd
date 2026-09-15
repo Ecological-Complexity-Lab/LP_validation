@@ -51,6 +51,17 @@ blockquote {
 }
 .method p:last-child { margin-bottom: 0; }
 
+/* conclusions: the one box meant to be read first when skimming */
+.conclusion {
+  background: var(--accent-pale);
+  border: 1px solid #d4d4ea;
+  border-left: 5px solid var(--accent);
+  padding: 0.8em 1.2em;
+  margin: 1.5em 0;
+}
+.conclusion ol { margin-bottom: 0; padding-left: 1.3em; }
+.conclusion li { margin-bottom: 0.5em; }
+
 table { font-size: 0.94em; }
 </style>
 ```
@@ -106,6 +117,11 @@ need <- c(DATA,
           file.path(OUT, "fig_per_plant_B_degree.png"),
           file.path(OUT, "fig_per_plant_share_B_uniform.png"),
           file.path(OUT, "fig_per_plant_share_B_degree.png"),
+          file.path(OUT, "category_leakage_flows.csv"),
+          file.path(OUT, "fig_category_leakage_B_uniform.png"),
+          file.path(OUT, "fig_category_leakage_B_degree.png"),
+          file.path(OUT, "fig_category_leakage_B_uniform_relative.png"),
+          file.path(OUT, "fig_category_leakage_B_degree_relative.png"),
           plant_fig(NOTE_PLANTS, "B-uniform"),
           plant_fig(NOTE_PLANTS, "B-degree"),
           file.path(FIG, "richest_site_map_obs_validated_with_rpi.png"))
@@ -795,6 +811,105 @@ at least `r sprintf("%.1f%%", 100 * (1 - max(by_prior$same_top)))`.
 
 **B-degree is the only run in which the mean confidence in assignment is higher than 0.5 (might be an artifact how the model).**
 
+## Where does each category's posterior go?
+
+```{r leakage}
+fl <- read_csv(file.path(OUT, "category_leakage_flows.csv"), show_col_types = FALSE)
+sig <- tibble(category = CATS,
+              zY = c(1, 1, 1, 1, 0, 0, 0, 0),
+              zl = c(1, 1, 0, 0, 1, 1, 0, 0),
+              zr = c(1, 0, 1, 0, 1, 0, 1, 0))
+moved <- fl %>%
+  filter(from != to) %>%
+  left_join(rename(sig, from = category, fY = zY, fl = zl, fr = zr), by = "from") %>%
+  left_join(rename(sig, to = category), by = "to") %>%
+  mutate(bits = (fY != zY) + (fl != zl) + (fr != zr))
+kept <- fl %>% filter(from == to) %>% select(run, category = from, kept = share)
+
+leak_run <- function(rn) {
+  k <- filter(kept, run == rn); m <- filter(moved, run == rn)
+  list(most   = k$category[which.max(k$kept)],   most_k  = max(k$kept),
+       least  = k$category[which.min(k$kept)],   least_k = min(k$kept),
+       pf_k   = k$kept[k$category == "possibly forbidden"],
+       pf_rank = rank(-k$kept)[k$category == "possibly forbidden"],
+       abs_top = m[which.max(m$w), ], rel_top = m[which.max(m$share), ],
+       one_bit = sum(m$w[m$bits == 1]) / sum(m$w))
+}
+LK_U <- leak_run("B-uniform"); LK_D <- leak_run("B-degree")
+flow_txt <- function(r) sprintf("%s \u2192 %s", r$from, r$to)
+# is the largest absolute flow forbidden -> locally absent in both runs?
+BIG_PF_LA <- all(c(flow_txt(LK_U$abs_top), flow_txt(LK_D$abs_top)) ==
+                   "possibly forbidden \u2192 locally absent")
+```
+
+The distribution figure shows how many links each category ends up with. It
+does not show where they came from. Here every arrow follows the posterior
+from a deterministic category to another one, for all sites.
+
+**Absolute weights.** Arrow width is the expected number of links moving.
+
+```{r fig-leak-abs}
+include_graphics(c(file.path(OUT, "fig_category_leakage_B_uniform.png"),
+                   file.path(OUT, "fig_category_leakage_B_degree.png")))
+```
+
+**Relative weights.** Arrow width is the share of the source category's links
+moving.
+
+```{r fig-leak-rel}
+include_graphics(c(file.path(OUT, "fig_category_leakage_B_uniform_relative.png"),
+                   file.path(OUT, "fig_category_leakage_B_degree_relative.png")))
+```
+
+::: {.method}
+**Methodological decisions.** For a deterministic category $k$ with
+$N_k^{\det}$ links, the arrow to category $m$ carries
+
+$$
+F_{k \to m} = \sum_{i:\,k^{\det}_i = k} P(m \mid E_i),
+\qquad
+\text{share}_{k \to m} = \frac{F_{k \to m}}{N_k^{\det}}
+$$
+
+$F_{k \to k}$ is what the category keeps. A category's outgoing arrows plus
+what it keeps add up to $N_k^{\det}$; its incoming arrows plus what it keeps
+add up to $E[N_k]$. Both numbers are on each node's label, with the share kept.
+
+*The two versions answer different questions.* The **absolute** version shows
+where most of the expected links go. Large categories dominate it by size
+alone. The **relative** version shows how stable each category is, whatever its
+size: a category that keeps little of its mass has a hard label we should trust
+less.
+
+*Layout.* The taxonomy figure of the manuscript: columns are observed elsewhere
+or not, rows are predicted then not predicted. A move to a neighbouring node
+doubts one of the three bits; a diagonal move doubts two. Arrows take the
+colour of the category they leave, node area is the deterministic count, and
+each version uses one width scale for both runs.
+
+*What moves is probability, not links.* No link switches category as a whole.
+Each keeps part of its posterior and spreads the rest.
+:::
+
+**Takeaway.**
+
+- In absolute numbers, the largest flow is
+  `r flow_txt(LK_U$abs_top)` under B-uniform
+  (`r round(LK_U$abs_top$w)` links) and `r flow_txt(LK_D$abs_top)` under
+  B-degree (`r round(LK_D$abs_top$w)`). Possibly forbidden is the largest
+  category, so it dominates this view.
+- Relative to size, possibly forbidden keeps
+  `r sprintf("%.0f%%", 100 * LK_U$pf_k)` of its mass under B-uniform and
+  `r sprintf("%.0f%%", 100 * LK_D$pf_k)` under B-degree, where it ranks
+  `r ifelse(LK_D$pf_rank == 1, "first", paste0(LK_D$pf_rank, " of 8"))` in
+  stability. The least stable category is `r LK_U$least` under B-uniform
+  (`r sprintf("%.0f%%", 100 * LK_U$least_k)` kept) and `r LK_D$least` under
+  B-degree (`r sprintf("%.0f%%", 100 * LK_D$least_k)` kept).
+- Most moving mass goes to a neighbouring category, doubting one bit:
+  `r sprintf("%.0f%%", 100 * LK_U$one_bit)` under B-uniform and
+  `r sprintf("%.0f%%", 100 * LK_D$one_bit)` under B-degree.
+  `r if (BIG_PF_LA) sprintf("The biggest arrow in both runs, possibly forbidden → locally absent, crosses the replicate bit: with $p_1$ = %.2f, a link that can occur in the replicates still goes unrecorded at all %d of them more often than not (probability %.2f at the mean rate), so absence there is weak evidence.", P1, N_SITES - 1, (1 - P1)^(N_SITES - 1)) else ""`
+
 ## Does heterogeneity matter?
 
 The same distribution figure for the four twins, in the same panel order, so it
@@ -1317,6 +1432,7 @@ The degree prior also draws on the same five sites as the replicate evidence
 $n$, a partial double count. One fix to weigh: degrees from all six sites,
 leaving out the pair's own records.**
 
+
 ## How much is replication worth here?
 
 ```{r fig-accum}
@@ -1361,3 +1477,73 @@ is a structural ceiling, not a measurement, and no amount of sampling passes it.
 The way past it is a better model or a better local method, which is exactly the
 corroboration action the framework already prescribes for the categories sitting
 against it. That is an argument for the framework, not a limitation of it.
+
+## Conclusions
+```{r conclusions}
+# expected links per category over every site, for the four prior settings
+exp_all <- function(rn, k) sum(post[[k]][post$run == rn])
+
+# plants with deterministic model-elusive links whose average posterior matches Daucus
+me_b <- pp %>% filter(run == "B-degree", category == "model-elusive")
+DC_SHARE <- me_b$share[me_b$plant == "Daucus carota"]
+me_peers <- me_b %>%
+  filter(plant != "Daucus carota", deterministic > 0,
+         round(share, 2) == round(DC_SHARE, 2))
+
+# possibly missing: the deterministic leader, the B-degree ranking, and plants
+# with none assigned that the uniform prior expects at least one of
+pm_all <- pp %>% filter(category == "possibly missing")
+PM_DET_TOP <- pm_all %>% filter(run == "B-degree") %>%
+  slice_max(deterministic, n = 1, with_ties = FALSE) %>% pull(plant)
+PM_DEG_TOP3 <- pm_all %>% filter(run == "B-degree") %>%
+  arrange(desc(expected)) %>% slice_head(n = 3) %>% pull(plant)
+PM_UNI_NEW <- pm_all %>%
+  filter(run == "B-uniform", deterministic == 0, expected >= 1) %>% nrow()
+PM_ZERO <- pm_all %>% filter(run == "B-uniform", deterministic == 0) %>% nrow()
+it <- function(x) paste0("*", x, "*")
+```
+
+::: {.conclusion}
+**Conclusions**
+
+1. The posterior allows us to add confidence and uncertainty to the
+   deterministic assignment, and by doing so to focus our efforts more
+   effectively (*Does confidence buy anything?*).
+2. The degree prior preserves the general trends seen with the uniform prior,
+   but more of the posterior goes to possibly forbidden
+   (`r format(round(exp_all("B-degree", "possibly forbidden")), big.mark = ",")`
+   expected links against
+   `r round(exp_all("B-uniform", "possibly forbidden"))` under B-uniform, all
+   sites), and locally unique and weakly-supported become much less likely
+   (`r round(exp_all("B-uniform", "locally unique"))` →
+   `r round(exp_all("B-degree", "locally unique"))` and
+   `r round(exp_all("B-uniform", "weakly-supported"))` →
+   `r round(exp_all("B-degree", "weakly-supported"))`).
+3. The heatmaps give an overview per species and can help decide on the action
+   when uncertainty is considered. For example, *Daucus carota* is not assigned
+   any model-elusive links deterministically, yet when we consider $\pi_Y$ its
+   average model-elusive posterior is `r sprintf("%.2f", DC_SHARE)` under
+   B-degree`r if (nrow(me_peers)) paste0(", as high as ", paste(it(me_peers$plant), collapse = " and "), ", which do have model-elusive links deterministically") else ""`.
+   This is because we doubt the model's call, so some links that were
+   recurrent or locally unique may be poorly predicted. If this is an
+   important focal species, model revision might be considered.
+4. When we look at the distributions, we can see the SD that follows from the
+   confidence we added to the deterministic calls, and the leakage between
+   categories. Species can then rank differently. Deterministically,
+   `r it(PM_DET_TOP)` has the most possibly missing links, but under B-degree
+   the leading plant is `r it(PM_DEG_TOP3[1])`, then `r it(PM_DEG_TOP3[2])` and
+   `r it(PM_DEG_TOP3[3])`. Even under the uniform prior,
+   `r if (PM_UNI_NEW == PM_ZERO) paste("all", PM_ZERO) else paste(PM_UNI_NEW, "of the", PM_ZERO)`
+   plants with no possibly missing links are now expected to have at least
+   one.
+5. Considering degree as the prior, in its current form, biases the results,
+   especially when examining the species level (open question above).
+6. When we add uncertainty, a lot of possibly forbidden links move to other
+   categories, but this is mostly because it is the largest category. Relative
+   to its size, it keeps `r sprintf("%.0f%%", 100 * LK_D$pf_k)` of its links
+   under B-degree, and other categories leak much more (e.g., `r LK_D$least`
+   keeps only `r sprintf("%.0f%%", 100 * LK_D$least_k)`).
+7. Most links move to a neighbouring category, so the posterior usually doubts
+   one piece of evidence at a time.`r if (BIG_PF_LA) " The biggest move, from possibly forbidden to locally absent, happens because not seeing a link in the replicates is weak evidence when detection there is low." else ""`
+:::
+

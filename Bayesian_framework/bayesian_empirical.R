@@ -2040,3 +2040,185 @@ for (pl in FOCAL_PLANTS) for (rn in SPECIES_RUNS) {
   ggsave(paste0(stem, ".png"), fig_pl, width = 6.5, height = 4, dpi = 300)
   if (interactive()) print(fig_pl)
 }
+
+
+# ---- 12. Category leakage ----
+# PURPOSE   Where does the posterior move each deterministic category once
+#           uncertainty is incorporated?
+# WHAT      A network of the eight categories. The arrow k -> m carries
+#           F(k -> m) = sum over links assigned k of P(m | E), the expected
+#           number of links moving; what stays is F(k -> k). All sites.
+# DECISIONS Expected links, not counts of changed most-likely categories. All
+#           arrows, absolute or relative weights (share of the source category),
+#           one width scale per weighting for every run. Layout of
+#           the manuscript's taxonomy figure: columns = observed elsewhere,
+#           rows = TP, FP | TN, FN, so a move to a neighbour doubts one bit.
+#           Arrow colour = source category. Rationale in the note.
+
+library(ggraph)
+library(tidygraph)
+
+LEAK_RUNS <- SPECIES_RUNS
+
+# node positions: the taxonomy figure, predicted block above unpredicted
+LEAK_W <- 11
+leak_nodes <- tibble(
+  category = c("locally unique", "recurrent", "phantom", "possibly missing",
+               "possibly forbidden", "locally absent", "weakly-supported",
+               "model-elusive"),
+  row = c(1, 1, 2, 2, 3, 3, 4, 4)) %>%
+  left_join(cats, by = "category") %>%
+  mutate(x = zr * LEAK_W,
+         y = c(9, 6.2, 2.8, 0)[row],
+         signature = sprintf("(%d,%d,%d)", zY, zl, zr))
+
+# F(k -> m) for one run, including what stays (k == m)
+leak_flows <- function(run_name) {
+  results %>%
+    filter(run == run_name) %>%
+    select(det_category, all_of(CAT_ORDER)) %>%
+    pivot_longer(all_of(CAT_ORDER), names_to = "to", values_to = "p") %>%
+    group_by(from = det_category, to) %>%
+    summarise(w = sum(p), .groups = "drop")
+}
+
+# share = F(k -> m) / N_k^det, the share of category k's links moving to m
+flows_all <- map_dfr(LEAK_RUNS, ~ leak_flows(.x) %>% mutate(run = .x)) %>%
+  group_by(run, from) %>%
+  mutate(share = w / sum(w)) %>%
+  ungroup()
+write_csv(flows_all, file.path(OUT_DIR, "category_leakage_flows.csv"))
+
+# weights  "absolute": expected links moved, which the largest categories
+#                       dominate simply by size
+#          "relative": share of the source category's links moved, which shows
+#                       how stable each category is regardless of size
+# The largest moving flow in any run sets each shared width scale.
+LEAK_SCALE <- list(
+  absolute = list(col = "w",     max = max(flows_all$w[flows_all$from != flows_all$to]),
+                  key = c(5, 25, 100), key_lab = c("5", "25", "100"),
+                  title = "expected links moved"),
+  relative = list(col = "share", max = max(flows_all$share[flows_all$from != flows_all$to]),
+                  key = c(0.05, 0.15, 0.3), key_lab = c("5%", "15%", "30%"),
+                  title = "share of the category's links moved"))
+
+leakage_network <- function(run_name, weights = c("absolute", "relative")) {
+  weights <- match.arg(weights)
+  sc <- LEAK_SCALE[[weights]]
+  flows <- filter(flows_all, run == run_name) %>%
+    mutate(weight = .data[[sc$col]])
+
+  nodes <- leak_nodes %>%
+    left_join(flows %>% group_by(category = from) %>% summarise(det = sum(w)),
+              by = "category") %>%
+    left_join(flows %>% group_by(category = to) %>% summarise(expected = sum(w)),
+              by = "category") %>%
+    left_join(flows %>% filter(from == to) %>% select(category = from, kept = w),
+              by = "category") %>%
+    mutate(across(c(det, expected, kept), ~ replace_na(.x, 0)),
+           diam   = 5 + 15 * sqrt(det / max(det)),        # mm, area ~ count
+           detail = sprintf("%s  ·  %s → %s  ·  %s%% kept",
+                            signature, format(round(det), big.mark = ","),
+                            format(round(expected), big.mark = ","),
+                            round(100 * kept / pmax(det, 1))))
+
+  edges <- flows %>%
+    filter(from != to) %>%
+    left_join(select(leak_nodes, from = category, x0 = x, y0 = y, r0 = row), by = "from") %>%
+    left_join(select(leak_nodes, to = category, x1 = x, y1 = y, r1 = row), by = "to") %>%
+    mutate(
+      # a move within a column that skips a row bends inward, clear of the
+      # nodes it passes; the rest bend slightly left, which separates the two
+      # directions of a pair. Positive strength bends left of travel.
+      long     = x0 == x1 & abs(r1 - r0) >= 2,
+      out_x    = ifelse(x0 == 0, -1, 1),
+      down     = sign(y1 - y0),
+      strength = round(ifelse(long, out_x * down * ifelse(down < 0, 0.30, 0.42), 0.14), 2),
+      src      = from,
+      from     = match(src, nodes$category),
+      to       = match(to, nodes$category),
+      cap_s    = nodes$diam[from],
+      cap_e    = nodes$diam[to]) %>%
+    arrange(weight)                                    # heavy arrows on top
+
+  g <- tbl_graph(nodes = nodes,
+                 edges = select(edges, from, to, weight, src, strength, cap_s, cap_e))
+
+  p <- ggraph(g, layout = "manual", x = nodes$x, y = nodes$y)
+  # strength is a layer parameter, so one layer per value; !! fixes s now,
+  # otherwise every layer would filter on the loop's last value
+  for (s in sort(unique(edges$strength))) {
+    p <- p + geom_edge_arc(
+      aes(width = weight, colour = src, filter = strength == !!s,
+          start_cap = circle(cap_s / 2 + 0.8, "mm"),
+          end_cap   = circle(cap_e / 2 + 1.2, "mm")),
+      strength = s, alpha = 0.6, lineend = "butt",
+      arrow = arrow(length = unit(3, "mm"), type = "closed", angle = 25))
+  }
+
+  width_range <- c(0.15, 5)
+  key <- tibble(weight = sc$key, label = sc$key_lab,
+                x = LEAK_W / 2 - 2.2 + (0:2) * 2.2, y = -2.6)
+
+  # labels on the outer side of each column, clear of the arrows
+  MM_PER_UNIT <- 10.5                   # approximate, at the saved size below
+  lab <- nodes %>%
+    mutate(side = ifelse(zr == 0, -1, 1),
+           lx   = x + side * (diam / 2 / MM_PER_UNIT + 0.45),
+           hj   = ifelse(side < 0, 1, 0))
+
+  p +
+    geom_node_point(aes(size = I(diam), fill = category), shape = 21,
+                    colour = "white", stroke = 1.4) +
+    geom_text(data = lab, aes(x = lx, y = y + 0.12, label = category, hjust = hj),
+              vjust = 0, size = 3.6, fontface = "bold", colour = "#2b2b3a",
+              inherit.aes = FALSE) +
+    geom_text(data = lab, aes(x = lx, y = y - 0.12, label = detail, hjust = hj),
+              vjust = 1, size = 2.6, colour = "#707080", inherit.aes = FALSE) +
+    annotate("text", x = c(0, LEAK_W), y = 10.6,
+             label = c("not observed elsewhere", "observed elsewhere"),
+             size = 3.2, colour = "#8a8a9a") +
+    annotate("text", x = -7.1, y = c(7.6, 1.4),
+             label = c("predicted", "not predicted"),
+             size = 3.2, colour = "#8a8a9a", fontface = "italic", angle = 90) +
+    annotate("segment", x = -6.75, xend = -6.75, y = c(5.9, -0.3),
+             yend = c(9.3, 3.1), colour = "#d0d0de", linewidth = 0.5) +
+    # width key, drawn on the same scale as the arrows
+    geom_segment(data = key,
+                 aes(x = x - 0.6, xend = x + 0.4, y = y, yend = y,
+                     linewidth = I(scales::rescale(weight, width_range, c(0, sc$max)) * 0.75)),
+                 colour = "#9a9aae", lineend = "butt", inherit.aes = FALSE) +
+    geom_text(data = key, aes(x = x + 0.6, y = y, label = label), hjust = 0,
+              size = 2.8, colour = "#707080", inherit.aes = FALSE) +
+    annotate("text", x = LEAK_W / 2, y = -1.9, label = sc$title,
+             size = 2.8, colour = "#707080") +
+    scale_edge_colour_manual(values = CATEGORY_COLOUR, guide = "none") +
+    scale_fill_manual(values = CATEGORY_COLOUR, guide = "none") +
+    scale_edge_width(range = width_range, limits = c(0, sc$max), guide = "none") +
+    coord_fixed(clip = "off", xlim = c(-7.4, LEAK_W + 5.2), ylim = c(-2.9, 10.9)) +
+    labs(title = run_name) +
+    theme_void(base_size = 11) +
+    theme(plot.title  = element_text(face = "bold", colour = "#2b2b3a", hjust = 0.02),
+          plot.margin = margin(10, 20, 10, 20))
+}
+
+for (rn in LEAK_RUNS) for (wt in c("absolute", "relative")) {
+  fig_leak <- leakage_network(rn, weights = wt)
+  stem <- file.path(OUT_DIR, sprintf("fig_category_leakage_%s%s", run_stem(rn),
+                                     if (wt == "relative") "_relative" else ""))
+  # cairo keeps the arrow and dot glyphs the default pdf device drops
+  ggsave(paste0(stem, ".pdf"), fig_leak, width = 10.5, height = 6.9,
+         device = cairo_pdf)
+  ggsave(paste0(stem, ".png"), fig_leak, width = 10.5, height = 6.9, dpi = 300,
+         bg = "white")
+  if (interactive()) print(fig_leak)
+}
+
+cat("\nCATEGORY LEAKAGE: share of each deterministic category kept\n")
+flows_all %>%
+  group_by(run, category = from) %>%
+  summarise(kept = sum(w[from == to]) / sum(w), .groups = "drop") %>%
+  mutate(kept = round(kept, 2)) %>%
+  pivot_wider(names_from = run, values_from = kept) %>%
+  arrange(match(category, CAT_ORDER)) %>%
+  print()

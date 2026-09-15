@@ -1,0 +1,129 @@
+from,to,w,run,share
+locally absent,locally absent,53.247563016474686,B-uniform,0.39152619865054916
+locally absent,locally unique,2.2088861869682708,B-uniform,0.016241810198296108
+locally absent,model-elusive,19.039908029193437,B-uniform,0.1399993237440694
+locally absent,phantom,6.177435639734862,B-uniform,0.0454223208804034
+locally absent,possibly forbidden,29.747963684668733,B-uniform,0.21873502709315246
+locally absent,possibly missing,11.005788768917524,B-uniform,0.08092491741851121
+locally absent,recurrent,3.9353764581505004,B-uniform,0.028936591604047796
+locally absent,weakly-supported,10.637078215891991,B-uniform,0.07821381041097053
+locally unique,locally absent,1.291912904595754,B-uniform,0.011852411968768385
+locally unique,locally unique,35.098391200897275,B-uniform,0.32200358899905757
+locally unique,model-elusive,17.0611398851195,B-uniform,0.15652421912953668
+locally unique,phantom,2.6577394493164994,B-uniform,0.024382930727674307
+locally unique,possibly forbidden,1.6832030672613818,B-uniform,0.015442229974875063
+locally unique,possibly missing,2.0399011613089018,B-uniform,0.018714689553292675
+locally unique,recurrent,26.939152740949616,B-uniform,0.24714819028394144
+locally unique,weakly-supported,22.228559590551072,B-uniform,0.20393173936285386
+model-elusive,locally absent,2.363258173226956,B-uniform,0.03692590895667119
+model-elusive,locally unique,3.96061493982906,B-uniform,0.06188460843482906
+model-elusive,model-elusive,31.209439997577363,B-uniform,0.4876474999621463
+model-elusive,phantom,0.29990783648416575,B-uniform,0.00468605994506509
+model-elusive,possibly forbidden,1.2984305740687179,B-uniform,0.020287977719823717
+model-elusive,possibly missing,0.5435081985952271,B-uniform,0.008492315603050424
+model-elusive,recurrent,7.177627355494222,B-uniform,0.11215042742959722
+model-elusive,weakly-supported,17.147212924724293,B-uniform,0.2679252019488171
+phantom,locally absent,16.675220631987173,B-uniform,0.1603386599229536
+phantom,locally unique,7.729168317377017,B-uniform,0.07431892612862516
+phantom,model-elusive,5.962614046793325,B-uniform,0.05733282737301274
+phantom,phantom,21.61561791230494,B-uniform,0.20784247992600904
+phantom,possibly forbidden,21.72575443373533,B-uniform,0.20890148493976277
+phantom,possibly missing,16.590687282404637,B-uniform,0.15952583925389074
+phantom,recurrent,5.932387176110939,B-uniform,0.0570421843856821
+phantom,weakly-supported,7.768550199286637,B-uniform,0.07469759807006382
+possibly forbidden,locally absent,261.04992731661156,B-uniform,0.2774175635670686
+possibly forbidden,locally unique,18.608199500513415,B-uniform,0.019774919766751768
+possibly forbidden,model-elusive,93.34448988018654,B-uniform,0.09919711995769027
+possibly forbidden,phantom,52.04023433345831,B-uniform,0.055303118313983324
+possibly forbidden,possibly forbidden,340.11583660523297,B-uniform,0.3614408465517885
+possibly forbidden,possibly missing,39.94256640879894,B-uniform,0.04244693560977571
+possibly forbidden,recurrent,14.282396184745302,B-uniform,0.015177891801004572
+possibly forbidden,weakly-supported,121.61634977045291,B-uniform,0.12924160443193722
+possibly missing,locally absent,11.259469557048151,B-uniform,0.22077391288329706
+possibly missing,locally unique,2.6091616126866115,B-uniform,0.051160031621306105
+possibly missing,model-elusive,4.026085940447108,B-uniform,0.07894286157739427
+possibly missing,phantom,7.296857588738177,B-uniform,0.1430756389948662
+possibly missing,possibly forbidden,6.47076387011339,B-uniform,0.1268777229433998
+possibly missing,possibly missing,12.53994065027371,B-uniform,0.24588118922105315
+possibly missing,recurrent,4.483948243770029,B-uniform,0.08792055379941233
+possibly missing,weakly-supported,2.313772536922827,B-uniform,0.045368088959271115
+recurrent,locally absent,1.9940779722034516,B-uniform,0.01719032734658148
+recurrent,locally unique,22.74780396570824,B-uniform,0.19610175832507104
+recurrent,model-elusive,26.334006808488333,B-uniform,0.22701730007317528
+recurrent,phantom,1.7225215719698146,B-uniform,0.014849323896291506
+recurrent,possibly forbidden,1.025955355022816,B-uniform,0.00884444271571393
+recurrent,possibly missing,3.422947518858727,B-uniform,0.029508168266023507
+recurrent,recurrent,45.20381074523357,B-uniform,0.3896880236658066
+recurrent,weakly-supported,13.548876062515053,B-uniform,0.11680065571133666
+weakly-supported,locally absent,2.6027931744502886,B-uniform,0.02526983664514843
+weakly-supported,locally unique,9.387868531341685,B-uniform,0.09114435467322024
+weakly-supported,model-elusive,34.372764822893124,B-uniform,0.33371616332905946
+weakly-supported,phantom,0.7108732818530409,B-uniform,0.006901682348087776
+weakly-supported,possibly forbidden,3.391118270509544,B-uniform,0.03292347835446159
+weakly-supported,possibly missing,0.5456182823220006,B-uniform,0.005297264876912627
+weakly-supported,recurrent,7.205493346695123,B-uniform,0.06995624608441867
+weakly-supported,weakly-supported,44.783470289935195,B-uniform,0.43479097368869124
+locally absent,locally absent,51.360114947923456,B-degree,0.37764790402884896
+locally absent,locally unique,0.16120683616759265,B-degree,0.00118534438358524
+locally absent,model-elusive,46.77110445092085,B-degree,0.34390517978618274
+locally absent,phantom,2.41296928628485,B-degree,0.01774242122268272
+locally absent,possibly forbidden,13.685426271992226,B-degree,0.10062813435288401
+locally absent,possibly missing,10.371465740007745,B-degree,0.07626077750005694
+locally absent,recurrent,10.38184519131097,B-degree,0.07633709699493361
+locally absent,weakly-supported,0.8558672753923082,B-degree,0.006293141730825796
+locally unique,locally absent,3.71923690481273,B-degree,0.03412143949369477
+locally unique,locally unique,11.590834048179916,B-degree,0.10633792704752217
+locally unique,model-elusive,19.143127081489585,B-degree,0.1756250190962347
+locally unique,phantom,15.266265189270236,B-degree,0.14005747880064437
+locally unique,possibly forbidden,11.944455407512983,B-degree,0.10958215970195397
+locally unique,possibly missing,5.919165195756182,B-degree,0.05430426785097415
+locally unique,recurrent,33.95892011926596,B-degree,0.3115497258648253
+locally unique,weakly-supported,7.457996053712409,B-degree,0.06842198214415054
+model-elusive,locally absent,4.318522826728128,B-degree,0.067476919167627
+model-elusive,locally unique,0.8105101677268366,B-degree,0.012664221370731822
+model-elusive,model-elusive,40.76001270215546,B-degree,0.636875198471179
+model-elusive,phantom,0.4358119567262025,B-degree,0.006809561823846914
+model-elusive,possibly forbidden,2.741878906473474,B-degree,0.04284185791364803
+model-elusive,possibly missing,0.9043042736052297,B-degree,0.014129754275081714
+model-elusive,recurrent,9.831031932344406,B-degree,0.15360987394288134
+model-elusive,weakly-supported,4.197927234240266,B-degree,0.06559261303500416
+phantom,locally absent,19.836945092150895,B-degree,0.19073985665529708
+phantom,locally unique,0.8756663950585267,B-degree,0.008419869183255064
+phantom,model-elusive,5.107522354367433,B-degree,0.04911079186891762
+phantom,phantom,25.619286740264425,B-degree,0.24633929557946563
+phantom,possibly forbidden,26.32713756624968,B-degree,0.25314555352163154
+phantom,possibly missing,19.935195515348173,B-degree,0.1916845722629632
+phantom,recurrent,5.437712037526408,B-degree,0.052285692668523155
+phantom,weakly-supported,0.8605342990344621,B-degree,0.00827436825994675
+possibly forbidden,locally absent,170.9520191230253,B-degree,0.18167058355263052
+possibly forbidden,locally unique,1.705128327520404,B-degree,0.0018120386052289097
+possibly forbidden,model-elusive,23.326099325345716,B-degree,0.02478862840100501
+possibly forbidden,phantom,89.0598430986213,B-degree,0.09464382901022454
+possibly forbidden,possibly forbidden,611.5138540831852,B-degree,0.6498553178354783
+possibly forbidden,possibly missing,29.418831165946365,B-degree,0.03126336999569221
+possibly forbidden,recurrent,4.689593835427902,B-degree,0.0049836278803697155
+possibly forbidden,weakly-supported,10.334631040927796,B-degree,0.010982604719370665
+possibly missing,locally absent,8.676010955292831,B-degree,0.17011786186848687
+possibly missing,locally unique,0.14903815908244114,B-degree,0.0029223168447537477
+possibly missing,model-elusive,13.767940791102726,B-degree,0.26995962335495544
+possibly missing,phantom,1.4984416805243757,B-degree,0.02938120942204658
+possibly missing,possibly forbidden,1.4982254522947593,B-degree,0.029376969652838418
+possibly missing,possibly missing,10.554826100883034,B-degree,0.20695737452711832
+possibly missing,recurrent,14.727602154978676,B-degree,0.28877651284271916
+possibly missing,weakly-supported,0.12791470584115766,B-degree,0.002508131487081523
+recurrent,locally absent,2.378196399307108,B-degree,0.020501693097475068
+recurrent,locally unique,2.4970730909803036,B-degree,0.021526492163623307
+recurrent,model-elusive,37.85949376288259,B-degree,0.3263749462317465
+recurrent,phantom,1.553098093326285,B-degree,0.013388776666605906
+recurrent,possibly forbidden,0.9358937822473974,B-degree,0.008068049846960322
+recurrent,possibly missing,3.6439953472516513,B-degree,0.03141375299354872
+recurrent,recurrent,65.40291727021211,B-degree,0.5638182523294147
+recurrent,weakly-supported,1.7293322537925535,B-degree,0.014908036670625461
+weakly-supported,locally absent,6.717881330364454,B-degree,0.06522214883848984
+weakly-supported,locally unique,3.3346399303899017,B-degree,0.03237514495524176
+weakly-supported,model-elusive,18.2065446248107,B-degree,0.1767625691729194
+weakly-supported,phantom,9.0912781428650309,B-degree,0.08826483633849544
+weakly-supported,possibly forbidden,43.45659101087823,B-degree,0.42190865059105076
+weakly-supported,possibly missing,1.3789164850328304,B-degree,0.01338753868963913
+weakly-supported,recurrent,4.045018883924085,B-degree,0.03927202799926296
+weakly-supported,weakly-supported,16.769129591734767,B-degree,0.16280708341490066
