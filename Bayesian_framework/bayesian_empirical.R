@@ -1952,7 +1952,8 @@ share_gap <- per_plant %>% group_by(run, plant) %>%
 cat(sprintf("  [%s] per plant, average posteriors sum to 1 (max gap %.1e)\n",
             ifelse(max(share_gap$gap) < 1e-8, "OK", "!!"), max(share_gap$gap)))
 
-share_heatmap <- function(run_name) {
+# cell_text  size of the printed values (mm); smaller for the manuscript panel
+share_heatmap <- function(run_name, cell_text = 2.8) {
   top <- max(per_plant$share[per_plant$run == run_name])
 
   d <- per_plant %>%
@@ -1968,7 +1969,7 @@ share_heatmap <- function(run_name) {
 
   ggplot(d, aes(category, plant)) +
     geom_tile(aes(fill = fill), colour = "white", linewidth = 0.6) +
-    geom_text(aes(label = sprintf("%.2f", share), colour = ink), size = 2.8) +
+    geom_text(aes(label = sprintf("%.2f", share), colour = ink), size = cell_text) +
     scale_fill_identity() +
     scale_colour_identity() +
     scale_x_discrete(position = "top") +
@@ -2222,3 +2223,168 @@ flows_all %>%
   pivot_wider(names_from = run, values_from = kept) %>%
   arrange(match(category, CAT_ORDER)) %>%
   print()
+
+
+# ---- 13. Manuscript figure: from the map to one plant and one link ----
+# PURPOSE   Panels for the figure that zooms in from the deterministic map:
+#           one plant (its heatmap row, then its distribution) and one link
+#           (its category map, with camera records).
+# WHAT      a  deterministic map, b  heatmap of average posteriors,
+#           c  the plant's distribution, d  the link's category map.
+#           Saved as pdf, plus anchors.tex: where the plant row and the link
+#           cell sit inside each panel, as fractions of the panel file. The
+#           TikZ layout (bayesian_figures/fig_posterior_zoom.tex) reads it, so
+#           boxes and connectors stay in place when a panel changes.
+# DECISIONS One run for every panel. Maps without species names, as in the
+#           sketch. The deterministic map uses the Box 2 key, camera tints
+#           included. The link is a camera-recorded possibly forbidden link,
+#           so panel d shows its asterisk. Panels are saved at their size in
+#           the layout, which is then scaled as a whole.
+
+FIG_RUN        <- "B-degree"
+FIG_PLANT      <- "Sedum sediforme"
+FIG_POLLINATOR <- "Exoprosopa cf. bowdeni"
+FIG_CATEGORY   <- "possibly forbidden"
+FIG_DIR        <- "Bayesian_framework/bayesian_figures/posterior_zoom"
+dir.create(FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+# panel sizes in inches, as placed in the layout
+FIG_SIZE <- list(a = c(3.4, 4.3), b = c(3.7, 2.6), c = c(2.6, 2.1), d = c(3.7, 2.0))
+
+fig_link <- results %>%
+  filter(run == FIG_RUN, focal_site == richest,
+         plant == FIG_PLANT, pollinator == FIG_POLLINATOR)
+stopifnot(nrow(fig_link) == 1, fig_link$det_category == FIG_CATEGORY)
+cat(sprintf("\n  figure link: %s x %s, deterministic %s, camera record %s, P(%s) = %.2f under %s\n",
+            FIG_PLANT, FIG_POLLINATOR, fig_link$det_category,
+            ifelse(fig_link$camera %in% 1, "yes", "no"), FIG_CATEGORY,
+            fig_link[[FIG_CATEGORY]], FIG_RUN))
+
+# the Box 2 key: phantom and possibly forbidden split by camera evidence
+DET_COLOUR <- c(
+  "recurrent"                          = "#C05030",
+  "locally unique"                     = "#B0C4DE",
+  "possibly missing"                   = "#DBA040",
+  "phantom — have evidence"            = "#76C7C0",
+  "phantom — no evidence"              = "#D5C8F0",
+  "model-elusive"                      = "#8A3050",
+  "weakly-supported"                   = "#E8A8B8",
+  "locally absent"                     = "#F9C8B0",
+  "possibly forbidden — have evidence" = "#1F7E72",
+  "possibly forbidden — no evidence"   = "#5E3DA0")
+
+# shared by panels a and d: no species names, small type
+# (axis.text.x and .y named, since make_map sets both and would win over axis.text)
+fig_map_theme <- theme(axis.text.x      = element_blank(),
+                       axis.text.y      = element_blank(),
+                       axis.title       = element_text(size = 9),
+                       legend.title     = element_text(size = 8, face = "bold"),
+                       legend.text      = element_text(size = 7),
+                       legend.key.size  = unit(9, "pt"),
+                       plot.margin      = margin(4, 4, 4, 4))
+
+# a  the deterministic map, species ordered as in make_map
+fig_det_map <- function() {
+  d <- results %>%
+    filter(run == FIG_RUN, focal_site == richest) %>%
+    mutate(shown = case_when(
+      det_category %in% c("phantom", "possibly forbidden") ~
+        paste(det_category, ifelse(camera %in% 1, "— have evidence", "— no evidence")),
+      TRUE ~ det_category))
+  pol_levels <- d %>% distinct(pollinator) %>%
+    left_join(deg_pol, by = c("pollinator" = "higher_level")) %>%
+    arrange(desc(deg)) %>% pull(pollinator)
+  pla_levels <- d %>% distinct(plant) %>%
+    left_join(deg_pla, by = c("plant" = "lower_level")) %>%
+    arrange(desc(deg)) %>% pull(plant)
+  d <- d %>% mutate(pollinator = factor(pollinator, levels = pol_levels),
+                    plant      = factor(plant,      levels = pla_levels),
+                    shown      = factor(shown,      levels = names(DET_COLOUR)))
+
+  ggplot(d, aes(pollinator, plant, fill = shown)) +
+    geom_tile(colour = "white", linewidth = 0.2) +
+    scale_fill_manual(values = DET_COLOUR, drop = FALSE, name = "Link category") +
+    labs(x = "Pollinators", y = "Plants") +
+    guides(fill = guide_legend(ncol = 2, title.position = "top")) +
+    theme_minimal() +
+    theme(panel.grid = element_blank()) +
+    fig_map_theme +
+    theme(legend.position = "bottom")      # key under the map, clear of the connectors
+}
+
+fig_panels <- list(
+  a = fig_det_map(),
+  b = share_heatmap(FIG_RUN, cell_text = 2.2) +
+        labs(title = NULL) +
+        theme(axis.text   = element_text(size = 7),
+              plot.margin = margin(4, 48, 4, 4)),   # room for the last angled label
+  c = plant_figure(FIG_PLANT, FIG_RUN) +
+        labs(title = bquote(italic(.(FIG_PLANT))),
+             x = "Links: expected +/- SD, deterministic (|)") +
+        theme(axis.text  = element_text(size = 7),
+              axis.title = element_text(size = 7),
+              plot.title = element_text(size = 8)),
+  # no y title: the link connector enters along the plant row from the left
+  d = make_map(FIG_RUN, FIG_CATEGORY, camera_marks = "assigned") +
+        labs(x = "Pollinators", y = NULL) +
+        fig_map_theme
+)
+
+# where the panel (the plotting area) sits inside the saved file, as fractions
+panel_box <- function(p, size) {
+  grDevices::pdf(NULL, width = size[1], height = size[2])
+  on.exit(grDevices::dev.off())
+  grid::grid.newpage()
+  grid::grid.draw(ggplotGrob(p))
+  grid::grid.force()
+  vps <- grid::grid.ls(viewports = TRUE, grobs = FALSE, print = FALSE)$name
+  grid::seekViewport(grep("^panel", vps, value = TRUE)[1])
+  ll <- grid::deviceLoc(grid::unit(0, "npc"), grid::unit(0, "npc"), valueOnly = TRUE)
+  ur <- grid::deviceLoc(grid::unit(1, "npc"), grid::unit(1, "npc"), valueOnly = TRUE)
+  c(L = ll$x / size[1], B = ll$y / size[2], R = ur$x / size[1], T = ur$y / size[2])
+}
+
+# the band a discrete level occupies along an axis, as fractions of the panel
+level_band <- function(p, axis, level) {
+  pp  <- ggplot_build(p)$layout$panel_params[[1]]
+  lv  <- pp[[axis]]$get_limits()
+  rng <- pp[[paste0(axis, ".range")]]
+  i   <- match(level, lv)
+  if (is.na(i)) stop(level, " is not on the ", axis, " axis")
+  (c(i - 0.5, i + 0.5) - rng[1]) / diff(rng)
+}
+
+# fractions of the whole file, for one panel
+to_file <- function(box, band, axis)
+  if (axis == "x") box[["L"]] + band * (box[["R"]] - box[["L"]]) else
+                   box[["B"]] + band * (box[["T"]] - box[["B"]])
+
+anchors <- list()
+for (k in names(fig_panels)) {
+  box <- panel_box(fig_panels[[k]], FIG_SIZE[[k]])
+  anchors[paste0(k, names(box))] <- as.list(box)
+}
+for (k in c("a", "d")) {
+  box <- unlist(anchors[paste0(k, c("L", "B", "R", "T"))]); names(box) <- c("L", "B", "R", "T")
+  row <- to_file(box, level_band(fig_panels[[k]], "y", FIG_PLANT), "y")
+  col <- to_file(box, level_band(fig_panels[[k]], "x", FIG_POLLINATOR), "x")
+  anchors[paste0(k, c("RowB", "RowT", "ColL", "ColR"))] <- as.list(c(row, col))
+}
+box_b <- unlist(anchors[c("bL", "bB", "bR", "bT")]); names(box_b) <- c("L", "B", "R", "T")
+anchors[c("bRowB", "bRowT")] <- as.list(to_file(box_b, level_band(fig_panels$b, "y", FIG_PLANT), "y"))
+
+for (k in names(fig_panels)) {
+  ggsave(file.path(FIG_DIR, sprintf("panel_%s.pdf", k)), fig_panels[[k]],
+         width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2], device = cairo_pdf)
+  ggsave(file.path(FIG_DIR, sprintf("panel_%s.png", k)), fig_panels[[k]],
+         width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2], dpi = 300, bg = "white")
+  if (interactive()) print(fig_panels[[k]])
+}
+
+# \fz<panel><anchor>, e.g. \fzaRowB: letters only, as TeX macro names require
+writeLines(c(
+  sprintf("%% written by bayesian_empirical.R, Section 13: %s x %s, %s",
+          FIG_PLANT, FIG_POLLINATOR, FIG_RUN),
+  sprintf("\\newcommand{\\fz%s}{%.4f}", names(anchors), unlist(anchors))),
+  file.path(FIG_DIR, "anchors.tex"))
+cat(sprintf("  written: %s (4 panels, anchors.tex)\n", FIG_DIR))

@@ -1,0 +1,119 @@
+% fig_posterior_zoom.tex
+%
+% From the deterministic map to the posterior of one plant and one link.
+%   a  deterministic map (Box 2 key)
+%   b  average posterior per plant and category (heatmap)
+%   c  the chosen plant: expected links per category
+%   d  the chosen link's category map, camera records as asterisks
+%
+% The panels and anchors.tex are written by bayesian_empirical.R, Section 13,
+% into posterior_zoom/. anchors.tex says where the chosen plant row and link
+% cell sit inside each panel, so the boxes and connectors below follow the
+% panels whenever the script is rerun (another plant, link or run).
+%
+% Compile from this folder:        pdflatex fig_posterior_zoom.tex
+% Place in the manuscript:         \includegraphics[width=\linewidth]{fig_posterior_zoom.pdf}
+% The panels are drawn at their saved size, and the figure is scaled as a whole.
+
+\documentclass[tikz, border = 6pt]{standalone}
+\usepackage{graphicx}
+\usepackage[scaled = 0.92]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usetikzlibrary{calc, arrows.meta}
+
+\newcommand{\fzdir}{posterior_zoom}
+\input{\fzdir/anchors.tex}
+
+\definecolor{fzink}{HTML}{2B2B3A}
+\definecolor{fzband}{HTML}{7B7BB8}
+
+% \fzat{name}{panel}{fx}{fy}
+% A named point inside a panel node, fx and fy as fractions of the panel
+% file's width and height, measured from its bottom left corner.
+\newcommand{\fzat}[4]{%
+  \path let \p1 = (#2.south west), \p2 = (#2.north east) in
+    coordinate (#1) at ({\x1 + (#3)*(\x2 - \x1)}, {\y1 + (#4)*(\y2 - \y1)});}
+
+\tikzset{
+  panel/.style  = {inner sep = 0pt, outer sep = 0pt},
+  letter/.style = {font = \bfseries\Large, anchor = south east, inner sep = 1pt},
+  focus/.style  = {draw = fzink, line width = 0.9pt},
+  cell/.style   = {draw = fzink, line width = 1.3pt},
+  band/.style   = {fill = fzband, fill opacity = 0.16},
+  edge/.style   = {draw = fzband, line width = 0.6pt},
+  halo/.style   = {draw = white, line width = 2.6pt},
+  link/.style   = {draw = fzink, line width = 0.9pt, -{Latex[length = 2.4mm]}},
+}
+
+\begin{document}
+\begin{tikzpicture}
+
+  % ---- panels --------------------------------------------------------------
+  % b and c along the top, d under b, a to the left of both rows
+  \node[panel, anchor = north west] (b) at (0, 0)
+    {\includegraphics{\fzdir/panel_b.pdf}};
+  \node[panel, anchor = west] (c) at ($(b.east) + (1.0, 0)$)
+    {\includegraphics{\fzdir/panel_c.pdf}};
+  \node[panel, anchor = north west] (d) at ($(b.south west) + (0, -0.9)$)
+    {\includegraphics{\fzdir/panel_d.pdf}};
+  \node[panel, anchor = east] (a) at ($(b.north west)!0.5!(d.south west) + (-1.6, 0)$)
+    {\includegraphics{\fzdir/panel_a.pdf}};
+
+  % (\pn, not \p, which the let syntax in \fzat reserves)
+  \foreach \pn in {a, b, c, d}
+    \node[letter] at (\pn.north west) {\pn};
+
+  % ---- anchor points -------------------------------------------------------
+  % a: the plant row, the link cell, and the row's right end
+  \fzat{aRowSW}{a}{\fzaL}{\fzaRowB}
+  \fzat{aRowNE}{a}{\fzaR}{\fzaRowT}
+  \fzat{aRowSE}{a}{\fzaR}{\fzaRowB}
+  \fzat{aRowE} {a}{\fzaR}{(\fzaRowB + \fzaRowT) / 2}
+  \fzat{aCellSW}{a}{\fzaColL}{\fzaRowB}
+  \fzat{aCellNE}{a}{\fzaColR}{\fzaRowT}
+  \fzat{aCellE} {a}{\fzaColR}{(\fzaRowB + \fzaRowT) / 2}
+
+  % b: the plant row, from the plant name to the last column
+  \fzat{bRowSW}{b}{0.01}{\fzbRowB}
+  \fzat{bRowNW}{b}{0.01}{\fzbRowT}
+  \fzat{bRowNE}{b}{\fzbR}{\fzbRowT}
+  \fzat{bRowSE}{b}{\fzbR}{\fzbRowB}
+
+  % c: the panel's outer left edge, level with the plotting area, so the band
+  % stops before the category labels
+  \fzat{cNW}{c}{0}{\fzcT}
+  \fzat{cSW}{c}{0}{\fzcB}
+
+  % d: the plant row and the link cell
+  \fzat{dRowSW} {d}{\fzdL}{\fzdRowB}
+  \fzat{dRowNE} {d}{\fzdR}{\fzdRowT}
+  \fzat{dRowW}  {d}{\fzdL}{(\fzdRowB + \fzdRowT) / 2}
+  \fzat{dCellSW}{d}{\fzdColL}{\fzdRowB}
+  \fzat{dCellNE}{d}{\fzdColR}{\fzdRowT}
+  \fzat{dCellW} {d}{\fzdColL}{(\fzdRowB + \fzdRowT) / 2}
+
+  % ---- one plant: map row -> heatmap row -> its distribution ---------------
+  \fill[band] (aRowNE) to[out = 0, in = 180] (bRowNW) --
+              (bRowSW) to[out = 180, in = 0] (aRowSE) -- cycle;
+  \draw[edge] (aRowNE) to[out = 0, in = 180] (bRowNW);
+  \draw[edge] (aRowSE) to[out = 0, in = 180] (bRowSW);
+
+  \fill[band] (bRowNE) to[out = 0, in = 180] (cNW) --
+              (cSW) to[out = 180, in = 0] (bRowSE) -- cycle;
+  \draw[edge] (bRowNE) to[out = 0, in = 180] (cNW);
+  \draw[edge] (bRowSE) to[out = 0, in = 180] (cSW);
+
+  \draw[focus] (aRowSW) rectangle (aRowNE);
+  \draw[focus] (bRowSW) rectangle (bRowNE);
+
+  % ---- one link: map cell -> its category map ------------------------------
+  % along the plant row to the map's edge, then down into the same row of d
+  \draw[focus, dashed, line width = 0.6pt] (dRowSW) rectangle (dRowNE);
+  \draw[halo] (aCellE) -- (aRowE) to[out = 0, in = 180] (dRowW) -- (dCellW);
+  \draw[link] (aCellE) -- (aRowE) to[out = 0, in = 180] (dRowW) -- (dCellW);
+
+  \draw[cell] (aCellSW) rectangle (aCellNE);
+  \draw[cell] (dCellSW) rectangle (dCellNE);
+
+\end{tikzpicture}
+\end{document}
