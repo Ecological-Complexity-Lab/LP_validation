@@ -227,8 +227,7 @@ N_SUPPORTED_SITE <- sum(is_supported & camsum$site %in% "holds")
 > Every candidate link at Cabrera carries eight posterior probabilities, one per
 > link category, instead of a single hard label. `r N_SUPPORTED` of the eight
 > categories behave the way they claim to when tested against camera records the
-> posterior never saw. Replication saturates within the six-site design, so what
-> uncertainty remains is not something more sites can fix.
+> posterior never saw. Replication saturates within the six-site design.
 
 ```{r glance}
 tibble(
@@ -256,7 +255,7 @@ The framework sorts every candidate link into one of eight categories using
 three yes/no facts: does the model predict it, was it seen at this site, was it
 seen at another site in the same system. Three bits, eight boxes.
 
-The weakness is that the answer is a **label**. A link that only just qualified
+This answer is a **label**. A link that only just qualified
 looks identical to one that clearly belongs, and the label says nothing about
 which links to chase or what would settle the question.
 
@@ -464,7 +463,7 @@ depend on $p_1$ or $\nu$, so it moves neither the fit nor the comparison below.
 
 **Open question.** `r N_CLIP` links
 (`r sprintf("%.0f%%", 100 * N_CLIP / nrow(obs))`) sit at the floor of the
-prediction pipeline's sigmoid and carry no model information to calibrate.
+prediction pipeline's sigmoid and carry no model information to calibrate. **Closed: we converted the sigmoid use in the Bayesian example to Platt scaling with no conversion of negative predictions.**
 
 ## The four settings
 
@@ -588,7 +587,7 @@ tibble(
 
 The likelihood ratio is `r sprintf("%.2f", LR_NU)` on 1 df, boundary-corrected
 $p$ = `r sprintf("%.3f", P_NU)`, so
-**`r if (P_NU < 0.05) "the data support keeping $\\nu$" else "the data give no support for keeping $\\nu$"`**.
+**`r if (P_NU < 0.05) "the data support keeping $\\nu$" else "the data give no support for keeping $\\nu$"` (or no reason to drop it?)**.
 The twins show what that choice does to the results.
 
 `r if (P1 * NU < 1) sprintf("**Open question.** $\\nu$ = %.2f sits outside the range the SI illustrates: it implies a beta shape parameter $a = p_1\\nu$ = %.2f, below 1. Widen the SI wording, or constrain the fit?", NU, P1 * NU) else ""`
@@ -620,7 +619,7 @@ In every map below, each cell is one link $i$ and **colour intensity is
 $P(k \mid E_i)$** for the category $k$ the figure is about. A **black frame**
 marks cells the deterministic rule assigned to $k$, and an **asterisk** marks a
 link the cameras recorded. All four panels of a figure share one colour scale,
-so shades are comparable between settings.
+so shades are comparable between settings. All heatmaps are of the most species-rich site.
 
 ## Possibly missing
 
@@ -712,7 +711,7 @@ include_graphics(file.path(OUT, "fig_category_distributions.png"))
 Panel **a** is the expected number of links per category, panel **b** the spread
 of per-link posteriors. The tick in panel a is the deterministic count, the same
 in all four panels, so the gap between tick and bar is exactly what each prior
-moves.
+moves. Results are across all sites.
 
 ```{r run-table}
 det_counts <- one %>% count(det_category, name = "det")
@@ -809,7 +808,7 @@ of at most `r sprintf("%.1f%%", 100 * (1 - min(by_model$same_top)))` of links.
 Adding the degree prior shifts at least `r round(min(by_prior$gap))` and changes
 at least `r sprintf("%.1f%%", 100 * (1 - max(by_prior$same_top)))`.
 
-**B-degree is the only run in which the mean confidence in assignment is higher than 0.5 (might be an artifact how the model).**
+**B-degree is the only run in which the mean confidence in assignment is higher than 0.5 (might be an artifact how the model works).**
 
 ## Where does each category's posterior go?
 
@@ -1224,7 +1223,7 @@ then one plant at a time.
 ### Step 1: all plants, category by category
 
 For each of the `r N_PLANTS` plants, how many of its `r N_CAND` candidate links
-the posterior places in each category.
+the posterior places in each category (most species rich site).
 
 ```{r fig-per-plant-uniform}
 include_graphics(file.path(OUT, "fig_per_plant_B_uniform.png"))

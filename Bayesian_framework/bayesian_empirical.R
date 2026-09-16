@@ -3,13 +3,9 @@
 # Every candidate link gets eight posterior probabilities, one per category,
 # instead of a single hard label.
 #
-# There is one posterior function. Every SI section is a setting of its
+# There is one master posterior function. Every SI section is a setting of its
 # arguments, not a separate implementation, so the equation printed in the
 # manuscript and the code producing the results are the same object.
-#
-# Inputs : serra_marin_loo_prediction_results.csv
-# Outputs: posteriors_bayesian_example.csv (four runs x eight categories)
-#          map_bayesian_richest_site.pdf
 
 library(tidyverse)
 
@@ -39,7 +35,7 @@ NOT_FEASIBLE <- c("phantom", "possibly forbidden")
 #
 # On R. Every other site is a replicate, so R is the same for every link: the
 # number of sites minus the focal one. A link can go unrecorded at a replicate
-# for two reasons, and the SI does not separate them: the partners were not
+# for three reasons: the partners were not
 # there, or they were there and the interaction was not realised or not
 # detected. Both sit inside the per-replicate detection rate
 # p1 = rho * (1 - eps_l) (SI Section S4), where rho is the whole ecological
@@ -47,7 +43,7 @@ NOT_FEASIBLE <- c("phantom", "possibly forbidden")
 # So a site where the partners were never recorded together still counts, as a
 # replicate that did not record the link.
 #
-# There is also an ecological reason not to drop those sites. A species enters a
+# There is an ecological reason not to drop those sites. A species enters a
 # site's data only if it was recorded interacting there, and co-occurring species
 # are not always detected. A site without both partners in its data may well
 # have held both, so excluding it would treat an undetected species as an absent
