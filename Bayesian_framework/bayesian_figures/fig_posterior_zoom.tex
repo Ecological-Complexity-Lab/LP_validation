@@ -49,14 +49,15 @@
 \begin{tikzpicture}
 
   % ---- panels --------------------------------------------------------------
-  % b and c along the top, d under b, a to the left of both rows
+  % b and c along the top, d under b, a to the left. Every panel's top edge is
+  % flush with b's, and a is as tall as b, the gap and d together.
   \node[panel, anchor = north west] (b) at (0, 0)
     {\includegraphics{\fzdir/panel_b.pdf}};
-  \node[panel, anchor = west] (c) at ($(b.east) + (1.0, 0)$)
+  \node[panel, anchor = north west] (c) at ($(b.north east) + (0.9, 0)$)
     {\includegraphics{\fzdir/panel_c.pdf}};
   \node[panel, anchor = north west] (d) at ($(b.south west) + (0, -0.9)$)
     {\includegraphics{\fzdir/panel_d.pdf}};
-  \node[panel, anchor = east] (a) at ($(b.north west)!0.5!(d.south west) + (-1.6, 0)$)
+  \node[panel, anchor = north east] (a) at ($(b.north west) + (-1.5, 0)$)
     {\includegraphics{\fzdir/panel_a.pdf}};
 
   % (\pn, not \p, which the let syntax in \fzat reserves)
@@ -106,9 +107,10 @@
   \draw[focus] (aRowSW) rectangle (aRowNE);
   \draw[focus] (bRowSW) rectangle (bRowNE);
 
-  % ---- one link: map cell -> its category map ------------------------------
-  % along the plant row to the map's edge, then down into the same row of d
-  \draw[focus, dashed, line width = 0.6pt] (dRowSW) rectangle (dRowNE);
+  % ---- one link: map cell -> the plant's row of the category map -----------
+  % along the plant row to the map's edge, then down into the strip, which is
+  % that same row lifted out of the map
+  \draw[focus] (dRowSW) rectangle (dRowNE);
   \draw[halo] (aCellE) -- (aRowE) to[out = 0, in = 180] (dRowW) -- (dCellW);
   \draw[link] (aCellE) -- (aRowE) to[out = 0, in = 180] (dRowW) -- (dCellW);
 

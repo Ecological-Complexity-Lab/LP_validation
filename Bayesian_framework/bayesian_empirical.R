@@ -2237,15 +2237,16 @@ flows_all %>%
 #           so panel d shows its asterisk. Panels are saved at their size in
 #           the layout, which is then scaled as a whole.
 
-FIG_RUN        <- "B-degree"
-FIG_PLANT      <- "Sedum sediforme"
-FIG_POLLINATOR <- "Exoprosopa cf. bowdeni"
+FIG_RUN        <- "B-uniform"
+FIG_PLANT      <- "Helichrysum stoechas"
+FIG_POLLINATOR <- "Meliscaeva auricollis"
 FIG_CATEGORY   <- "possibly forbidden"
 FIG_DIR        <- "Bayesian_framework/bayesian_figures/posterior_zoom"
 dir.create(FIG_DIR, showWarnings = FALSE, recursive = TRUE)
 
-# panel sizes in inches, as placed in the layout
-FIG_SIZE <- list(a = c(3.4, 4.3), b = c(3.7, 2.6), c = c(2.6, 2.1), d = c(3.7, 2.0))
+# Panel sizes in inches, as placed in the layout. Tops are flush, so a is as
+# tall as b, the 0.9 cm gap and d together.
+FIG_SIZE <- list(a = c(3.8, 3.75), b = c(3.4, 2.4), c = c(2.8, 2.4), d = c(5.0, 1.0))
 
 fig_link <- results %>%
   filter(run == FIG_RUN, focal_site == richest,
@@ -2308,6 +2309,43 @@ fig_det_map <- function() {
     theme(legend.position = "bottom")      # key under the map, clear of the connectors
 }
 
+# d  the focal plant's row of the category map, on its own. The full map is
+#    unreadable at this size, and the row is what the link belongs to. Same
+#    pollinator order, colour scale, frames and asterisks as make_map, so the
+#    strip reads as a row lifted out of it.
+fig_row_strip <- function() {
+  site_rows <- results %>% filter(run == FIG_RUN, focal_site == richest) %>%
+    mutate(conf = .data[[FIG_CATEGORY]])
+  pol_levels <- site_rows %>% distinct(pollinator) %>%
+    left_join(deg_pol, by = c("pollinator" = "higher_level")) %>%
+    arrange(desc(deg)) %>% pull(pollinator)
+
+  d <- site_rows %>%
+    filter(plant == FIG_PLANT) %>%
+    mutate(pollinator = factor(pollinator, levels = pol_levels))
+
+  ggplot(d, aes(pollinator, plant, fill = conf)) +
+    geom_tile(colour = "white") +
+    # the scale spans the whole map, so the strip is shaded as it is there
+    scale_fill_gradient(low = "white", high = unname(CATEGORY_COLOUR[FIG_CATEGORY]),
+                        limits = c(0, max(site_rows$conf)),
+                        name = sprintf("P(%s)", FIG_CATEGORY)) +
+    geom_tile(data = filter(d, det_category == FIG_CATEGORY), fill = NA,
+              colour = "black", linewidth = 0.4) +
+    geom_text(data = filter(d, camera == 1, det_category == FIG_CATEGORY),
+              aes(label = "*"), colour = "grey20", size = 3.4, vjust = 0.72) +
+    scale_x_discrete(labels = ital) +
+    labs(x = NULL, y = NULL) +
+    theme_minimal() +
+    theme(panel.grid   = element_blank(),
+          axis.text.x  = element_text(size = 4.4, angle = 90, vjust = 0.5, hjust = 1),
+          axis.text.y  = element_blank(),
+          legend.title = element_text(size = 7, face = "bold"),
+          legend.text  = element_text(size = 6),
+          legend.key.width = unit(6, "pt"),
+          plot.margin  = margin(4, 4, 2, 4))
+}
+
 fig_panels <- list(
   a = fig_det_map(),
   b = share_heatmap(FIG_RUN, cell_text = 2.2) +
@@ -2316,14 +2354,11 @@ fig_panels <- list(
               plot.margin = margin(4, 48, 4, 4)),   # room for the last angled label
   c = plant_figure(FIG_PLANT, FIG_RUN) +
         labs(title = bquote(italic(.(FIG_PLANT))),
-             x = "Links: expected +/- SD, deterministic (|)") +
+             x = "Expected links +/- SD  (| deterministic)") +
         theme(axis.text  = element_text(size = 7),
               axis.title = element_text(size = 7),
               plot.title = element_text(size = 8)),
-  # no y title: the link connector enters along the plant row from the left
-  d = make_map(FIG_RUN, FIG_CATEGORY, camera_marks = "assigned") +
-        labs(x = "Pollinators", y = NULL) +
-        fig_map_theme
+  d = fig_row_strip()
 )
 
 # where the panel (the plotting area) sits inside the saved file, as fractions
