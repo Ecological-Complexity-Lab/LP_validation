@@ -12,6 +12,36 @@ library(tidyverse)
 DATA_OBS <- "results/predictions/serra_marin_loo_prediction_results.csv"
 OUT_DIR  <- "results/bayesian_empirical"
 
+# ---- Which figures to save ----
+# Rerunning the whole script rewrites every figure. The default
+# is to write none of them; the numbers, tables and CSVs are produced either
+# way. Turn on the one you are working on, or SAVE_ALL before a final run.
+SAVE_ALL <- FALSE
+SAVE_FIG <- c(
+  maps          = FALSE,   # Section 7   category maps, and the 2 x 2 run panels
+  distributions = FALSE,   # Section 8   category distributions, with and without nu
+  accumulation  = FALSE,   # Section 10  evidence accumulation
+  per_plant     = FALSE,   # Section 11  per-species dots and heatmaps
+  plant         = FALSE,   # Section 11  the chosen plants, one figure each
+  leakage       = FALSE,   # Section 12  category leakage networks
+  zoom_panels   = FALSE,   # Section 13  manuscript panels, and anchors.tex
+  main_fig3     = FALSE    # Section 14  main-text Fig. 3 on the fitted rates
+)
+
+saving <- function(what) isTRUE(SAVE_ALL) || isTRUE(unname(SAVE_FIG[what]))
+
+# ggsave, unless this figure is switched off. Arguments are ggsave's.
+save_fig <- function(what, filename, plot, ...) {
+  if (!saving(what)) return(invisible(FALSE))
+  ggsave(filename, plot, ...)
+  invisible(TRUE)
+}
+
+cat(sprintf("Figures: %s\n",
+            if (SAVE_ALL) "saving all"
+            else if (any(SAVE_FIG)) paste("saving", paste(names(SAVE_FIG)[SAVE_FIG], collapse = ", "))
+            else "saving none (set SAVE_ALL or a switch in SAVE_FIG)"))
+
 # The eight categories and their error-free signatures (SI Table S2).
 #   zY = the model would predict it
 #   zl = it is realised at the focal site
@@ -1020,8 +1050,8 @@ for (i in seq_len(nrow(map_grid))) {
   assign(obj_i, p)                       # available in the session by name
 
   for (fmt in MAP_FORMATS) {
-    ggsave(file.path(OUT_DIR, paste0(obj_i, ".", fmt)), p,
-           width = MAP_W, height = MAP_H)
+    save_fig("maps", file.path(OUT_DIR, paste0(obj_i, ".", fmt)), p,
+             width = MAP_W, height = MAP_H)
   }
 
   map_log[[i]] <- tibble(
@@ -1151,8 +1181,10 @@ make_run_panel <- function(category,
                                 if (category %in% names(map_stem))
                                   map_stem[[category]]
                                 else gsub("[^a-z]+", "_", category)))
-    ggsave(file, fig, width = width, height = height, dpi = dpi, bg = "white")
-    cat(sprintf("  panel written: %s   (shared scale top %.3f)\n",
+    wrote <- save_fig("maps", file, fig, width = width, height = height,
+                      dpi = dpi, bg = "white")
+    cat(sprintf("  panel %s: %s   (shared scale top %.3f)\n",
+                if (wrote) "written" else "not saved",
                 file, if (is.null(lim)) NA_real_ else lim))
   }
 
@@ -1308,10 +1340,10 @@ distribution_figure <- function(runs, stem, width = 11, height = 7,
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(size = 13, face = "bold"))
 
-  ggsave(file.path(OUT_DIR, paste0(stem, ".pdf")), fig,
-         width = width, height = height)
-  ggsave(file.path(OUT_DIR, paste0(stem, ".png")), fig,
-         width = width, height = height, dpi = 300)
+  save_fig("distributions", file.path(OUT_DIR, paste0(stem, ".pdf")), fig,
+           width = width, height = height)
+  save_fig("distributions", file.path(OUT_DIR, paste0(stem, ".png")), fig,
+           width = width, height = height, dpi = 300)
   invisible(list(fig = fig, expected = expected_tbl))
 }
 
@@ -1840,10 +1872,10 @@ fig_accum <- ggplot(acc_plot, aes(R, P, colour = category)) +
   theme(plot.caption = element_text(hjust = 0, size = 7.5, colour = "grey35",
                                     lineheight = 1.2))
 
-ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.pdf"), fig_accum,
-       width = 6.5, height = 5)
-ggsave(file.path(OUT_DIR, "fig_accumulation_empirical.png"), fig_accum,
-       width = 6.5, height = 5, dpi = 300)
+save_fig("accumulation", file.path(OUT_DIR, "fig_accumulation_empirical.pdf"),
+         fig_accum, width = 6.5, height = 5)
+save_fig("accumulation", file.path(OUT_DIR, "fig_accumulation_empirical.png"),
+         fig_accum, width = 6.5, height = 5, dpi = 300)
 if (interactive()) print(fig_accum)
 cat(sprintf("\nWritten: %s\n",
             file.path(OUT_DIR, "fig_accumulation_empirical.pdf")))
@@ -1919,8 +1951,9 @@ species_figure <- function(run_name) {
 for (rn in SPECIES_RUNS) {
   fig_sp <- species_figure(rn)
   stem <- file.path(OUT_DIR, paste0("fig_per_plant_", run_stem(rn)))
-  ggsave(paste0(stem, ".pdf"), fig_sp, width = 12, height = 7)
-  ggsave(paste0(stem, ".png"), fig_sp, width = 12, height = 7, dpi = 300)
+  save_fig("per_plant", paste0(stem, ".pdf"), fig_sp, width = 12, height = 7)
+  save_fig("per_plant", paste0(stem, ".png"), fig_sp, width = 12, height = 7,
+           dpi = 300)
   if (interactive()) print(fig_sp)
 }
 
@@ -1983,8 +2016,9 @@ share_heatmap <- function(run_name, cell_text = 2.8) {
 for (rn in SPECIES_RUNS) {
   fig_hm <- share_heatmap(rn)
   stem <- file.path(OUT_DIR, paste0("fig_per_plant_share_", run_stem(rn)))
-  ggsave(paste0(stem, ".pdf"), fig_hm, width = 8, height = 5)
-  ggsave(paste0(stem, ".png"), fig_hm, width = 8, height = 5, dpi = 300)
+  save_fig("per_plant", paste0(stem, ".pdf"), fig_hm, width = 8, height = 5)
+  save_fig("per_plant", paste0(stem, ".png"), fig_hm, width = 8, height = 5,
+           dpi = 300)
   if (interactive()) print(fig_hm)
 }
 
@@ -2033,8 +2067,9 @@ plant_figure <- function(plant_name, run_name) {
 for (pl in FOCAL_PLANTS) for (rn in SPECIES_RUNS) {
   fig_pl <- plant_figure(pl, rn)
   stem <- file.path(OUT_DIR, sprintf("fig_plant_%s_%s", run_stem(pl), run_stem(rn)))
-  ggsave(paste0(stem, ".pdf"), fig_pl, width = 6.5, height = 4)
-  ggsave(paste0(stem, ".png"), fig_pl, width = 6.5, height = 4, dpi = 300)
+  save_fig("plant", paste0(stem, ".pdf"), fig_pl, width = 6.5, height = 4)
+  save_fig("plant", paste0(stem, ".png"), fig_pl, width = 6.5, height = 4,
+           dpi = 300)
   if (interactive()) print(fig_pl)
 }
 
@@ -2204,10 +2239,10 @@ for (rn in LEAK_RUNS) for (wt in c("absolute", "relative")) {
   stem <- file.path(OUT_DIR, sprintf("fig_category_leakage_%s%s", run_stem(rn),
                                      if (wt == "relative") "_relative" else ""))
   # cairo keeps the arrow and dot glyphs the default pdf device drops
-  ggsave(paste0(stem, ".pdf"), fig_leak, width = 10.5, height = 6.9,
-         device = cairo_pdf)
-  ggsave(paste0(stem, ".png"), fig_leak, width = 10.5, height = 6.9, dpi = 300,
-         bg = "white")
+  save_fig("leakage", paste0(stem, ".pdf"), fig_leak, width = 10.5, height = 6.9,
+           device = cairo_pdf)
+  save_fig("leakage", paste0(stem, ".png"), fig_leak, width = 10.5, height = 6.9,
+           dpi = 300, bg = "white")
   if (interactive()) print(fig_leak)
 }
 
@@ -2405,17 +2440,162 @@ box_b <- unlist(anchors[c("bL", "bB", "bR", "bT")]); names(box_b) <- c("L", "B",
 anchors[c("bRowB", "bRowT")] <- as.list(to_file(box_b, level_band(fig_panels$b, "y", FIG_PLANT), "y"))
 
 for (k in names(fig_panels)) {
-  ggsave(file.path(FIG_DIR, sprintf("panel_%s.pdf", k)), fig_panels[[k]],
-         width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2], device = cairo_pdf)
-  ggsave(file.path(FIG_DIR, sprintf("panel_%s.png", k)), fig_panels[[k]],
-         width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2], dpi = 300, bg = "white")
+  save_fig("zoom_panels", file.path(FIG_DIR, sprintf("panel_%s.pdf", k)),
+           fig_panels[[k]], width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2],
+           device = cairo_pdf)
+  save_fig("zoom_panels", file.path(FIG_DIR, sprintf("panel_%s.png", k)),
+           fig_panels[[k]], width = FIG_SIZE[[k]][1], height = FIG_SIZE[[k]][2],
+           dpi = 300, bg = "white")
   if (interactive()) print(fig_panels[[k]])
 }
 
-# \fz<panel><anchor>, e.g. \fzaRowB: letters only, as TeX macro names require
-writeLines(c(
-  sprintf("%% written by bayesian_empirical.R, Section 13: %s x %s, %s",
-          FIG_PLANT, FIG_POLLINATOR, FIG_RUN),
-  sprintf("\\newcommand{\\fz%s}{%.4f}", names(anchors), unlist(anchors))),
-  file.path(FIG_DIR, "anchors.tex"))
-cat(sprintf("  written: %s (4 panels, anchors.tex)\n", FIG_DIR))
+# anchors.tex belongs to the panels, so it is written with them and not alone.
+# \fz<panel><anchor>, e.g. \fzaRowB: letters only, as TeX macro names require.
+if (saving("zoom_panels")) {
+  writeLines(c(
+    sprintf("%% written by bayesian_empirical.R, Section 13: %s x %s, %s",
+            FIG_PLANT, FIG_POLLINATOR, FIG_RUN),
+    sprintf("\\newcommand{\\fz%s}{%.4f}", names(anchors), unlist(anchors))),
+    file.path(FIG_DIR, "anchors.tex"))
+  cat(sprintf("  written: %s (4 panels, anchors.tex)\n", FIG_DIR))
+} else {
+  cat("  zoom panels not saved (SAVE_FIG[\"zoom_panels\"])\n")
+}
+
+
+# ---- 14. Main-text Figure 3 on the fitted rates ----
+# PURPOSE   The empirical counterpart of main_accumulation.R, to replace the
+#           illustrative Figure 3: the same two panels with our rates.
+# WHAT      a  confidence accumulating with consistent detections, against the
+#              ceiling kappa, with feasibility confidence alongside
+#           b  the same evidence under an informative prior: binary replicate
+#              evidence after R = 5, swept over pi_r with pi_l = 0.9 pi_r
+# DECISIONS B-uniform throughout, so the model enters as the prior (s = 0) and
+#           pi_l = pi_r = 1/2 in panel a. One curve needs one score, so pi_Y is
+#           the median calibrated q among predicted links. The curves come from
+#           posterior(), not a second implementation, so the figure cannot
+#           drift from the analysis. Style follows main_accumulation.R exactly:
+#           same colours, linetypes, legend, theme and size, and nothing added.
+#           R runs to 10 rather than 20, which is enough to show the plateau
+#           here. R_DESIGN is still the R panel b conditions on.
+
+F3_R       <- 0:10
+F3_RDESIGN <- N_REPLICATES                  # every other site
+F3_Q       <- median(ev$q[ev$Y == 1])       # a typical predicted link
+
+f3_post <- function(R)             # B-uniform: model as prior, uniform on the rest
+  posterior(Y = 1, O_l = 0, n = R, R = R, pi_Y = F3_Q, s = 0)
+
+F3_P     <- do.call(rbind, lapply(F3_R, f3_post))
+F3_KAPPA <- kappa(EPS_Y, EPS_L, F_POS)
+
+# two pairs of categories, each pair differing only in the replicate bit
+f3_lev  <- c("Possibly missing", "Phantom", "Recurrent", "Locally unique")
+f3_key  <- c("Possibly missing 1,0,1", "Phantom 1,0,0",
+             "Recurrent 1,1,1",        "Locally unique 1,1,0")
+f3_cols <- setNames(c("#E07B39", "#E07B39", "#7C5CBF", "#7C5CBF"), f3_lev)
+f3_ltys <- setNames(c("solid", "22", "solid", "22"), f3_lev)
+f3_cats <- c("possibly missing", "phantom", "recurrent", "locally unique")
+
+f3_dat_a <- imap_dfr(setNames(f3_cats, f3_lev),
+                     ~ tibble(R = F3_R, y = F3_P[, .x], k = .y)) %>%
+  mutate(k = factor(k, levels = f3_lev))
+
+f3_phi <- tibble(R = F3_R, y = feasibility(F3_P))
+
+f3_pct   <- function(x) paste0(round(100 * x), "%")
+f3_title <- expression(bold("Category ") *
+                         bold("(") * bolditalic(hat(Y)) * bold(", ") *
+                         bolditalic(L)[bold(l)] * bold(", ") *
+                         bolditalic(L)[bold(r)] * bold(")"))
+
+f3_a <- ggplot(f3_dat_a, aes(R, y, colour = k, linetype = k)) +
+  geom_hline(yintercept = F3_KAPPA, linetype = "22", colour = "grey45",
+             linewidth = 0.4) +
+  annotate("text", x = 0, y = F3_KAPPA,
+           label = sprintf("kappa == %.2f", F3_KAPPA), parse = TRUE,
+           hjust = 0, vjust = -0.6, size = 3, colour = "grey35",
+           fontface = "bold") +
+  geom_line(data = f3_phi, aes(R, y), inherit.aes = FALSE, colour = "#2A9D8F",
+            linewidth = 0.8, linetype = "12") +
+  annotate("text", x = max(F3_R), y = 1, label = "feasibility confidence",
+           hjust = 1, vjust = 1.6, size = 2.9, colour = "#2A9D8F",
+           fontface = "bold") +
+  geom_line(linewidth = 0.8) +
+  scale_colour_manual(values = f3_cols, labels = f3_key, name = f3_title) +
+  scale_linetype_manual(values = f3_ltys, labels = f3_key, name = f3_title) +
+  scale_y_continuous(limits = c(0, 1), labels = f3_pct) +
+  scale_x_continuous(breaks = seq(0, max(F3_R), 2)) +
+  labs(x = "Replicates recording the link, R", y = "Posterior probability") +
+  guides(colour   = guide_legend(nrow = 1, title.position = "left"),
+         linetype = guide_legend(nrow = 1, title.position = "left"))
+
+# --- (b) what an informative prior does to the same evidence ----------------
+# Binary replicate evidence (O_r = 1 after the five replicates), as the
+# framework is first presented, swept over the prior. pi_l is held just below
+# pi_r, as in main_accumulation.R, so the two priors move together.
+F3_KFRAC <- 0.9
+f3_prs   <- seq(0.02, 0.95, length.out = 400)
+
+F3_PB <- do.call(rbind, lapply(f3_prs, function(pr)
+  posterior(Y = 1, O_l = 0, n = 1, R = F3_RDESIGN, count = FALSE,
+            pi_Y = F3_Q, pi_l = F3_KFRAC * pr, pi_r = pr, s = 0)))
+
+f3_dat_b <- imap_dfr(setNames(f3_cats, f3_lev),
+                     ~ tibble(pr = f3_prs, y = F3_PB[, .x], k = .y)) %>%
+  mutate(k = factor(k, levels = f3_lev))
+
+# where the leading category changes, among the four drawn
+f3_lead <- f3_cats[max.col(F3_PB[, f3_cats], ties.method = "first")]
+f3_brk  <- f3_prs[which(diff(as.integer(factor(f3_lead))) != 0)]
+f3_seg  <- c(min(f3_prs), f3_brk, max(f3_prs))
+f3_mid  <- (head(f3_seg, -1) + tail(f3_seg, -1)) / 2
+f3_labs <- tibble(x = f3_mid, y = 0.95,
+                  lab = f3_lead[vapply(f3_mid,
+                                       function(v) which.min(abs(f3_prs - v)),
+                                       integer(1))])
+
+f3_b <- ggplot(f3_dat_b, aes(pr, y, colour = k, linetype = k)) +
+  geom_vline(xintercept = f3_brk, linetype = "dotted", colour = "grey60",
+             linewidth = 0.35) +
+  geom_line(linewidth = 0.8) +
+  geom_text(data = f3_labs, aes(x, y, label = lab), inherit.aes = FALSE,
+            size = 2.9, colour = "grey30", fontface = "italic") +
+  scale_colour_manual(values = f3_cols, guide = "none") +
+  scale_linetype_manual(values = f3_ltys, guide = "none") +
+  scale_y_continuous(limits = c(0, 1), labels = f3_pct) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+  labs(x = expression("Prior that the link is realisable in the replicates, " * pi[r]),
+       y = "Posterior probability")
+
+f3_base <- theme_classic(base_size = 10) +
+  theme(legend.position    = "bottom",
+        legend.key.width   = unit(16, "pt"),
+        legend.text        = element_text(face = "bold", size = 7.5),
+        legend.title       = element_text(size = 8.5, vjust = 0.5),
+        legend.margin      = margin(t = 0, b = 0),
+        legend.box.spacing = unit(4, "pt"),
+        plot.tag           = element_text(size = 16.5, face = "bold"),
+        axis.line          = element_line(colour = "grey40", linewidth = 0.3),
+        axis.ticks         = element_line(colour = "grey40", linewidth = 0.3))
+
+fig_main3 <- ((f3_a + f3_b) & f3_base) +
+  plot_layout(guides = "collect") + plot_annotation(tag_levels = "a") &
+  theme(legend.position = "bottom")
+
+F3_DIR <- "Bayesian_framework/bayesian_figures"
+save_fig("main_fig3", file.path(F3_DIR, "main_accumulation_empirical.pdf"),
+         fig_main3, width = 9.0, height = 3.8)
+save_fig("main_fig3", file.path(F3_DIR, "main_accumulation_empirical.png"),
+         fig_main3, width = 9.0, height = 3.8, dpi = 300)
+if (interactive()) print(fig_main3)
+
+cat(sprintf("\nMAIN FIGURE 3 ON THE FITTED RATES (B-uniform, pi_Y = median q = %.2f)\n",
+            F3_Q))
+cat(sprintf("  kappa = %.3f, and P(possibly missing) reaches %.3f at R = %d\n",
+            F3_KAPPA, F3_P[F3_R == F3_RDESIGN, "possibly missing"], F3_RDESIGN))
+tibble(R = F3_R, possibly_missing = F3_P[, "possibly missing"],
+       phantom = F3_P[, "phantom"], feasibility = f3_phi$y) %>%
+  filter(R %in% c(0, 1, 3, 5, 10)) %>%
+  mutate(across(-R, ~ round(100 * .x, 1))) %>%
+  print()

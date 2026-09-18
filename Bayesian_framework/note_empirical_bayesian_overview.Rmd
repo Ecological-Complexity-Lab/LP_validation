@@ -1517,7 +1517,7 @@ it <- function(x) paste0("*", x, "*")
    (`r round(exp_all("B-uniform", "locally unique"))` →
    `r round(exp_all("B-degree", "locally unique"))` and
    `r round(exp_all("B-uniform", "weakly-supported"))` →
-   `r round(exp_all("B-degree", "weakly-supported"))`).
+   `r round(exp_all("B-degree", "weakly-supported"))`). **Using the uniform model allows to avoid the degree issue and therefore we are showing examples with the B-degree run**.
 3. The heatmaps give an overview per species and can help decide on the action
    when uncertainty is considered. For example, *Daucus carota* is not assigned
    any model-elusive links deterministically, yet when we consider $\pi_Y$ its
