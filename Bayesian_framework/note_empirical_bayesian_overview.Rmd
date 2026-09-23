@@ -118,6 +118,9 @@ need <- c(DATA,
           file.path(OUT, "fig_per_plant_share_B_uniform.png"),
           file.path(OUT, "fig_per_plant_share_B_degree.png"),
           file.path(OUT, "category_leakage_flows.csv"),
+          file.path(OUT, "fig3_curves.csv"),
+          file.path(ROOT, "Bayesian_framework", "bayesian_figures",
+                    "main_accumulation_empirical.png"),
           file.path(OUT, "fig_category_leakage_B_uniform.png"),
           file.path(OUT, "fig_category_leakage_B_degree.png"),
           file.path(OUT, "fig_category_leakage_B_uniform_relative.png"),
@@ -1476,6 +1479,117 @@ is a structural ceiling, not a measurement, and no amount of sampling passes it.
 The way past it is a better model or a better local method, which is exactly the
 corroboration action the framework already prescribes for the categories sitting
 against it. That is an argument for the framework, not a limitation of it.
+
+## The main-text figure on these rates
+
+```{r fig3}
+f3 <- read_csv(file.path(OUT, "fig3_curves.csv"), show_col_types = FALSE)
+F3_KAPPA <- unique(f3$kappa)
+F3_Q     <- unique(f3$pi_Y)
+F3_RUN   <- unique(f3$run)
+
+# panel a: the possibly-missing curve and feasibility confidence
+pm  <- f3 %>% filter(panel == "a", category == "Possibly missing") %>% arrange(x)
+phi <- f3 %>% filter(panel == "a", category == "feasibility") %>% arrange(x)
+R_DESIGN  <- N_SITES - 1
+F3_PLATEAU <- max(pm$y)
+F3_AT5     <- pm$y[pm$x == R_DESIGN]
+# the ceiling with the model as the prior: q in place of (1 - eps_Y)
+F3_CEIL_B  <- F3_Q * (1 - F_POS) / ((1 - F_POS) + EPS_L)
+F3_R95     <- min(pm$x[pm$y >= 0.95 * F3_PLATEAU])
+
+# the calibrated scores of predicted links. Under B the posterior recovers them
+# exactly: recurrent and model-elusive differ only in the model bit, so
+# q = P(recurrent) / (P(recurrent) + P(model-elusive)).
+q_pred <- post %>% filter(run == "B-uniform", Y == 1) %>%
+  transmute(q = recurrent / (recurrent + `model-elusive`)) %>% pull(q)
+Q_QRT <- quantile(q_pred, c(0.25, 0.75))
+ceil_B <- function(q) q * (1 - F_POS) / ((1 - F_POS) + EPS_L)
+Q_ABOVE <- mean(q_pred > 1 - EPS_Y)
+
+# panel b: where the leading category changes
+b_lead <- f3 %>% filter(panel == "b") %>%
+  group_by(x) %>% slice_max(y, n = 1, with_ties = FALSE) %>% ungroup() %>% arrange(x)
+F3_SWITCH <- b_lead$x[which(b_lead$category[-1] != head(b_lead$category, -1)) + 1]
+F3_ORDER  <- b_lead$category[!duplicated(b_lead$category)]
+```
+
+```{r fig-main3}
+include_graphics(file.path(ROOT, "Bayesian_framework", "bayesian_figures",
+                           "main_accumulation_empirical.png"))
+```
+
+The manuscript's Figure 3, rebuilt on the fitted rates. Panel **a** is the
+accumulation above, and panel **b** asks what an informative prior does to the
+same evidence.
+
+::: {.method}
+**Methodological decisions.** `r F3_RUN` in both panels, so the model enters
+through the prior and the other two bits start at $\tfrac12$. Both panels come
+from the same `posterior()` as the rest of the analysis.
+
+*Why $\pi_Y$ is one number.* Under B every link carries its own calibrated score
+$q_i$, so there is no single curve to draw: the `r format(length(q_pred), big.mark = ",")`
+predicted links would give `r format(length(q_pred), big.mark = ",")` of them.
+The figure shows one link, so it needs one score, and the evidence it shows is a
+**predicted** link. We take the median $q$ among predicted links,
+`r sprintf("%.2f", F3_Q)`, which is the typical link of the kind drawn. The
+choice moves the curve's ceiling and nothing else, since $\pi_Y$ enters only as
+$q$ in $\kappa_B$ below: the quartiles of $q$,
+`r sprintf("%.2f", Q_QRT[1])` and `r sprintf("%.2f", Q_QRT[2])`, would give
+`r sprintf("%.2f", ceil_B(Q_QRT[1]))` and `r sprintf("%.2f", ceil_B(Q_QRT[2]))`
+in place of `r sprintf("%.2f", F3_CEIL_B)`. A link-specific figure would use
+that link's own $q$.
+
+*Panel a* sweeps the replicates with the possibly-missing signature, as in the
+figure above, to $R$ = `r max(pm$x)`.
+
+*Panel b* fixes the evidence at the design, $R$ = `r R_DESIGN` replicates with
+the link recorded in at least one ($O_r = 1$), and sweeps the prior instead. The
+replicate axis is coarsened to that single bit, which is the framework as first
+presented. $\pi_l$ is held at $0.9\,\pi_r$, so both priors move together, as in
+the illustrative figure.
+
+*Two ceilings.* $\kappa$ is derived with the model in the likelihood. With the
+model in the prior, the same algebra holds with $1 - \epsilon_Y$ replaced by
+$q$:
+
+$$
+\kappa = \frac{(1-\epsilon_Y)(1-f)}{(1-f)+\epsilon_l} = `r sprintf("%.2f", F3_KAPPA)`,
+\qquad
+\kappa_B = \frac{q\,(1-f)}{(1-f)+\epsilon_l} = `r sprintf("%.2f", F3_CEIL_B)`
+$$
+
+So the curve plateaus below the drawn $\kappa$ line, by exactly the ratio
+$q / (1 - \epsilon_Y)$ = `r sprintf("%.2f", F3_Q / (1 - EPS_Y))`.
+:::
+
+**Takeaway.** Replication settles feasibility and little else. Feasibility
+confidence runs from `r sprintf("%.0f%%", 100 * phi$y[phi$x == 0])` with no
+replicates to `r sprintf("%.0f%%", 100 * phi$y[phi$x == R_DESIGN])` at the
+`r R_DESIGN` the design provides. Possibly missing reaches
+`r sprintf("%.3f", F3_AT5)` there, against `r sprintf("%.3f", F3_PLATEAU)` in the
+limit, and is already within 5% of that plateau by $R$ = `r F3_R95`. Extra sites
+would add almost nothing.
+
+The curve never reaches $\kappa$: replication is spent by the fifth replicate, yet possibly missing settles
+`r sprintf("%.2f", F3_KAPPA - F3_PLATEAU)` below the line, because a link the
+model scores at `r sprintf("%.2f", F3_Q)` cannot be carried past
+$\kappa_B$ = `r sprintf("%.2f", F3_CEIL_B)` however often the replicates record
+it. $\kappa$ is reached only where the model itself is confident: it would take
+$q = 1 - \epsilon_Y$ = `r sprintf("%.2f", 1 - EPS_Y)`, which
+`r sprintf("%.0f%%", 100 * Q_ABOVE)` of predicted links exceed. So the gap in
+panel a is the price of letting each link speak with its own score instead of
+the model's average reliability, and closing it needs a better model, not more
+sites.
+
+Panel b says what does move the answer: the same
+evidence reads as
+`r paste(tolower(F3_ORDER), collapse = ", then ")` as the prior rises, with the
+switches at $\pi_r$ =
+`r paste(sprintf("%.2f", F3_SWITCH), collapse = " and ")`. What is known about
+the pair decides the reading, which is the argument for the degree prior and
+also the reason its open question above matters.
 
 ## Conclusions
 ```{r conclusions}

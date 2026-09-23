@@ -2583,6 +2583,14 @@ fig_main3 <- ((f3_a + f3_b) & f3_base) +
   plot_layout(guides = "collect") + plot_annotation(tag_levels = "a") &
   theme(legend.position = "bottom")
 
+# the curves themselves, so the note can quote the figure without refitting
+bind_rows(
+  f3_dat_a %>% transmute(panel = "a", x = R,  category = as.character(k), y),
+  f3_phi   %>% transmute(panel = "a", x = R,  category = "feasibility", y),
+  f3_dat_b %>% transmute(panel = "b", x = pr, category = as.character(k), y)) %>%
+  mutate(run = "B-uniform", pi_Y = F3_Q, kappa = F3_KAPPA) %>%
+  write_csv(file.path(OUT_DIR, "fig3_curves.csv"))
+
 F3_DIR <- "Bayesian_framework/bayesian_figures"
 save_fig("main_fig3", file.path(F3_DIR, "main_accumulation_empirical.pdf"),
          fig_main3, width = 9.0, height = 3.8)
