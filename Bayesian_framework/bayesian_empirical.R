@@ -2388,8 +2388,8 @@ fig_panels <- list(
         theme(axis.text   = element_text(size = 7),
               plot.margin = margin(4, 48, 4, 4)),   # room for the last angled label
   c = plant_figure(FIG_PLANT, FIG_RUN) +
-        labs(title = bquote(italic(.(FIG_PLANT))),
-             x = "Expected links +/- SD  (| deterministic)") +
+        # the marks are explained in the figure caption, not on the axis
+        labs(title = bquote(italic(.(FIG_PLANT))), x = "Expected links") +
         theme(axis.text  = element_text(size = 7),
               axis.title = element_text(size = 7),
               plot.title = element_text(size = 8)),

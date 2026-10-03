@@ -1,0 +1,67 @@
+
+<!-- written by Bayesian_framework/note_camera_scope.R -->
+<title>Camera corroboration: pooled or site-matched?</title>
+<style>
+ :root { --accent: #7b7bb8; --accent-dark: #5b5b93; --accent-pale: #eeeef8; }
+ body { font-family: "Segoe UI", Helvetica, Arial, sans-serif; color: #24242e;
+        max-width: 54em; margin: 2.5em auto; padding: 0 1.4em; line-height: 1.55; }
+ h1 { font-size: 1.6em; color: var(--accent-dark); margin-bottom: 0.1em; }
+ h2 { font-size: 1.15em; color: var(--accent-dark); margin-top: 1.8em; }
+ .date { color: #777; font-size: 0.9em; margin-top: 0; }
+ table { border-collapse: collapse; margin: 1em 0; font-size: 0.93em; }
+ th, td { padding: 0.35em 0.8em; border-bottom: 1px solid #e4e4ef; }
+ th { background: var(--accent-pale); font-weight: 600; }
+ tr.hl td { font-weight: 600; }
+ code { background: #f4f4f9; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.92em; }
+ .box { background: var(--accent-pale); border-left: 5px solid var(--accent);
+        padding: 0.8em 1.2em; margin: 1.4em 0; }
+ .method { background: #f7f7fb; border-left: 3px solid #c6c6de;
+           padding: 0.6em 1em; margin: 1em 0; font-size: 0.95em; }
+</style>
+
+<h1>Camera corroboration: pooled across sites, or matched to the site?</h1>
+<p class="date">Written by <code>Bayesian_framework/note_camera_scope.R</code> on 03 October 2026. Every number is computed from the prediction CSV and the posteriors.</p>
+
+<h2>The two rules</h2>
+<p>The deterministic analysis (<code>serra_marin_link_classification_clean.R</code>, and the Sankey app that reads it) builds <code>interaction_id</code> as <code>plant___pollinator</code>, with no site in it. A link is flagged <em>have evidence</em> when the cameras recorded that species pair <strong>anywhere in the six sites</strong>.</p>
+<p>The Bayesian analysis (<code>bayesian_empirical.R</code>) joins the camera records by <code>(plant, pollinator, focal_site)</code>, so corroboration means the cameras recorded the pair <strong>at that site</strong>, and a pair outside that site's camera grid is marked as not watched rather than as not recorded.</p>
+<p>Across the 1,624 candidate links, the pooled rule flags <strong>432</strong> and the site-matched rule <strong>262</strong>. So <strong>39% of the current flags</strong> come from a camera record at a different site.</p>
+
+<h2>What changes, per category</h2>
+<table><thead><tr><th style='text-align:left'>Category</th><th style='text-align:right'>Links</th><th style='text-align:left'>Pooled across sites</th><th style='text-align:left'>Matched to the site</th><th style='text-align:left'>Of links watched there</th></tr></thead><tbody><tr class='hl'><td style='text-align:left'>possibly forbidden</td><td style='text-align:right'>941</td><td style='text-align:left'>80 (8.5%)</td><td style='text-align:left'>45 (4.8%)</td><td style='text-align:left'>45 / 452 (10.0%)</td></tr><tr><td style='text-align:left'>locally absent</td><td style='text-align:right'>136</td><td style='text-align:left'>65 (47.8%)</td><td style='text-align:left'>20 (14.7%)</td><td style='text-align:left'>20 / 94 (21.3%)</td></tr><tr><td style='text-align:left'>recurrent</td><td style='text-align:right'>116</td><td style='text-align:left'>98 (84.5%)</td><td style='text-align:left'>73 (62.9%)</td><td style='text-align:left'>73 / 100 (73.0%)</td></tr><tr><td style='text-align:left'>locally unique</td><td style='text-align:right'>109</td><td style='text-align:left'>58 (53.2%)</td><td style='text-align:left'>45 (41.3%)</td><td style='text-align:left'>45 / 77 (58.4%)</td></tr><tr class='hl'><td style='text-align:left'>phantom</td><td style='text-align:right'>104</td><td style='text-align:left'>17 (16.3%)</td><td style='text-align:left'>11 (10.6%)</td><td style='text-align:left'>11 / 74 (14.9%)</td></tr><tr><td style='text-align:left'>weakly-supported</td><td style='text-align:right'>103</td><td style='text-align:left'>36 (35.0%)</td><td style='text-align:left'>27 (26.2%)</td><td style='text-align:left'>27 / 66 (40.9%)</td></tr><tr><td style='text-align:left'>model-elusive</td><td style='text-align:right'>64</td><td style='text-align:left'>52 (81.2%)</td><td style='text-align:left'>28 (43.8%)</td><td style='text-align:left'>28 / 54 (51.9%)</td></tr><tr><td style='text-align:left'>possibly missing</td><td style='text-align:right'>51</td><td style='text-align:left'>26 (51.0%)</td><td style='text-align:left'>13 (25.5%)</td><td style='text-align:left'>13 / 34 (38.2%)</td></tr></tbody></table>
+<p>The last column is the honest denominator under the site-matched rule: corroboration among the links the cameras could actually have recorded at that site.</p>
+
+<div class="box">
+<strong>The two headline numbers.</strong> "Cameras confirmed 8.5% of forbidden and 16.3% of phantom links" are pooled values. Matched to the site they become <strong>4.8%</strong> and <strong>10.6%</strong>, or <strong>10.0%</strong> and <strong>14.9%</strong> among the links the cameras watched there.
+</div>
+
+<h2>What does not change</h2>
+<p>The ranking of categories by corroboration survives the switch (Spearman 0.93):</p>
+<table><thead><tr><th style='text-align:left'>By pooled rate</th><th style='text-align:left'>By site-matched rate</th></tr></thead><tbody><tr><td style='text-align:left'>recurrent</td><td style='text-align:left'>recurrent</td></tr><tr><td style='text-align:left'>model-elusive</td><td style='text-align:left'>model-elusive</td></tr><tr><td style='text-align:left'>locally unique</td><td style='text-align:left'>locally unique</td></tr><tr><td style='text-align:left'>possibly missing</td><td style='text-align:left'>weakly-supported</td></tr><tr><td style='text-align:left'>locally absent</td><td style='text-align:left'>possibly missing</td></tr><tr><td style='text-align:left'>weakly-supported</td><td style='text-align:left'>locally absent</td></tr><tr><td style='text-align:left'>phantom</td><td style='text-align:left'>phantom</td></tr><tr><td style='text-align:left'>possibly forbidden</td><td style='text-align:left'>possibly forbidden</td></tr></tbody></table>
+<p>Categories asserting local realisation stay far better corroborated than those asserting absence, which is the qualitative claim the paper makes.</p>
+
+<h2>The figure site</h2>
+<p>At Rocky coastal 1, the site all the maps and Figure 5 use:</p>
+<table><thead><tr><th style='text-align:left'>Category</th><th style='text-align:right'>Links</th><th style='text-align:right'>Pooled</th><th style='text-align:right'>Site-matched</th><th style='text-align:right'>Watched there</th></tr></thead><tbody><tr><td style='text-align:left'>phantom</td><td style='text-align:right'>27</td><td style='text-align:right'>5</td><td style='text-align:right'>3</td><td style='text-align:right'>22</td></tr><tr><td style='text-align:left'>possibly forbidden</td><td style='text-align:right'>335</td><td style='text-align:right'>21</td><td style='text-align:right'>17</td><td style='text-align:right'>166</td></tr></tbody></table>
+<p>So the map changes little: a handful of cells lose their corroborated tint.</p>
+
+<h2>Which rule is right</h2>
+<p>It depends on the claim, and the two claims differ.</p>
+<ul>
+<li><strong>Site-level categories need site-matched evidence.</strong> Locally unique, locally absent, recurrent and model-elusive all assert something about the focal site. A camera record at another site does not corroborate "this link is realised here". The overstatement is largest for locally absent (47.8% pooled against 14.7% matched) and model-elusive (81.2% against 43.8%).</li>
+<li><strong>Feasibility claims can use the pooled record.</strong> For phantom and possibly forbidden the question is whether the interaction can occur at all, so a record anywhere does bear on it. That reading is legitimate as long as it is called regional feasibility rather than corroboration of the local label.</li>
+</ul>
+
+<div class="method">
+<strong>A caveat that sharpens under the site-matched rule.</strong> 673 of the 1,624 links were never watched at their own site, because one partner is missing from that site's camera data. Under the pooled rule this is invisible. Under the site-matched rule, "no evidence" mixes "watched and not recorded" with "never watched", which is why rates among watched links are the ones to report. Coverage also varies between sites:
+<table><thead><tr><th style='text-align:left'>Site</th><th style='text-align:right'>Links</th><th style='text-align:left'>Watched by cameras</th><th style='text-align:right'>Pooled flags</th><th style='text-align:right'>Site-matched flags</th></tr></thead><tbody><tr><td style='text-align:left'>Dune system 1</td><td style='text-align:right'>294</td><td style='text-align:left'>238 (23800.0%)</td><td style='text-align:right'>106</td><td style='text-align:right'>58</td></tr><tr><td style='text-align:left'>Dune system 2</td><td style='text-align:right'>176</td><td style='text-align:left'>144 (14400.0%)</td><td style='text-align:right'>77</td><td style='text-align:right'>57</td></tr><tr><td style='text-align:left'>Pine forest 1</td><td style='text-align:right'>64</td><td style='text-align:left'>36 (3600.0%)</td><td style='text-align:right'>19</td><td style='text-align:right'>13</td></tr><tr><td style='text-align:left'>Pine forest 2</td><td style='text-align:right'>155</td><td style='text-align:left'>68 (6800.0%)</td><td style='text-align:right'>31</td><td style='text-align:right'>25</td></tr><tr><td style='text-align:left'>Rocky coastal 1</td><td style='text-align:right'>506</td><td style='text-align:left'>290 (29000.0%)</td><td style='text-align:right'>105</td><td style='text-align:right'>60</td></tr><tr><td style='text-align:left'>Rocky coastal 2</td><td style='text-align:right'>429</td><td style='text-align:left'>175 (17500.0%)</td><td style='text-align:right'>94</td><td style='text-align:right'>49</td></tr></tbody></table>
+</div>
+
+<h2>If we switch</h2>
+<ul>
+<li>Put the site into <code>interaction_id</code>, or build the cross-method sets per site, in <code>serra_marin_link_classification_clean.R</code> (<code>add_obs_for_obs</code> and <code>add_obs_for_rpi</code>), and regenerate the Sankey payload.</li>
+<li>Update the case-study numbers in the manuscript and in <code>CLAUDE.md</code>.</li>
+<li>Report corroboration among watched links, and keep one pooled sentence for the feasibility reading of phantom and possibly forbidden.</li>
+<li>The Bayesian analysis needs no change: it is already site-matched, and so is its camera test.</li>
+</ul>
+
