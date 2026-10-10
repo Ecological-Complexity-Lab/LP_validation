@@ -769,6 +769,8 @@ cat(sprintf("\n  Expected 'possibly missing' ranges %.1f to %.1f as f goes 0 to 
             min(sensitivity_f$expected_missing),
             max(sensitivity_f$expected_missing)))
 
+summary(sensitivity_f)
+
 # ---- 7. The map ----
 # The richest site, one category, shaded by posterior. Same species, same
 # ordering and same look as map_richest_site in the deterministic script, so
@@ -2464,32 +2466,57 @@ if (saving("zoom_panels")) {
 
 
 # ---- 14. Main-text Figure 3 on the fitted rates ----
-# PURPOSE   The empirical counterpart of main_accumulation.R, to replace the
-#           illustrative Figure 3: the same two panels with our rates.
-# WHAT      a  confidence accumulating with consistent detections, against the
-#              ceiling kappa, with feasibility confidence alongside
-#           b  the same evidence under an informative prior: binary replicate
-#              evidence after R = 5, swept over pi_r with pi_l = 0.9 pi_r
-# DECISIONS B-uniform throughout, so the model enters as the prior (s = 0) and
-#           pi_l = pi_r = 1/2 in panel a. One curve needs one score, so pi_Y is
-#           the median calibrated q among predicted links. The curves come from
-#           posterior(), not a second implementation, so the figure cannot
-#           drift from the analysis. Style follows main_accumulation.R exactly:
-#           same colours, linetypes, legend, theme and size, and nothing added.
-#           R runs to 10 rather than 20, which is enough to show the plateau
-#           here. R_DESIGN is still the R panel b conditions on.
+#
+# WHAT THE FIGURE IS. The empirical twin of main_accumulation.R, which draws
+# the same two panels with illustrative numbers. Here the numbers are the ones
+# fitted to this system.
+#
+# BOTH PANELS FOLLOW ONE HYPOTHETICAL LINK, not a real one and not all of them.
+# The link is predicted by the model and was NOT seen at the focal site. What
+# differs between the panels is which question is asked about it:
+#
+#   a  how does confidence grow as more replicates record it?
+#      The link is recorded in EVERY one of R replicates, and R runs 0 to 10.
+#      Four categories are drawn, plus feasibility confidence, against the
+#      ceiling kappa that no amount of replication can pass.
+#
+#   b  how much does prior belief change the reading of the same evidence?
+#      The evidence is fixed (recorded in at least one of the five replicates)
+#      and the prior is swept instead. See the comments above panel b.
+#
+# WHAT IS REAL HERE. Every rate: eps_Y, eps_l, f and p1 are fitted in Sections
+# 2 and 3. So is pi_Y, the model's voice, which is the median calibrated score
+# among the links the model predicts. The link itself is hypothetical: no
+# individual link from the data is plotted.
+#
+# DECISIONS
+#   B-uniform throughout: the model speaks through the prior (s = 0), and the
+#   other two beliefs start neutral at 1/2 in panel a.
+#   A single curve needs a single score, hence the median q above.
+#   The curves come from posterior(), the same function the whole analysis
+#   uses, so the figure cannot drift away from the results.
+#   The look follows main_accumulation.R exactly: same colours, linetypes,
+#   legend, theme and size, with nothing added. R stops at 10 rather than 20,
+#   which is far enough to show the curve flatten out.
 
-F3_R       <- 0:10
-F3_RDESIGN <- N_REPLICATES                  # every other site
-F3_Q       <- median(ev$q[ev$Y == 1])       # a typical predicted link
+F3_R       <- 0:10                          # the x-axis of panel a
+F3_RDESIGN <- N_REPLICATES                  # 5: every site except the focal one
+F3_Q       <- median(ev$q[ev$Y == 1])       # the score of a typical predicted link
 
-f3_post <- function(R)             # B-uniform: model as prior, uniform on the rest
+# The posterior for our hypothetical link when R replicates all record it.
+# Y = 1 predicted, O_l = 0 not seen here, n = R recorded by all of them.
+# pi_Y = F3_Q with s = 0 is what makes this the B-uniform reading: the model
+# enters through the prior instead of through the likelihood.
+f3_post <- function(R)
   posterior(Y = 1, O_l = 0, n = R, R = R, pi_Y = F3_Q, s = 0)
 
+# run it once per value of R and stack the answers: 11 rows, 8 categories
 F3_P     <- do.call(rbind, lapply(F3_R, f3_post))
-F3_KAPPA <- kappa(EPS_Y, EPS_L, F_POS)
+F3_KAPPA <- kappa(EPS_Y, EPS_L, F_POS)      # the ceiling drawn as a dashed line
 
-# two pairs of categories, each pair differing only in the replicate bit
+# The four categories drawn, as two pairs. Within a pair the two categories
+# differ only in whether the link is realisable in the replicates, which is why
+# each pair shares a colour and is told apart by solid against dashed.
 f3_lev  <- c("Possibly missing", "Phantom", "Recurrent", "Locally unique")
 f3_key  <- c("Possibly missing 1,0,1", "Phantom 1,0,0",
              "Recurrent 1,1,1",        "Locally unique 1,1,0")
@@ -2530,22 +2557,49 @@ f3_a <- ggplot(f3_dat_a, aes(R, y, colour = k, linetype = k)) +
   guides(colour   = guide_legend(nrow = 1, title.position = "left"),
          linetype = guide_legend(nrow = 1, title.position = "left"))
 
-# --- (b) what an informative prior does to the same evidence ----------------
-# Binary replicate evidence (O_r = 1 after the five replicates), as the
-# framework is first presented, swept over the prior. pi_l is held just below
-# pi_r, as in main_accumulation.R, so the two priors move together.
-F3_KFRAC <- 0.9
-f3_prs   <- seq(0.02, 0.95, length.out = 400)
+# --- Fig. 3(b) the same evidence, read against different prior beliefs ------
+#
+# THE SAME ONE HYPOTHETICAL LINK as panel a, and now its evidence never
+# changes: the model predicts it, it was NOT seen at the focal site, and it WAS
+# seen in at least one of the five replicates.
+#
+# What changes from left to right is only what we believed BEFORE looking: the
+# chance that the link is realisable in the replicates. On the left we expected
+# nothing of the pair, as for two specialists; on the right we expected an
+# interaction, as for two generalists.
+#
+# WHAT IT SHOWS. The same evidence and the same rates support a different
+# category depending on that belief: phantom on the left, possibly missing in
+# the middle, recurrent on the right. Dotted vertical lines mark where the
+# leading category changes hands, and the italic words name each stretch.
 
+F3_KFRAC <- 0.9             # the local belief stays just below the replicate
+                            # one, so the two move together along the axis
+f3_prs   <- seq(0.02, 0.95, length.out = 400)   # the 400 beliefs to try
+
+# Ask the posterior the same question 400 times, once per belief, and stack the
+# answers: 400 rows, 8 categories.
+#   Y = 1, O_l = 0            the fixed evidence: predicted, not seen here
+#   n = 1, R = 5              seen in at least one of the five replicates
+#   count = FALSE             use only "seen or not", not how many saw it,
+#                             which is the framework as first presented
+#   pi_Y = F3_Q, s = 0        the model speaks through the prior, as in panel a
+#   pi_l, pi_r                the two beliefs that move along the axis
 F3_PB <- do.call(rbind, lapply(f3_prs, function(pr)
   posterior(Y = 1, O_l = 0, n = 1, R = F3_RDESIGN, count = FALSE,
             pi_Y = F3_Q, pi_l = F3_KFRAC * pr, pi_r = pr, s = 0)))
 
+# reshape into the long form ggplot wants: one row per belief per category,
+# keeping only the four categories the figure draws
 f3_dat_b <- imap_dfr(setNames(f3_cats, f3_lev),
                      ~ tibble(pr = f3_prs, y = F3_PB[, .x], k = .y)) %>%
   mutate(k = factor(k, levels = f3_lev))
 
-# where the leading category changes, among the four drawn
+# Which category leads, and where the lead changes hands:
+#   f3_lead  the top category at each of the 400 beliefs
+#   f3_brk   the beliefs where that top category changes: the dotted lines
+#   f3_mid   the middle of each stretch between changes: where a label goes
+#   f3_labs  the label itself, naming the category that leads there
 f3_lead <- f3_cats[max.col(F3_PB[, f3_cats], ties.method = "first")]
 f3_brk  <- f3_prs[which(diff(as.integer(factor(f3_lead))) != 0)]
 f3_seg  <- c(min(f3_prs), f3_brk, max(f3_prs))
