@@ -132,23 +132,8 @@ build <- function(w, ttl) {
     data.frame(n = nvals, p = P[i, ], cat = nm[i])))
   d$cat <- factor(d$cat, levels = nm[shown])
 
-  ## which label leads, named once per run of the x-axis it leads over. The
-  ## changeover sits between two integers. Runs too short to hold a label are
-  ## left unnamed rather than clipped, which is what happens in panel (b),
-  ## where locally absent takes the lead at the first record.
-  lead <- nm[shown][apply(P[shown, ], 2, which.max)]
-  sw   <- which(diff(as.integer(factor(lead, levels = nm[shown]))) != 0)
-  brk  <- (nvals[sw] + nvals[sw + 1]) / 2
-  segs <- c(min(nvals), brk, max(nvals))
-  mids <- (head(segs, -1) + tail(segs, -1)) / 2
-  labs <- data.frame(x = mids, y = Y_TOP * 0.94, width = diff(segs),
-                     lab = lead[sapply(mids, function(v) which.min(abs(nvals - v)))])
-  labs <- labs[labs$width >= 1.5, ]
-
   ggplot(d, aes(n, p, colour = cat)) +
     geom_line(linewidth = 0.9) +
-    geom_text(data = labs, aes(x, y, label = lab), inherit.aes = FALSE,
-              size = 2.9, colour = "grey30", fontface = "italic") +
     scale_colour_manual(values = pal, name = NULL) +
     scale_y_continuous(limits = c(0, Y_TOP),
                        labels = function(x) paste0(round(100*x), "%")) +
