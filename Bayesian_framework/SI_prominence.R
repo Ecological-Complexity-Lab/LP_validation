@@ -157,31 +157,23 @@ build <- function(w, ttl) {
          x = expression("Replicates recording the link, " * italic(n)),
          y = expression(P("true label" ~ "|" ~ E))) +
     theme_classic(base_size = 10) +
-    theme(plot.title = element_text(size = 10, hjust = 0),
+    ## two-line title at 9 pt: the record level has to be stated, and on one
+    ## line at 10 pt it runs past the panel and is clipped
+    theme(plot.title = element_text(size = 10, hjust = 0, lineheight = 1.15),
           axis.line = element_line(colour = "grey40", linewidth = 0.3),
           axis.ticks = element_line(colour = "grey40", linewidth = 0.3),
           legend.position = "bottom")
 }
 
-pa <- build(W_WEAK,
-            bquote("(a) weak where it occurs (" * .(W_WEAK) *
-                   " record per recording replicate)"))
-pb <- build(W_PROM,
-            bquote("(b) prominent where it occurs (" * .(W_PROM) *
-                   " records per recording replicate)")) +
+## plain strings, not bquote: there is no maths in the titles, and plotmath
+## neither wraps nor measures as compactly
+pa <- build(W_WEAK, sprintf("(a) weak where it occurs",
+                            W_WEAK))
+pb <- build(W_PROM, sprintf("(b) prominent where it occurs",
+                            W_PROM)) +
   labs(y = NULL)
 
-fig <- pa + pb +
-  plot_layout(guides = "collect") +
-  plot_annotation(caption = paste(
-    "The link is predicted, not recorded at the focal site, and recorded in n of",
-    paste0("R = ", R, " replicates, so its assigned label is possibly missing"),
-    "for every n >= 1 and phantom at n = 0. The curves are the posterior that",
-    "its true label is one the assignment hides: recurrent, so the link is here",
-    "and the non-detection was a miss, or locally absent, so there is nothing",
-    "to find."),
-    theme = theme(plot.caption = element_text(size = 7, colour = "grey35",
-                                              hjust = 0, lineheight = 1.2))) &
+fig <- pa + pb + plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
 
 ## ---- reported values --------------------------------------------------------
@@ -263,5 +255,5 @@ for (w in list(rep(0, R), c(1, rep(0, R - 1)), c(10, rep(0, R - 1)),
 }
 
 fig
-ggsave(file.path(fig_dir, "SI_prominence.pdf"), fig, width = 7.6, height = 3.8)
-ggsave(file.path(fig_dir, "SI_prominence.png"), fig, width = 7.6, height = 3.8, dpi = 300)
+ggsave(file.path(fig_dir, "SI_prominence.pdf"), fig, width = 7.6, height = 3.6)
+ggsave(file.path(fig_dir, "SI_prominence.png"), fig, width = 7.6, height = 3.6, dpi = 300)
