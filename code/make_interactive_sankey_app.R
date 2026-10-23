@@ -27,9 +27,14 @@
 # Style follows possibly-missing-explorer: same CSS variables, card layout,
 # sticky control bar, info modals, tabular-numeric readouts.
 #
-# Output: docs/interactive_sankey_explorer_source.html — the source build.
-# The live app is docs/interactive_sankey_explorer.html, which carries hand edits
-# made after generation; this script never writes to it.
+# Output: docs/interactive_sankey_explorer_category_dependent_confirmation.html
+# The previous app, docs/interactive_sankey_explorer.html, validated every
+# category against records pooled over all six sites and was hand-edited after
+# generation. It is kept for reference and never written to from here; its hand
+# edits have been folded back into this script.
+#
+# Cross-method evidence now follows VALIDATION_SCOPE below: the scope of the
+# evidence matches the scope of what each category leaves open.
 
 # ---- 1. Libraries ----
 required_cran_packages <- c("dplyr", "readr", "tidyr", "purrr", "jsonlite")
@@ -50,9 +55,18 @@ library(jsonlite)
 
 INPUT_CSV  <- "results/predictions/serra_marin_loo_prediction_results.csv"
 OUTPUT_DIR <- "docs"
-# This is the source build. The live app is docs/interactive_sankey_explorer.html,
-# which carries hand edits made after generation and is never written here.
-OUTPUT_HTML <- file.path(OUTPUT_DIR, "interactive_sankey_explorer_source.html")
+# The category-dependent-confirmation build. The previous app,
+# docs/interactive_sankey_explorer.html, validated every category against
+# records pooled over all six sites; it was also hand-edited after generation
+# and is kept untouched for reference, so this script never writes to it.
+#
+# The hand edits it carried have been folded back into this generator (the
+# backlink to index.html, the quote escaping in the data modal, the
+# "categorised" wording), so this file is now the single source of truth.
+# Promoting this build to the canonical name and repointing docs/index.html is
+# a deliberate step, taken once the two have been compared.
+OUTPUT_HTML <- file.path(
+  OUTPUT_DIR, "interactive_sankey_explorer_category_dependent_confirmation.html")
 
 # Threshold grid precomputed into the app. Restricted to the range where every
 # link class stays non-empty for both methods (see header note).
@@ -63,22 +77,24 @@ THRESH_DEFAULT <- 0.7
 
 thresholds <- seq(THRESH_MIN, THRESH_MAX, by = THRESH_STEP)
 
-method_labels <- c(obs = "Direct observation", rpi = "Raspberry Pi camera")
+# "rpi" is the camera method as the prediction CSV labels it; everything a
+# reader sees calls it "camera". The CSV values are left alone.
+method_labels <- c(obs = "Direct observation", rpi = "Camera")
 
 # ---- 3. Aesthetics (mirrors the static script + explorer palette) ----
 
 lav <- c(
-  locally_unique     = "#C3BAD5",
-  phantom            = "#AFA2C4",
-  weak_support       = "#9B8BB4",
-  possibly_forbidden = "#8878A4"
+  locally_unique       = "#C3BAD5",
+  phantom              = "#AFA2C4",
+  "weakly-supported"   = "#9B8BB4",
+  possibly_forbidden   = "#8878A4"
 )
 
 col_subcats <- c(
-  recurrent        = "#F08A5D",
-  locally_unique   = "#C3BAD5",
-  model_elusive    = "#E2705A",
-  weak_support     = "#9B8BB4",
+  recurrent          = "#F08A5D",
+  locally_unique     = "#C3BAD5",
+  model_elusive      = "#E2705A",
+  "weakly-supported" = "#9B8BB4",
   possibly_missing = "#FF7256",   # coral1, as in the static Sankey
   phantom          = "#AFA2C4",
   locally_absent   = "#CD5B45",   # coral3, as in the static Sankey
@@ -105,7 +121,7 @@ cat_display <- c(
   phantom            = "Phantom",
   locally_absent     = "Locally absent",
   possibly_forbidden = "Possibly forbidden",
-  weak_support       = "Weakly supported",
+  "weakly-supported" = "Weakly-supported",
   model_elusive      = "Model elusive"
 )
 
@@ -120,12 +136,47 @@ rank_validation <- c(`Observed in replicates` = -20, `Not observed in replicates
 rank_category <- c(
   recurrent = -80, possibly_missing = -70, model_elusive = -60,
   locally_absent = -50, locally_unique = -40, phantom = -30,
-  weak_support = -20, possibly_forbidden = -10
+  "weakly-supported" = -20, possibly_forbidden = -10
 )
 
 # Categories the framework flags for cross-method corroboration: these split
 # into have / no evidence at axis 4 when split_all = FALSE.
 flagged_cats <- c("phantom", "possibly_forbidden")
+
+# -- Cross-method validation scope, per category --
+# A record from the other method is sought where the label leaves the link's status open.
+# What the label settles differs by category.
+#   all_sites           possibly_forbidden: nothing is recorded anywhere and
+#                       the model agrees, so feasibility is open everywhere.
+#   other_sites         locally_unique: presence here is already established,
+#                       so what is open is realisation at the other sites.
+#   here_and_elsewhere  recurrent: the claim is presence here AND in the
+#                       replicates, so both halves must be corroborated.
+#   focal_site          the open question is about this site alone.
+# Same rule as VALIDATION_SCOPE in code/serra_marin_link_classification_clean.R
+# and in Bayesian_framework/bayesian_empirical.R; change all three together.
+VALIDATION_SCOPE <- c(
+  "possibly_forbidden" = "all_sites",
+  "locally_unique"     = "other_sites",
+  "recurrent"          = "here_and_elsewhere",
+  "phantom"            = "focal_site",
+  "possibly_missing"   = "focal_site",
+  "model_elusive"      = "focal_site",
+  "locally_absent"     = "focal_site",
+  "weakly-supported"   = "focal_site"
+)
+
+# How each scope is named wherever a reader sees it.
+SCOPE_LABEL <- c(
+  "all_sites"          = "all 6 sites",
+  "other_sites"        = "other 5 sites",
+  "here_and_elsewhere" = "here and elsewhere",
+  "focal_site"         = "this site"
+)
+
+# Categories that also report the focal-site-only count, because their own
+# scope is wider than this site and the two are worth seeing side by side.
+SITE_COL_CATS <- c("possibly_forbidden", "locally_unique")
 
 # ---- 4. Data ----
 
@@ -138,13 +189,20 @@ stopifnot(all(c("obs", "rpi") %in% unique(df_all$method)))
 cat(sprintf("Loaded %d link-site records across %d sites and %d methods.\n",
             nrow(df_all), n_distinct(df_all$location), n_distinct(df_all$method)))
 
-# Cross-method evidence: interaction IDs observed by the *other* method.
-add_obs_ids <- list(
-  obs = df_all %>% filter(method == "rpi", ground_truth == 1) %>%
-    pull(interaction_id) %>% unique(),
-  rpi = df_all %>% filter(method == "obs", ground_truth == 1) %>%
-    pull(interaction_id) %>% unique()
-)
+# Cross-method evidence from the *other* method, in the three forms the scopes
+# need: which sites recorded each pair, and which (pair, site) cells it saw at
+# all. Built once per direction; the scope is applied per category below.
+evidence_for <- function(other_method) {
+  other <- df_all %>% filter(method == other_method)
+  hits  <- other %>% filter(ground_truth == 1)
+  list(
+    keys = unique(paste(hits$interaction_id, hits$location)),
+    seen = unique(paste(other$interaction_id, other$location)),
+    n_hits = hits %>% count(interaction_id, name = "n_other_hits")
+  )
+}
+
+cross_evidence <- list(obs = evidence_for("rpi"), rpi = evidence_for("obs"))
 
 # ---- 5. Classification ----
 
@@ -152,7 +210,7 @@ add_obs_ids <- list(
 # spatial corroboration across the six sites. Identical logic to
 # classify_by_location() in the static script, with the binary prediction
 # recomputed from the probability at the supplied threshold.
-classify_at_threshold <- function(df_method, threshold, evidence_ids) {
+classify_at_threshold <- function(df_method, threshold, ev) {
 
   obs_counts <- df_method %>%
     group_by(interaction_id) %>%
@@ -160,7 +218,9 @@ classify_at_threshold <- function(df_method, threshold, evidence_ids) {
 
   df_method %>%
     left_join(obs_counts, by = "interaction_id") %>%
+    left_join(ev$n_hits, by = "interaction_id") %>%
     mutate(
+      n_other_hits = tidyr::replace_na(n_other_hits, 0L),
       original_binary = ground_truth,
       predicted_bin   = as.integer(probability > threshold),
 
@@ -180,7 +240,7 @@ classify_at_threshold <- function(df_method, threshold, evidence_ids) {
 
       link_category = case_when(
         is_unique   & original_binary == 1 & predicted_bin == 1 ~ "locally_unique",
-        is_unique   & original_binary == 1 & predicted_bin == 0 ~ "weak_support",
+        is_unique   & original_binary == 1 & predicted_bin == 0 ~ "weakly-supported",
         is_shared   & original_binary == 1 & predicted_bin == 1 ~ "recurrent",
         is_shared   & original_binary == 1 & predicted_bin == 0 ~ "model_elusive",
         is_all_zero & original_binary == 0 & predicted_bin == 0 ~ "possibly_forbidden",
@@ -190,7 +250,21 @@ classify_at_threshold <- function(df_method, threshold, evidence_ids) {
         TRUE ~ "unclassified"
       ),
 
-      add_obs = interaction_id %in% evidence_ids
+      # the two primitive flags, then whichever combination the category's
+      # scope selects. add_obs_site is reported in its own table column for
+      # the categories whose scope is wider than this site.
+      add_obs_site  = paste(interaction_id, location) %in% ev$keys,
+      watched_site  = paste(interaction_id, location) %in% ev$seen,
+      add_obs_all   = n_other_hits >= 1,
+      add_obs_other = (n_other_hits - as.integer(add_obs_site)) >= 1,
+      scope         = unname(VALIDATION_SCOPE[link_category]),
+      add_obs = case_when(
+        scope == "all_sites"          ~ add_obs_all,
+        scope == "other_sites"        ~ add_obs_other,
+        scope == "here_and_elsewhere" ~ add_obs_site & add_obs_other,
+        scope == "focal_site"         ~ add_obs_site,
+        TRUE                          ~ NA
+      )
     ) %>%
     filter(link_category != "unclassified", !is.na(confusion))
 }
@@ -213,7 +287,10 @@ build_paths <- function(df_cat, split_all) {
         )
       }
     ) %>%
-    count(L1, L2, L3, L4, name = "value") %>%
+    # siteEv carries the focal-site count alongside each path, so the table can
+    # show the local rule beside a category whose own scope is wider.
+    group_by(L1, L2, L3, L4) %>%
+    summarise(value = n(), siteEv = sum(add_obs_site), .groups = "drop") %>%
     arrange(L1, L2, L3, L4)
 }
 
@@ -227,7 +304,7 @@ for (m in c("obs", "rpi")) {
   df_method <- df_all %>% filter(method == m)
 
   for (thr in thresholds) {
-    df_cat <- classify_at_threshold(df_method, thr, add_obs_ids[[m]])
+    df_cat <- classify_at_threshold(df_method, thr, cross_evidence[[m]])
 
     for (sa in c(FALSE, TRUE)) {
       key <- paste(m, sprintf("%.1f", thr), if (sa) "all" else "amb", sep = "|")
@@ -297,7 +374,16 @@ node_meta <- bind_rows(
     transmute(
       id    = paste0(cat, "::", ev),
       axis  = 4L,
-      label = paste0(cat_display[cat], if_else(ev == "have", " — have evidence", " — no evidence")),
+      # the label names the scope the evidence was drawn from, since that
+      # differs by category: "have evidence (other 5 sites)" for locally
+      # unique against "have evidence (this site)" for phantom
+      label = paste0(cat_display[cat],
+                     if_else(ev == "have", " — have evidence", " — no evidence"),
+                     " (", SCOPE_LABEL[VALIDATION_SCOPE[cat]], ")"),
+      # `short` is drawn on the diagram, `label` used in tooltips and the
+      # selection readout. The scope rides on `label` only: drawn at axis 4 it
+      # overflowed the viewBox and repeated itself on both the have and the
+      # no-evidence node. The rule is explained in the diagram's info box.
       short = if_else(ev == "have", "Have evidence", "No evidence"),
       color = if_else(ev == "have", COL_HAVE_EVIDENCE,
                       if_else(cat %in% names(lav), lav[cat], col_subcats[cat])),
@@ -323,6 +409,9 @@ payload <- list(
     methodLabels = as.list(method_labels),
     flagged     = flagged_cats,
     catDisplay  = as.list(cat_display),
+    scope       = as.list(VALIDATION_SCOPE),
+    scopeLabel  = as.list(SCOPE_LABEL),
+    siteColCats = SITE_COL_CATS,
     axisLabels  = c("Within-network evaluation", "Contextual evidence",
                     "Link category", "Additional method")
   ),
@@ -453,12 +542,23 @@ html_template <- '<!DOCTYPE html>
   .modal-close{position:absolute;top:14px;right:16px;border:none;background:#eef0f3;border-radius:8px;
     width:30px;height:30px;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;z-index:1}
   .modal-close:hover{background:#e2e5ea;color:var(--text)}
+  /* back to the landing page; "Interactive companions" is that page\'s own eyebrow, so
+     the link names where it goes rather than saying "back" */
+  .backlink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-decoration:none;
+    margin:0 0 7px -7px;padding:3px 10px 3px 7px;border-radius:999px;
+    transition:background .15s,color .15s}
+  .backlink:hover{color:var(--text);background:#e9edf1}
+  .backlink svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.1;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+  .backlink:hover svg{transform:translateX(-2px)}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="topbar">
+    <a class="backlink" href="index.html"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4L3 8l4 4"/></svg>Interactive companions</a>
     <h1>Link categorisation &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
   </div>
   <p class="sub">Every link&ndash;site record flows left to right: from the <b>within-network confusion matrix</b>,
@@ -478,7 +578,7 @@ html_template <- '<!DOCTYPE html>
         <label><span>Sampling method</span></label>
         <div class="seg-wrap" id="methodSeg">
           <button class="seg active" data-method="obs">Direct observation</button>
-          <button class="seg" data-method="rpi">Raspberry&nbsp;Pi camera</button>
+          <button class="seg" data-method="rpi">Camera</button>
         </div>
         <div class="desc" id="methodDesc">corroborated against the camera records</div>
       </div>
@@ -513,11 +613,16 @@ html_template <- '<!DOCTYPE html>
   </div>
 
   <details class="card coll" id="tableCard">
-    <summary>Link categories counts at this threshold <span class="muted">&mdash; all eight categories</span></summary>
+    <!-- inside the summary, so it stays visible when the card is collapsed;
+         summary already reserves padding-right for it, and the .info handler
+         stops the click from toggling the card -->
+    <summary>Link categories counts at this threshold <span class="muted">&mdash; all eight categories</span>
+      <button class="info" data-info="evidence" aria-label="About the evidence scope">i</button></summary>
     <div class="coll-body">
       <table id="catTable"><thead><tr>
         <th class="name">Link category</th><th>n</th><th>% of total</th>
-        <th>Have evidence</th><th>% with cross-method evidence</th>
+        <th>Evidence scope</th><th>Have evidence</th>
+        <th>% with cross-method evidence</th><th>Have evidence, this site</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </details>
@@ -587,7 +692,8 @@ function currentPaths(){
   if (!d) return [];
   const out = [];
   for (let i = 0; i < d.value.length; i++){
-    out.push({L1:d.L1[i], L2:d.L2[i], L3:d.L3[i], L4:d.L4[i], value:d.value[i]});
+    out.push({L1:d.L1[i], L2:d.L2[i], L3:d.L3[i], L4:d.L4[i],
+              value:d.value[i], siteEv:d.siteEv[i]});
   }
   return out;
 }
@@ -801,22 +907,29 @@ function renderTable(){
   const paths = LAY.paths;
   const per = {};
   paths.forEach(p => {
-    const r = per[p.L3] || (per[p.L3] = {n:0, have:0});
+    const r = per[p.L3] || (per[p.L3] = {n:0, have:0, site:0});
     r.n += p.value;
+    r.site += p.siteEv;
     if (p.L4.indexOf("::have") >= 0) r.have += p.value;
   });
   const order = ["recurrent","locally_unique","possibly_missing","phantom",
-                 "locally_absent","possibly_forbidden","weak_support","model_elusive"];
+                 "locally_absent","possibly_forbidden","weakly-supported","model_elusive"];
   const selCat = state.sel && state.sel.type === "node" && state.sel.axis === 2 ? state.sel.id : null;
   const tb = document.querySelector("#catTable tbody");
   tb.innerHTML = order.map(c => {
-    const r = per[c] || {n:0, have:0};
+    const r = per[c] || {n:0, have:0, site:0};
     const splitHere = state.split === "all" || META.flagged.indexOf(c) >= 0;
+    // the focal-site column is only meaningful where the category\'s own scope
+    // is wider than this site; elsewhere it would repeat the Have evidence cell
+    const siteCol = META.siteColCats.indexOf(c) >= 0
+      ? `${r.site} <span class="muted">(${pct(r.site, r.n)})</span>` : "–";
     return `<tr class="${c === selCat ? "hl" : ""}">` +
       `<td class="name">${nodeInfo(3,c).label}</td>` +
       `<td>${r.n}</td><td>${pct(r.n, LAY.total)}</td>` +
+      `<td class="muted">${META.scopeLabel[META.scope[c]]}</td>` +
       `<td>${splitHere ? r.have : "–"}</td>` +
-      `<td>${splitHere ? pct(r.have, r.n) : "–"}</td></tr>`;
+      `<td>${splitHere ? pct(r.have, r.n) : "–"}</td>` +
+      `<td>${siteCol}</td></tr>`;
   }).join("");
 }
 
@@ -956,15 +1069,19 @@ const INFO = {
        "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
        "a leave-one-out scheme, then categorised against the other five sites as contextual evidence. " +
        "21 plant taxa &times; 71 pollinator taxa across 6 sites.</p>" +
-       "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
-       "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
+       // These quotes sit inside a JavaScript string literal, so they have to
+       // reach the HTML as \" rather than ". A \" in the R source emits a bare
+       // " and truncates the JS string, which is a syntax error that kills the
+       // whole script block. Hence the trebled backslashes.
+       "<p>Data originally published by <a href=\\\"https://doi.org/10.1111/2041-210X.70165\\\" target=\\\"_blank\\\" " +
+       "rel=\\\"noopener\\\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
        "Borge-Holthoefer, J., Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of " +
        "automated and manual monitoring in comprehensive plant&ndash;pollinator communities. " +
        "<em>Methods in Ecology and Evolution</em>, 16, 2960&ndash;2978.</p>"
   },
   controls: {
     t: "Controls",
-    b: "<p><b>Sampling method</b> selects which method is being classified. The other method " +
+    b: "<p><b>Sampling method</b> selects which method is being categorised. The other method " +
        "supplies the independent evidence shown on axis 4, so switching also swaps the corroborating method.</p>" +
        "<p><b>Threshold</b> rebinarises the leave-one-out predicted probabilities: a record is called " +
        "present when its probability exceeds the threshold. Raising it moves records from the " +
@@ -979,6 +1096,15 @@ const INFO = {
        "<b>All categories</b> splits every category, for inspecting how cross-method evidence lines up " +
        "across the whole taxonomy at once.</p>"
   },
+  evidence: {
+    t: "The columns",
+    b: "<p><b>Have evidence</b> counts the links the other method recorded within the scope that " +
+       "category\'s own claim leaves open, which the <b>Evidence scope</b> column names and the " +
+       "diagram\'s info box explains.</p>" +
+       "<p><b>Have evidence, this site</b> is the same count under the focal-site rule alone. It is " +
+       "shown for the two categories whose scope reaches beyond this site, so the wider rule can be " +
+       "read against the local one; for the rest the two would be identical.</p>"
+  },
   sankey: {
     t: "Reading the diagram",
     b: "<p>Each record is one species pair assessed at one site. Bands are scaled by the number of records.</p>" +
@@ -986,7 +1112,20 @@ const INFO = {
        "<b>Axis 2</b> asks whether the same pair was recorded at any <i>other</i> site. " +
        "<b>Axis 3</b> is the resulting link category. <b>Axis 4</b> asks whether the independent method found it.</p>" +
        "<p>Clicking a block or band isolates its subgraph: everything else fades but stays visible, " +
-       "so the highlighted route can be read against the whole. Click again, or click the background, to clear.</p>"
+       "so the highlighted route can be read against the whole. Click again, or click the background, to clear.</p>" +
+       "<p><b>Axis 4 is where cross-method evidence is sought.</b> A record from the other method is sought where the label leaves the link\'s status open, " +
+       "and what the label settles differs by category.</p>" +
+       "<ul>" +
+       "<li><b>Possibly forbidden &mdash; all 6 sites.</b> Nothing is recorded anywhere and the model " +
+       "agrees, so feasibility is open everywhere.</li>" +
+       "<li><b>Locally unique &mdash; other 5 sites.</b> Presence here is already established, so what " +
+       "is open is realisation at the other sites.</li>" +
+       "<li><b>Recurrent &mdash; here and elsewhere.</b> The claim is presence here and in the " +
+       "replicates, so both halves must be corroborated.</li>" +
+       "<li><b>The other five &mdash; this site.</b> The open question is about this site alone.</li>" +
+       "</ul>" +
+       "<p>Hovering a block names its scope. A pair outside the other method\'s grid at a site counts " +
+       "as no evidence.</p>"
   },
   readout: {
     t: "The selection readout",
@@ -1036,5 +1175,6 @@ writeLines(html_out, OUTPUT_HTML, useBytes = TRUE)
 
 cat(sprintf("\nWrote %s (%.1f KB)\n", OUTPUT_HTML, file.size(OUTPUT_HTML) / 1024))
 cat("Open it in any browser; the file is self-contained, no server needed.\n")
-cat("This is the source build. The live app, docs/interactive_sankey_explorer.html,\n")
-cat("is untouched.\n")
+cat("This is the category-dependent-confirmation build. The previous app,\n")
+cat("docs/interactive_sankey_explorer.html, is untouched and still the one\n")
+cat("docs/index.html links to.\n")

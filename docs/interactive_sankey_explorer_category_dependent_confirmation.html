@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link categorisation Sankey explorer</title>
+<style>
+  :root{
+    --accent:#E07B39; --accent-d:#B4531A;
+    --text:#1f2933; --muted:#5b6472; --grid:#e5e8ec;
+    --card:#ffffff; --bg:#f5f6f8; --border:#e2e5ea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:22px;margin:0 0 4px;font-weight:700}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:900px}
+  .sub code{background:#eef0f3;padding:1px 5px;border-radius:4px;font-size:13px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,30,50,.04);position:relative}
+  .card h2{font-size:14px;margin:0 0 12px;font-weight:600;letter-spacing:.01em;padding-right:32px}
+  .hint{font-size:12px;color:var(--muted);margin:0 0 8px}
+  .muted{color:var(--muted);font-weight:400}
+  /* controls */
+  .ctrlrow{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:end}
+  @media(max-width:860px){.ctrlrow{grid-template-columns:1fr;gap:16px}}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px;gap:12px}
+  .ctrl .val{color:var(--accent-d);font-variant-numeric:tabular-nums}
+  .ctrl .desc{font-size:12px;color:var(--muted);margin-top:4px;font-weight:400}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px}
+  .seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+  .seg{border:none;background:#fff;padding:8px 15px;font-size:12.5px;color:var(--muted);cursor:pointer;
+    font-family:inherit;transition:background .12s,color .12s}
+  .seg+.seg{border-left:1px solid var(--border)}
+  .seg:hover{background:#f0f2f5}
+  .seg.active{background:var(--accent);color:#fff;font-weight:600}
+  .seg.active:hover{background:var(--accent-d)}
+  @media(max-width:520px){.seg-wrap{display:flex;width:100%}.seg{flex:1}}
+  .topbar{position:sticky;top:0;z-index:30;background:var(--bg);padding:14px 0 8px}
+  .topbar h1{margin:0}
+  .card.ctrlbar{position:sticky;top:56px;z-index:20}
+  .ctrlbar.stuck{box-shadow:0 4px 16px rgba(20,30,50,.12)}
+  .reset{font-size:12px;background:#eef0f3;border:1px solid var(--border);
+    border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--muted);font-family:inherit}
+  .reset:hover{background:#e4e7ec}
+  /* sankey */
+  #sankey{width:100%;height:auto;display:block;user-select:none}
+  #sankey .flow{cursor:pointer;transition:opacity .15s}
+  #sankey .node{cursor:pointer;transition:opacity .15s}
+  #sankey .axlab{font-size:12px;font-weight:700;fill:var(--text)}
+  #sankey .nlab{font-size:11px;fill:#2c3542;pointer-events:none}
+  #sankey .nlab .n{font-weight:400;fill:var(--muted)}
+  .faded{opacity:.13}
+  /* readout */
+  .stat{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-top:1px solid var(--border)}
+  .stat:first-of-type{border-top:none;padding-top:2px}
+  .stat .big{font-size:40px;font-weight:750;color:var(--accent-d);
+    font-variant-numeric:tabular-nums;line-height:1;min-width:118px}
+  .statmeta{flex:1;min-width:0}
+  .statlabel{font-size:13px;color:var(--muted);line-height:1.45}
+  .statlabel b{color:var(--text)}
+  .pathline{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.7}
+  .chip{display:inline-block;background:#f2f4f7;border:1px solid var(--border);border-radius:6px;
+    padding:2px 8px;margin-right:4px;color:var(--text);font-size:12px}
+  .chip .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;
+    vertical-align:middle;position:relative;top:-1px}
+  .arrow{color:var(--muted);margin-right:4px}
+  .empty{font-size:13px;color:var(--muted);padding:6px 0 2px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--border);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  th{font-weight:600;color:var(--muted);font-size:11.5px}
+  td.name,th.name{text-align:left}
+  tr.hl td{background:#fbeee2;font-weight:600;color:var(--accent-d)}
+  /* collapsible */
+  details.coll{padding:0;overflow:hidden}
+  details.coll>summary{list-style:none;cursor:pointer;padding:14px 18px;font-size:14px;font-weight:600;
+    display:flex;align-items:center;gap:8px;padding-right:46px}
+  details.coll>summary::-webkit-details-marker{display:none}
+  details.coll>summary::before{content:"▸";color:var(--muted);font-size:12px;
+    transition:transform .15s;display:inline-block}
+  details.coll[open]>summary::before{transform:rotate(90deg)}
+  .coll-body{padding:0 18px 16px}
+  /* info modal */
+  .info{position:absolute;top:13px;right:15px;z-index:6;display:inline-flex;align-items:center;
+    justify-content:center;width:21px;height:21px;border-radius:50%;border:none;background:var(--accent);
+    color:#fff;font-size:12px;font-weight:700;cursor:pointer;line-height:1;font-style:italic;
+    font-family:Georgia,"Times New Roman",serif;padding:0;box-shadow:0 1px 3px rgba(20,30,50,.22)}
+  .info:hover{background:var(--accent-d)}
+  /* inline, labelled variant used for the data button under the lede */
+  .info.pill{position:static;width:auto;height:auto;border-radius:999px;padding:5px 13px;
+    font-family:inherit;font-style:normal;font-size:12px;font-weight:600;letter-spacing:.01em;
+    gap:6px;box-shadow:0 1px 3px rgba(20,30,50,.18)}
+  .info.pill::before{content:"i";font-family:Georgia,"Times New Roman",serif;font-style:italic;
+    font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+    width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,.24);font-size:11px}
+  .databar{margin:-4px 0 18px}
+  .modal-back{position:fixed;inset:0;background:rgba(20,28,44,.46);z-index:100;display:none;
+    align-items:center;justify-content:center;padding:24px}
+  .modal-back.open{display:flex}
+  .modal-wrap{position:relative;max-width:640px;width:100%}
+  .modal{background:var(--card);border-radius:14px;width:100%;max-height:84vh;overflow:auto;
+    box-shadow:0 24px 60px rgba(15,23,42,.32);padding:20px 24px 24px}
+  .modal h3{margin:0 0 12px;font-size:17px;padding-right:36px}
+  .mbody{font-size:14px;color:var(--text);line-height:1.55}
+  .mbody p{margin:0 0 11px}
+  .mbody p:last-child{margin-bottom:0}
+  .mbody b{color:var(--text)}
+  .mbody code{background:#eef0f3;padding:1px 4px;border-radius:4px;font-size:13px}
+  .mbody a{color:var(--accent-d)}
+  .modal-close{position:absolute;top:14px;right:16px;border:none;background:#eef0f3;border-radius:8px;
+    width:30px;height:30px;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;z-index:1}
+  .modal-close:hover{background:#e2e5ea;color:var(--text)}
+  /* back to the landing page; "Interactive companions" is that page's own eyebrow, so
+     the link names where it goes rather than saying "back" */
+  .backlink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-decoration:none;
+    margin:0 0 7px -7px;padding:3px 10px 3px 7px;border-radius:999px;
+    transition:background .15s,color .15s}
+  .backlink:hover{color:var(--text);background:#e9edf1}
+  .backlink svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.1;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+  .backlink:hover svg{transform:translateX(-2px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="backlink" href="index.html"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4L3 8l4 4"/></svg>Interactive companions</a>
+    <h1>Link categorisation &mdash; <span id="hdrMethod" style="color:var(--accent-d)">direct observation</span></h1>
+  </div>
+  <p class="sub">Every link&ndash;site record flows left to right: from the <b>within-network confusion matrix</b>,
+  through <b>contextual evidence</b> (was the same species pair recorded at any other site?), into the
+  <b>eight link categories</b>, and finally to whether the <b>additional sampling method</b> found evidence for it.
+  Move the threshold to rebinarise the predicted probabilities, and click any band or block to isolate its path.</p>
+
+  <div class="databar">
+    <button class="info pill" data-info="data" aria-label="About the data and study system">Data &amp; study system</button>
+  </div>
+
+  <div class="card ctrlbar" id="ctrlbar">
+    <button class="info" data-info="controls" aria-label="About the controls">i</button>
+    <h2>Controls</h2>
+    <div class="ctrlrow">
+      <div class="ctrl">
+        <label><span>Sampling method</span></label>
+        <div class="seg-wrap" id="methodSeg">
+          <button class="seg active" data-method="obs">Direct observation</button>
+          <button class="seg" data-method="rpi">Camera</button>
+        </div>
+        <div class="desc" id="methodDesc">corroborated against the camera records</div>
+      </div>
+      <div class="ctrl">
+        <label><span>Classification threshold</span><span class="val" id="vThr">0.7</span></label>
+        <input type="range" id="sThr" min="0" max="1" step="1" value="0">
+        <div class="desc" id="thrDesc">predicted probability above which a link is called present</div>
+      </div>
+      <div class="ctrl">
+        <label><span>Cross-method evidence</span></label>
+        <div class="seg-wrap" id="splitSeg">
+          <button class="seg active" data-split="amb">Flagged only</button>
+          <button class="seg" data-split="all">All categories</button>
+        </div>
+        <div class="desc">which categories are split by the independent method</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <button class="info" data-info="sankey" aria-label="About the diagram">i</button>
+    <h2>Flow of link&ndash;site records <span class="muted" id="totalNote"></span></h2>
+    <p class="hint" id="selHint">Click any block or band to isolate it. Click the background to clear.</p>
+    <svg id="sankey" viewBox="0 0 1120 620" preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label="Interactive Sankey of link categorisation"></svg>
+  </div>
+
+  <div class="card" id="readoutCard">
+    <button class="info" data-info="readout" aria-label="About the readout">i</button>
+    <h2>Selection</h2>
+    <div id="readout"></div>
+  </div>
+
+  <details class="card coll" id="tableCard">
+    <!-- inside the summary, so it stays visible when the card is collapsed;
+         summary already reserves padding-right for it, and the .info handler
+         stops the click from toggling the card -->
+    <summary>Link categories counts at this threshold <span class="muted">&mdash; all eight categories</span>
+      <button class="info" data-info="evidence" aria-label="About the evidence scope">i</button></summary>
+    <div class="coll-body">
+      <table id="catTable"><thead><tr>
+        <th class="name">Link category</th><th>n</th><th>% of total</th>
+        <th>Evidence scope</th><th>Have evidence</th>
+        <th>% with cross-method evidence</th><th>Have evidence, this site</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </details>
+
+</div>
+
+<div class="modal-back" id="modalBack">
+  <div class="modal-wrap">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div class="modal"><h3 id="modalTitle"></h3><div class="mbody" id="modalBody"></div></div>
+  </div>
+</div>
+
+<script id="payload" type="application/json">{"meta":{"generated":"2026-10-23 21:38:49","nRecords":2788,"nSites":6,"sites":["Dune system 1","Dune system 2","Pine forest 1","Pine forest 2","Rocky coastal 1","Rocky coastal 2"],"threshMin":0.5,"threshMax":0.8,"threshStep":0.1,"threshDefault":0.7,"thresholds":["0.5","0.6","0.7","0.8"],"methodLabels":{"obs":"Direct observation","rpi":"Camera"},"flagged":["phantom","possibly_forbidden"],"catDisplay":{"recurrent":"Recurrent","locally_unique":"Locally unique","possibly_missing":"Possibly missing","phantom":"Phantom","locally_absent":"Locally absent","possibly_forbidden":"Possibly forbidden","weakly-supported":"Weakly-supported","model_elusive":"Model elusive"},"scope":{"possibly_forbidden":"all_sites","locally_unique":"other_sites","recurrent":"here_and_elsewhere","phantom":"focal_site","possibly_missing":"focal_site","model_elusive":"focal_site","locally_absent":"focal_site","weakly-supported":"focal_site"},"scopeLabel":{"all_sites":"all 6 sites","other_sites":"other 5 sites","here_and_elsewhere":"here and elsewhere","focal_site":"this site"},"siteColCats":["possibly_forbidden","locally_unique"],"axisLabels":["Within-network evaluation","Contextual evidence","Link category","Additional method"]},"nodes":{"id":["TP","FP","FN","TN","Observed in replicates","Not observed in replicates","recurrent","possibly_missing","model_elusive","locally_absent","locally_unique","phantom","weakly-supported","possibly_forbidden","recurrent","possibly_missing","model_elusive","locally_absent","locally_unique","phantom","weakly-supported","possibly_forbidden","recurrent::none","recurrent::have","possibly_missing::none","possibly_missing::have","model_elusive::none","model_elusive::have","locally_absent::none","locally_absent::have","locally_unique::none","locally_unique::have","phantom::none","phantom::have","weakly-supported::none","weakly-supported::have","possibly_forbidden::none","possibly_forbidden::have"],"axis":[1,1,1,1,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],"label":["True positive","False positive","False negative","True negative","Observed in replicates","Not observed in replicates","Recurrent","Possibly missing","Model elusive","Locally absent","Locally unique","Phantom","Weakly-supported","Possibly forbidden","Recurrent","Possibly missing","Model elusive","Locally absent","Locally unique","Phantom","Weakly-supported","Possibly forbidden","Recurrent — no evidence (here and elsewhere)","Recurrent — have evidence (here and elsewhere)","Possibly missing — no evidence (this site)","Possibly missing — have evidence (this site)","Model elusive — no evidence (this site)","Model elusive — have evidence (this site)","Locally absent — no evidence (this site)","Locally absent — have evidence (this site)","Locally unique — no evidence (other 5 sites)","Locally unique — have evidence (other 5 sites)","Phantom — no evidence (this site)","Phantom — have evidence (this site)","Weakly-supported — no evidence (this site)","Weakly-supported — have evidence (this site)","Possibly forbidden — no evidence (all 6 sites)","Possibly forbidden — have evidence (all 6 sites)"],"short":["TP","FP","FN","TN","Observed in replicates","Not observed in replicates","Recurrent","Possibly missing","Model elusive","Locally absent","Locally unique","Phantom","Weakly-supported","Possibly forbidden","Recurrent","Possibly missing","Model elusive","Locally absent","Locally unique","Phantom","Weakly-supported","Possibly forbidden","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence","No evidence","Have evidence"],"color":["#C6D8EA","#B0C4DE","#D8A7A7","#BC8F8F","#F4A460","#C3BAD5","#F08A5D","#FF7256","#E2705A","#CD5B45","#C3BAD5","#AFA2C4","#9B8BB4","#8878A4","#F08A5D","#FF7256","#E2705A","#CD5B45","#C3BAD5","#AFA2C4","#9B8BB4","#8878A4","#F08A5D","#66CDAA","#FF7256","#66CDAA","#E2705A","#66CDAA","#CD5B45","#66CDAA","#C3BAD5","#66CDAA","#AFA2C4","#66CDAA","#9B8BB4","#66CDAA","#8878A4","#66CDAA"],"rank":[-40,-30,-20,-10,-20,-10,-80,-70,-60,-50,-40,-30,-20,-10,-80,-70,-60,-50,-40,-30,-20,-10,-81,-82,-71,-72,-61,-62,-51,-52,-41,-42,-31,-32,-21,-22,-11,-12],"key":["1@TP","1@FP","1@FN","1@TN","2@Observed in replicates","2@Not observed in replicates","3@recurrent","3@possibly_missing","3@model_elusive","3@locally_absent","3@locally_unique","3@phantom","3@weakly-supported","3@possibly_forbidden","4@recurrent","4@possibly_missing","4@model_elusive","4@locally_absent","4@locally_unique","4@phantom","4@weakly-supported","4@possibly_forbidden","4@recurrent::none","4@recurrent::have","4@possibly_missing::none","4@possibly_missing::have","4@model_elusive::none","4@model_elusive::have","4@locally_absent::none","4@locally_absent::have","4@locally_unique::none","4@locally_unique::have","4@phantom::none","4@phantom::have","4@weakly-supported::none","4@weakly-supported::have","4@possibly_forbidden::none","4@possibly_forbidden::have"]},"data":{"obs|0.5|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[16,9,52,691,172,14,288,15,196,171],"siteEv":[5,3,52,0,33,4,0,0,67,98]},"obs|0.5|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[5,11,3,6,52,691,33,139,14,288,15,41,155,67,104],"siteEv":[5,0,3,0,52,0,33,0,4,0,0,20,47,67,31]},"obs|0.6|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[56,24,26,252,109,53,714,78,156,156],"siteEv":[13,10,26,0,21,30,0,12,59,91]},"obs|0.6|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[13,43,10,14,26,252,21,88,53,714,12,66,35,121,66,90],"siteEv":[13,0,10,0,26,0,21,0,30,0,12,0,18,41,66,25]},"obs|0.7|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[103,64,11,93,51,80,861,136,109,116],"siteEv":[27,28,11,0,13,45,0,20,45,73]},"obs|0.7|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[27,76,28,36,11,93,13,38,80,861,20,116,28,81,55,61],"siteEv":[27,0,28,0,11,0,13,0,45,0,20,0,15,30,55,18]},"obs|0.8|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[164,125,3,14,11,94,934,176,48,55],"siteEv":[55,59,3,0,3,53,0,30,17,42]},"obs|0.8|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[55,109,59,66,3,14,3,8,94,934,30,146,14,34,35,20],"siteEv":[55,0,59,0,3,0,3,0,53,0,30,0,9,8,35,7]},"rpi|0.5|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[22,8,72,540,108,15,110,14,141,134],"siteEv":[13,4,72,0,38,11,0,3,72,84]},"rpi|0.5|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[13,9,4,4,72,540,38,70,15,110,3,11,47,94,65,69],"siteEv":[13,0,4,0,72,0,38,0,11,0,3,0,28,44,65,19]},"rpi|0.6|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[55,28,48,234,69,70,385,53,108,114],"siteEv":[22,8,48,0,28,35,0,13,63,80]},"rpi|0.6|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[22,33,8,20,48,234,28,41,70,385,13,40,38,70,63,51],"siteEv":[22,0,8,0,48,0,28,0,35,0,13,0,26,37,63,17]},"rpi|0.7|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[113,65,26,79,30,112,520,92,50,77],"siteEv":[50,25,26,0,16,57,0,25,35,63]},"rpi|0.7|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[50,63,25,40,26,79,16,14,112,520,25,67,20,30,52,25],"siteEv":[50,0,25,0,26,0,16,0,57,0,25,0,14,21,52,11]},"rpi|0.8|amb":{"L1":["FN","FN","FP","FP","FP","TN","TN","TN","TP","TP"],"L2":["Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Not observed in replicates","Observed in replicates"],"L3":["weakly-supported","model_elusive","phantom","phantom","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_unique","recurrent"],"L4":["weakly-supported","model_elusive","phantom::have","phantom::none","possibly_missing","possibly_forbidden::have","possibly_forbidden::none","locally_absent","locally_unique","recurrent"],"value":[141,102,8,18,14,141,570,108,22,40],"siteEv":[69,51,8,0,8,75,0,33,16,37]},"rpi|0.8|all":{"L1":["FN","FN","FN","FN","FP","FP","FP","FP","TN","TN","TN","TN","TP","TP","TP","TP"],"L2":["Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates","Not observed in replicates","Not observed in replicates","Observed in replicates","Observed in replicates"],"L3":["weakly-supported","weakly-supported","model_elusive","model_elusive","phantom","phantom","possibly_missing","possibly_missing","possibly_forbidden","possibly_forbidden","locally_absent","locally_absent","locally_unique","locally_unique","recurrent","recurrent"],"L4":["weakly-supported::have","weakly-supported::none","model_elusive::have","model_elusive::none","phantom::have","phantom::none","possibly_missing::have","possibly_missing::none","possibly_forbidden::have","possibly_forbidden::none","locally_absent::have","locally_absent::none","locally_unique::have","locally_unique::none","recurrent::have","recurrent::none"],"value":[69,72,51,51,8,18,8,6,141,570,33,75,11,11,32,8],"siteEv":[69,0,51,0,8,0,8,0,75,0,33,0,8,8,32,5]}}}</script>
+<script>
+(function(){
+"use strict";
+
+const P = JSON.parse(document.getElementById("payload").textContent);
+const META = P.meta;
+
+// ---- rebuild node metadata as a lookup keyed by "axis@id" ----
+const NODES = {};
+(function(){
+  const n = P.nodes;
+  for (let i = 0; i < n.id.length; i++) {
+    NODES[n.key[i]] = {
+      id: n.id[i], axis: n.axis[i], label: n.label[i],
+      short: n.short[i], color: n.color[i], rank: n.rank[i]
+    };
+  }
+})();
+
+function nodeInfo(axis, id){
+  return NODES[axis + "@" + id] || {id:id, axis:axis, label:id, short:id, color:"#ccc", rank:999};
+}
+
+// ---- state ----
+const state = {
+  method: "obs",
+  thrIdx: Math.max(0, META.thresholds.indexOf(META.threshDefault.toFixed(1))),
+  split: "amb",
+  sel: null          // {type:"node", axis, id} | {type:"flow", axis, from, to}
+};
+
+// ---- layout constants ----
+const W = 1120, H = 620;
+const M = {top: 46, right: 168, bottom: 22, left: 18};
+const NODE_W = 11;
+const GAP = 7;                 // vertical gap between nodes on an axis
+const PLOT_H = H - M.top - M.bottom;
+const COL_X = [0, 1, 2, 3].map(i => M.left + i * ((W - M.left - M.right - NODE_W) / 3));
+
+const svg = document.getElementById("sankey");
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs, parent){
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function currentPaths(){
+  const key = state.method + "|" + META.thresholds[state.thrIdx] + "|" + state.split;
+  const d = P.data[key];
+  if (!d) return [];
+  const out = [];
+  for (let i = 0; i < d.value.length; i++){
+    out.push({L1:d.L1[i], L2:d.L2[i], L3:d.L3[i], L4:d.L4[i],
+              value:d.value[i], siteEv:d.siteEv[i]});
+  }
+  return out;
+}
+
+// ---- build the layout from the path table ----
+function buildLayout(paths){
+  const total = paths.reduce((s,p)=>s+p.value, 0);
+
+  // node totals per axis
+  const totals = [{}, {}, {}, {}];
+  paths.forEach(p => {
+    [p.L1,p.L2,p.L3,p.L4].forEach((id, ax) => {
+      totals[ax][id] = (totals[ax][id] || 0) + p.value;
+    });
+  });
+
+  // vertical scale: leave room for the inter-node gaps on the busiest axis
+  const maxNodes = Math.max(...totals.map(t => Object.keys(t).length));
+  const usable = PLOT_H - (maxNodes - 1) * GAP;
+  const scale = usable / total;
+
+  // position nodes, ordered by rank
+  const layout = [{}, {}, {}, {}];
+  totals.forEach((t, ax) => {
+    const ids = Object.keys(t).sort((a,b)=> nodeInfo(ax+1,a).rank - nodeInfo(ax+1,b).rank);
+    const nGaps = ids.length - 1;
+    const y0 = M.top + (PLOT_H - (total * scale + nGaps * GAP)) / 2;
+    let y = y0;
+    ids.forEach(id => {
+      const h = Math.max(t[id] * scale, 1.2);
+      layout[ax][id] = {y0:y, y1:y+h, h:h, value:t[id], x:COL_X[ax]};
+      y += h + GAP;
+    });
+  });
+
+  // aggregate flows between consecutive axes, ordered so ribbons do not cross
+  // more than necessary: sort by the rank of the partner node.
+  const flows = [];
+  for (let ax = 0; ax < 3; ax++){
+    const agg = {};
+    paths.forEach(p => {
+      const from = [p.L1,p.L2,p.L3][ax], to = [p.L2,p.L3,p.L4][ax];
+      const k = from + "" + to;
+      agg[k] = (agg[k] || 0) + p.value;
+    });
+    const rows = Object.keys(agg).map(k => {
+      const [from, to] = k.split("");
+      return {axis:ax, from:from, to:to, value:agg[k]};
+    });
+
+    // stack on the source side, ordered by target rank
+    const srcCursor = {}, tgtCursor = {};
+    rows.sort((a,b)=>{
+      const ra = nodeInfo(ax+1,a.from).rank - nodeInfo(ax+1,b.from).rank;
+      if (ra !== 0) return ra;
+      return nodeInfo(ax+2,a.to).rank - nodeInfo(ax+2,b.to).rank;
+    }).forEach(r => {
+      const s = layout[ax][r.from], t = layout[ax+1][r.to];
+      const h = r.value * scale;
+      const sy = srcCursor[r.from] === undefined ? s.y0 : srcCursor[r.from];
+      r.sy0 = sy; r.sy1 = sy + h; srcCursor[r.from] = sy + h;
+      r.x0 = s.x + NODE_W; r.x1 = t.x;
+      r._th = h;
+    });
+
+    // stack on the target side, ordered by source rank
+    rows.slice().sort((a,b)=>{
+      const ra = nodeInfo(ax+2,a.to).rank - nodeInfo(ax+2,b.to).rank;
+      if (ra !== 0) return ra;
+      return nodeInfo(ax+1,a.from).rank - nodeInfo(ax+1,b.from).rank;
+    }).forEach(r => {
+      const t = layout[ax+1][r.to];
+      const ty = tgtCursor[r.to] === undefined ? t.y0 : tgtCursor[r.to];
+      r.ty0 = ty; r.ty1 = ty + r._th; tgtCursor[r.to] = ty + r._th;
+    });
+
+    flows.push(...rows);
+  }
+
+  return {total:total, totals:totals, layout:layout, flows:flows, paths:paths};
+}
+
+// ---- selection logic: which paths survive the current selection ----
+function pathMatchesSelection(p, sel){
+  if (!sel) return true;
+  const ids = [p.L1, p.L2, p.L3, p.L4];
+  if (sel.type === "node") return ids[sel.axis] === sel.id;
+  return ids[sel.axis] === sel.from && ids[sel.axis+1] === sel.to;
+}
+
+function activeSets(paths, sel){
+  // returns {nodes: Set("ax@id"), flows: Set("ax@from>to")} for the surviving
+  // subgraph, which is the full upstream *and* downstream path of the selection
+  const nodes = new Set(), flows = new Set();
+  paths.filter(p => pathMatchesSelection(p, sel)).forEach(p => {
+    const ids = [p.L1,p.L2,p.L3,p.L4];
+    ids.forEach((id, ax) => nodes.add(ax + "@" + id));
+    for (let ax = 0; ax < 3; ax++) flows.add(ax + "@" + ids[ax] + ">" + ids[ax+1]);
+  });
+  return {nodes:nodes, flows:flows};
+}
+
+// ---- ribbon path ----
+function ribbon(r){
+  const cx0 = r.x0 + (r.x1 - r.x0) * 0.42, cx1 = r.x0 + (r.x1 - r.x0) * 0.58;
+  return "M" + r.x0 + "," + r.sy0 +
+         "C" + cx0 + "," + r.sy0 + " " + cx1 + "," + r.ty0 + " " + r.x1 + "," + r.ty0 +
+         "L" + r.x1 + "," + r.ty1 +
+         "C" + cx1 + "," + r.ty1 + " " + cx0 + "," + r.sy1 + " " + r.x0 + "," + r.sy1 + "Z";
+}
+
+// ---- render ----
+let LAY = null;
+
+function render(){
+  const paths = currentPaths();
+  LAY = buildLayout(paths);
+  const act = activeSets(paths, state.sel);
+  const hasSel = !!state.sel;
+
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // background catcher: clears the selection
+  const bg = el("rect", {x:0, y:0, width:W, height:H, fill:"transparent"}, svg);
+  bg.addEventListener("click", () => { state.sel = null; render(); renderReadout(); });
+
+  // axis labels
+  const axLabels = META.axisLabels.slice();
+  axLabels[3] = "Additional method: " + META.methodLabels[state.method === "obs" ? "rpi" : "obs"];
+  axLabels.forEach((t, ax) => {
+    // The axis 4 label carries the method name, so it is far longer than the
+    // others and ran off the right edge of the viewBox when left-aligned at its
+    // column. Anchor that one to the right edge instead, so it stays visible.
+    const at = (ax === 3)
+      ? {x:W - 6, y:M.top - 22, class:"axlab", "text-anchor":"end"}
+      : {x:COL_X[ax], y:M.top - 22, class:"axlab"};
+    el("text", at, svg).textContent = t;
+  });
+
+  // flows first, so nodes sit on top
+  const gF = el("g", {}, svg);
+  LAY.flows.forEach(r => {
+    // ggsankey draws ribbons with fill = node, i.e. the colour of the node the
+    // flow leaves. Match that: colour by the source, not the target.
+    const src  = nodeInfo(r.axis + 1, r.from);
+    const info = nodeInfo(r.axis + 2, r.to);
+    const on = act.flows.has(r.axis + "@" + r.from + ">" + r.to);
+    const p = el("path", {
+      d: ribbon(r), fill: src.color, "fill-opacity": 0.62,
+      class: "flow" + (hasSel && !on ? " faded" : "")
+    }, gF);
+    p.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const same = state.sel && state.sel.type === "flow" &&
+                   state.sel.axis === r.axis && state.sel.from === r.from && state.sel.to === r.to;
+      state.sel = same ? null : {type:"flow", axis:r.axis, from:r.from, to:r.to, value:r.value};
+      render(); renderReadout();
+    });
+    el("title", {}, p).textContent =
+      nodeInfo(r.axis+1, r.from).label + "  →  " + info.label + " : " + r.value;
+  });
+
+  // nodes + labels
+  const gN = el("g", {}, svg);
+  LAY.layout.forEach((col, ax) => {
+    Object.keys(col).forEach(id => {
+      const nd = col[id], info = nodeInfo(ax+1, id);
+      const on = act.nodes.has(ax + "@" + id);
+      const cls = "node" + (hasSel && !on ? " faded" : "");
+
+      const rect = el("rect", {
+        x:nd.x, y:nd.y0, width:NODE_W, height:nd.h, rx:2,
+        fill:info.color, class:cls
+      }, gN);
+      rect.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const same = state.sel && state.sel.type === "node" &&
+                     state.sel.axis === ax && state.sel.id === id;
+        state.sel = same ? null : {type:"node", axis:ax, id:id};
+        render(); renderReadout();
+      });
+      el("title", {}, rect).textContent = info.label + " : " + nd.value;
+
+      // On axis 4, only the split nodes get a label: a pass-through node
+      // repeats its axis-3 name verbatim, so labelling it duplicates the text
+      // for every category that is not split. Elsewhere, label whenever the band
+      // is tall enough to carry one.
+      const isSplit = id.indexOf("::") >= 0;
+      const showLab = (ax === 3) ? isSplit : (nd.h >= 9);
+      if (showLab){
+        const t = el("text", {
+          x: nd.x + NODE_W + 6, y: nd.y0 + nd.h/2 + 3.6,
+          class: "nlab" + (hasSel && !on ? " faded" : "")
+        }, gN);
+        const lab = (ax === 3 && isSplit) ? info.short : info.label;
+        t.textContent = lab + " ";
+        const s = el("tspan", {class:"n"}, t);
+        s.textContent = nd.value + " (" + pct(nd.value, LAY.total) + ")";
+      }
+    });
+  });
+
+  document.getElementById("totalNote").textContent =
+    "— " + LAY.total.toLocaleString() + " records, " + META.nSites + " sites";
+  renderTable();
+}
+
+function pct(a, b){ return b ? (100*a/b).toFixed(1) + "%" : "–"; }
+
+function renderTable(){
+  const paths = LAY.paths;
+  const per = {};
+  paths.forEach(p => {
+    const r = per[p.L3] || (per[p.L3] = {n:0, have:0, site:0});
+    r.n += p.value;
+    r.site += p.siteEv;
+    if (p.L4.indexOf("::have") >= 0) r.have += p.value;
+  });
+  const order = ["recurrent","locally_unique","possibly_missing","phantom",
+                 "locally_absent","possibly_forbidden","weakly-supported","model_elusive"];
+  const selCat = state.sel && state.sel.type === "node" && state.sel.axis === 2 ? state.sel.id : null;
+  const tb = document.querySelector("#catTable tbody");
+  tb.innerHTML = order.map(c => {
+    const r = per[c] || {n:0, have:0, site:0};
+    const splitHere = state.split === "all" || META.flagged.indexOf(c) >= 0;
+    // the focal-site column is only meaningful where the category's own scope
+    // is wider than this site; elsewhere it would repeat the Have evidence cell
+    const siteCol = META.siteColCats.indexOf(c) >= 0
+      ? `${r.site} <span class="muted">(${pct(r.site, r.n)})</span>` : "–";
+    return `<tr class="${c === selCat ? "hl" : ""}">` +
+      `<td class="name">${nodeInfo(3,c).label}</td>` +
+      `<td>${r.n}</td><td>${pct(r.n, LAY.total)}</td>` +
+      `<td class="muted">${META.scopeLabel[META.scope[c]]}</td>` +
+      `<td>${splitHere ? r.have : "–"}</td>` +
+      `<td>${splitHere ? pct(r.have, r.n) : "–"}</td>` +
+      `<td>${siteCol}</td></tr>`;
+  }).join("");
+}
+
+// ---- readout ----
+function chip(axis, id){
+  const i = nodeInfo(axis, id);
+  const lab = (axis === 4 && id.indexOf("::") >= 0) ? i.label : i.label;
+  return `<span class="chip"><i class="dot" style="background:${i.color}"></i>${lab}</span>`;
+}
+
+function renderReadout(){
+  const box = document.getElementById("readout");
+  const sel = state.sel;
+
+  if (!sel){
+    box.innerHTML = `<div class="empty">Nothing selected. Click a block or a band to see its ` +
+      `counts, its share of the total, and its share of the category it came from.</div>`;
+    return;
+  }
+
+  const paths = LAY.paths;
+  const kept = paths.filter(p => pathMatchesSelection(p, sel));
+  const n = kept.reduce((s,p)=>s+p.value, 0);
+
+  // parent = the node one axis upstream that feeds this selection
+  let parentAxis, parentN, parentLabel, ownLabel, ownAxis, ownId;
+  if (sel.type === "node"){
+    ownAxis = sel.axis; ownId = sel.id;
+    ownLabel = nodeInfo(sel.axis+1, sel.id).label;
+    if (sel.axis === 0){
+      parentN = LAY.total; parentLabel = "all records"; parentAxis = null;
+    } else {
+      // sum over every upstream node feeding into it, i.e. the whole prior axis
+      // restricted to the paths that reach this node is the node itself, so the
+      // meaningful parent is each distinct upstream node; report the largest
+      const up = {};
+      kept.forEach(p => {
+        const id = [p.L1,p.L2,p.L3,p.L4][sel.axis-1];
+        up[id] = (up[id] || 0) + p.value;
+      });
+      const ids = Object.keys(up);
+      if (ids.length === 1){
+        parentAxis = sel.axis - 1;
+        parentN = LAY.totals[parentAxis][ids[0]];
+        parentLabel = nodeInfo(parentAxis+1, ids[0]).label;
+      } else {
+        parentN = LAY.total; parentLabel = "all records"; parentAxis = null;
+      }
+    }
+  } else {
+    ownAxis = sel.axis + 1; ownId = sel.to;
+    ownLabel = nodeInfo(sel.axis+1, sel.from).label + " → " + nodeInfo(sel.axis+2, sel.to).label;
+    parentAxis = sel.axis;
+    parentN = LAY.totals[sel.axis][sel.from];
+    parentLabel = nodeInfo(sel.axis+1, sel.from).label;
+  }
+
+  // representative full path (the modal upstream route)
+  const routes = {};
+  kept.forEach(p => {
+    const k = [p.L1,p.L2,p.L3,p.L4].join("");
+    routes[k] = (routes[k] || 0) + p.value;
+  });
+  const topRoute = Object.keys(routes).sort((a,b)=>routes[b]-routes[a])[0].split("");
+  const nRoutes = Object.keys(routes).length;
+
+  let h = "";
+  h += `<div class="stat"><div class="big">${n}</div><div class="statmeta">` +
+       `<div class="statlabel">link–site records in <b>${ownLabel}</b>, which is ` +
+       `<b>${pct(n, LAY.total)}</b> of all ${LAY.total} records</div></div></div>`;
+  h += `<div class="stat"><div class="big">${pct(n, parentN)}</div><div class="statmeta">` +
+       `<div class="statlabel">of <b>${parentLabel}</b> (${parentN} records) flows here` +
+       `</div></div></div>`;
+
+  h += `<div class="pathline"><b>Upstream path` +
+       (nRoutes > 1 ? ` (largest of ${nRoutes})` : "") + `:</b><br>`;
+  for (let ax = 0; ax < 4; ax++){
+    if (ax > 0) h += `<span class="arrow">→</span>`;
+    h += chip(ax+1, topRoute[ax]);
+  }
+  h += "</div>";
+
+  box.innerHTML = h;
+}
+
+// ---- controls ----
+const sThr = document.getElementById("sThr");
+sThr.max = META.thresholds.length - 1;
+sThr.value = state.thrIdx;
+
+function syncLabels(){
+  document.getElementById("vThr").textContent = META.thresholds[state.thrIdx];
+  const other = state.method === "obs" ? "rpi" : "obs";
+  document.getElementById("hdrMethod").textContent =
+    META.methodLabels[state.method].toLowerCase();
+  document.getElementById("methodDesc").textContent =
+    "corroborated against " + META.methodLabels[other].toLowerCase() + " records";
+  document.getElementById("thrDesc").textContent =
+    "predicted probability above which a link is called present (range " +
+    META.threshMin.toFixed(1) + "–" + META.threshMax.toFixed(1) +
+    ", where all eight categories stay populated)";
+}
+
+sThr.addEventListener("input", () => {
+  state.thrIdx = +sThr.value;
+  syncLabels(); render(); renderReadout();
+});
+
+document.getElementById("methodSeg").addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-method]"); if (!b) return;
+  state.method = b.dataset.method; state.sel = null;
+  [...ev.currentTarget.children].forEach(c => c.classList.toggle("active", c === b));
+  syncLabels(); render(); renderReadout();
+});
+
+document.getElementById("splitSeg").addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-split]"); if (!b) return;
+  state.split = b.dataset.split; state.sel = null;
+  [...ev.currentTarget.children].forEach(c => c.classList.toggle("active", c === b));
+  render(); renderReadout();
+});
+
+// sticky shadow
+const ctrlbar = document.getElementById("ctrlbar");
+window.addEventListener("scroll", () => {
+  ctrlbar.classList.toggle("stuck", ctrlbar.getBoundingClientRect().top <= 57);
+});
+
+// ---- info modals ----
+const INFO = {
+  data: {
+    t: "Data & study system",
+    b: "<p>Plant&ndash;pollinator interaction networks recorded at six sites on Cabrera island (Balearic " +
+       "archipelago, western Mediterranean), monitored by direct field observation and automated cameras " +
+       "in parallel at every site. That second, independent method is what makes it possible to test the " +
+       "framework's recommendations rather than only state them.</p>" +
+       "<p>Interactions were predicted within each site separately using rank-2 SVD matrix completion under " +
+       "a leave-one-out scheme, then categorised against the other five sites as contextual evidence. " +
+       "21 plant taxa &times; 71 pollinator taxa across 6 sites.</p>" +
+       // These quotes sit inside a JavaScript string literal, so they have to
+       // reach the HTML as " rather than ". A " in the R source emits a bare
+       // " and truncates the JS string, which is a syntax error that kills the
+       // whole script block. Hence the trebled backslashes.
+       "<p>Data originally published by <a href=\"https://doi.org/10.1111/2041-210X.70165\" target=\"_blank\" " +
+       "rel=\"noopener\">Serra-Marin et al. (2025)</a>: Serra-Marin, P. E., Sol&eacute;-Ribalta, A., Lana, A., " +
+       "Borge-Holthoefer, J., Herv&iacute;as-Parejo, S., &amp; Traveset, A. (2025). Comparative assessment of " +
+       "automated and manual monitoring in comprehensive plant&ndash;pollinator communities. " +
+       "<em>Methods in Ecology and Evolution</em>, 16, 2960&ndash;2978.</p>"
+  },
+  controls: {
+    t: "Controls",
+    b: "<p><b>Sampling method</b> selects which method is being categorised. The other method " +
+       "supplies the independent evidence shown on axis 4, so switching also swaps the corroborating method.</p>" +
+       "<p><b>Threshold</b> rebinarises the leave-one-out predicted probabilities: a record is called " +
+       "present when its probability exceeds the threshold. Raising it moves records from the " +
+       "predicted-present categories into the predicted-absent ones.</p>" +
+       "<p>The slider is limited to <code>" + META.threshMin.toFixed(1) + "–" +
+       META.threshMax.toFixed(1) + "</code>. Probabilities are floored at 0.5 by the pre-sigmoid " +
+       "zero floor, so nothing changes below that; above the upper limit some categories empty out " +
+       "entirely and their proportions become undefined.</p>" +
+       "<p><b>Cross-method evidence</b> controls which categories are broken into have / no evidence. " +
+       "<b>Flagged only</b> splits just phantom and possibly forbidden: the two categories the framework " +
+       "flags as needing an independent method rather than more of the same sampling effort. " +
+       "<b>All categories</b> splits every category, for inspecting how cross-method evidence lines up " +
+       "across the whole taxonomy at once.</p>"
+  },
+  evidence: {
+    t: "The columns",
+    b: "<p><b>Have evidence</b> counts the links the other method recorded within the scope that " +
+       "category's own claim leaves open, which the <b>Evidence scope</b> column names and the " +
+       "diagram's info box explains.</p>" +
+       "<p><b>Have evidence, this site</b> is the same count under the focal-site rule alone. It is " +
+       "shown for the two categories whose scope reaches beyond this site, so the wider rule can be " +
+       "read against the local one; for the rest the two would be identical.</p>"
+  },
+  sankey: {
+    t: "Reading the diagram",
+    b: "<p>Each record is one species pair assessed at one site. Bands are scaled by the number of records.</p>" +
+       "<p><b>Axis 1</b> is the within-network confusion matrix at the current threshold. " +
+       "<b>Axis 2</b> asks whether the same pair was recorded at any <i>other</i> site. " +
+       "<b>Axis 3</b> is the resulting link category. <b>Axis 4</b> asks whether the independent method found it.</p>" +
+       "<p>Clicking a block or band isolates its subgraph: everything else fades but stays visible, " +
+       "so the highlighted route can be read against the whole. Click again, or click the background, to clear.</p>" +
+       "<p><b>Axis 4 is where cross-method evidence is sought.</b> A record from the other method is sought where the label leaves the link's status open, " +
+       "and what the label settles differs by category.</p>" +
+       "<ul>" +
+       "<li><b>Possibly forbidden &mdash; all 6 sites.</b> Nothing is recorded anywhere and the model " +
+       "agrees, so feasibility is open everywhere.</li>" +
+       "<li><b>Locally unique &mdash; other 5 sites.</b> Presence here is already established, so what " +
+       "is open is realisation at the other sites.</li>" +
+       "<li><b>Recurrent &mdash; here and elsewhere.</b> The claim is presence here and in the " +
+       "replicates, so both halves must be corroborated.</li>" +
+       "<li><b>The other five &mdash; this site.</b> The open question is about this site alone.</li>" +
+       "</ul>" +
+       "<p>Hovering a block names its scope. A pair outside the other method's grid at a site counts " +
+       "as no evidence.</p>"
+  },
+  readout: {
+    t: "The selection readout",
+    b: "<p>The first figure is the number of link–site records in the selection and its share of all records " +
+       "at this threshold.</p>" +
+       "<p>The second is the share of the <b>upstream</b> category that flows into the selection: for a band, " +
+       "the source block it leaves; for a block, the single upstream block feeding it, when there is only one. " +
+       "Where several upstream categories converge, the share is reported against the full total instead.</p>" +
+       "<p>The path chips trace the full route through all four axes. When a selection covers more than one " +
+       "route, the largest is shown and the count of routes is noted.</p>"
+  }
+};
+
+document.querySelectorAll(".info").forEach(b => {
+  b.addEventListener("click", ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const k = b.dataset.info; if (!INFO[k]) return;
+    document.getElementById("modalTitle").textContent = INFO[k].t;
+    document.getElementById("modalBody").innerHTML = INFO[k].b;
+    document.getElementById("modalBack").classList.add("open");
+  });
+});
+function closeModal(){ document.getElementById("modalBack").classList.remove("open"); }
+document.getElementById("modalClose").addEventListener("click", closeModal);
+document.getElementById("modalBack").addEventListener("click", ev => {
+  if (ev.target.id === "modalBack") closeModal();
+});
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") closeModal(); });
+
+// ---- go ----
+syncLabels();
+render();
+renderReadout();
+
+})();
+</script>
+</body>
+</html>
+

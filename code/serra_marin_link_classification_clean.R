@@ -2,7 +2,11 @@
 # Loads cross-site SVD self-prediction results (6 habitat patches x 2 sampling
 # methods), classifies every predicted link via spatial corroboration across
 # the 6 sites, then corroborates each method's classifications using evidence
-# from the other sampling method (obs vs. rpi camera).
+# from the other sampling method, under the category-dependent evidence scope
+# in Section 3.
+#
+# "rpi" is the camera method as the prediction CSV labels it; figures and the
+# interactive app call it "camera". The CSV values are left alone.
 #
 # Outputs:
 #   - 4 static Sankey/alluvial figures (labeled + unlabeled, one per method)
@@ -133,6 +137,86 @@ map_colors_sankey <- c(
 
 # ---- 3. Functions ----
 
+# -- Cross-method validation scope, per category --
+# A record from the other method is evidence about the LINK, not the category,
+# so it is sought where the label leaves the link's status open. What the label
+# settles differs by category, because the model's call is made at the focal
+# site only.
+#   all_sites           possibly_forbidden: nothing is recorded anywhere and
+#                       the model agrees, so feasibility is open everywhere.
+#   other_sites         locally_unique: presence here is already established,
+#                       so what is open is realisation at the other sites.
+#   here_and_elsewhere  recurrent: the claim is presence here AND in the
+#                       replicates, so both halves must be corroborated.
+#   focal_site          the open question is about this site alone.
+# Applied symmetrically: whichever method is being classified, the other one
+# supplies the evidence under this same rule. Same rule in
+# code/make_interactive_sankey_app.R and in
+# Bayesian_framework/bayesian_empirical.R; change all three together.
+VALIDATION_SCOPE <- c(
+  "possibly_forbidden" = "all_sites",
+  "locally_unique"     = "other_sites",
+  "recurrent"          = "here_and_elsewhere",
+  "phantom"            = "focal_site",
+  "possibly_missing"   = "focal_site",
+  "model_elusive"      = "focal_site",
+  "locally_absent"     = "focal_site",
+  "weakly-supported"   = "focal_site"
+)
+
+# How each scope is named wherever a reader sees it: figure labels, the
+# printed summaries and the interactive app's table and node labels.
+SCOPE_LABEL <- c(
+  "all_sites"          = "all 6 sites",
+  "other_sites"        = "other 5 sites",
+  "here_and_elsewhere" = "here and elsewhere",
+  "focal_site"         = "this site"
+)
+
+# Attaches the cross-method evidence flags to a classified data frame.
+#   add_obs_all    the other method recorded this pair at ANY of the six sites
+#   add_obs_site   the other method recorded this pair AT THIS SITE
+#   add_obs_other  the other method recorded this pair at a site OTHER than
+#                  this one
+#   watched_site   this pair is in the other method's grid at this site, so a
+#                  FALSE in add_obs_site is a real non-detection there rather
+#                  than an absence of coverage
+#   add_obs        whichever combination the category's scope selects. This is
+#                  the flag every figure and table below uses.
+# A pair missing from a site's grid under the other method comes out FALSE, the
+# same as one that method watched and did not record. A figure cannot tell
+# those apart, which is why the printed summaries also report watched_site.
+add_cross_method_evidence <- function(df_cat, df_all, other_method) {
+  other <- df_all %>% dplyr::filter(method == other_method)
+  hits  <- other %>% dplyr::filter(ground_truth == 1)
+
+  keys <- unique(paste(hits$interaction_id, hits$location))
+  seen <- unique(paste(other$interaction_id, other$location))
+
+  # sites per pair under the other method, so "recorded elsewhere" can subtract
+  # this site's own record, as obs_elsewhere does in classify_by_location()
+  n_hit_sites <- hits %>%
+    dplyr::count(interaction_id, name = "n_other_hits")
+
+  df_cat %>%
+    dplyr::left_join(n_hit_sites, by = "interaction_id") %>%
+    dplyr::mutate(
+      n_other_hits  = tidyr::replace_na(n_other_hits, 0L),
+      add_obs_site  = paste(interaction_id, location) %in% keys,
+      watched_site  = paste(interaction_id, location) %in% seen,
+      add_obs_all   = n_other_hits >= 1,
+      add_obs_other = (n_other_hits - as.integer(add_obs_site)) >= 1,
+      scope         = unname(VALIDATION_SCOPE[link_category]),
+      add_obs = dplyr::case_when(
+        scope == "all_sites"          ~ add_obs_all,
+        scope == "other_sites"        ~ add_obs_other,
+        scope == "here_and_elsewhere" ~ add_obs_site & add_obs_other,
+        scope == "focal_site"         ~ add_obs_site,
+        TRUE                          ~ NA    # unclassified rows only
+      )
+    )
+}
+
 # Classifies every link prediction for one method (obs or rpi) using spatial
 # corroboration: how many of the 6 sites recorded this species pair (ground
 # truth), regardless of what happens at the focal site.
@@ -187,15 +271,22 @@ classify_by_location <- function(df_all, method_name) {
 
 # Builds one 4-axis Sankey (Within-network evaluation -> Contextual evidence ->
 # Link category -> validation by the other method) for a single sampling
-# method. By default (split_all = FALSE), only "phantom", "weakly-supported" and
+# method. By default (split_all = FALSE), only "phantom" and
 # "possibly_forbidden" are split into have-evidence / no-evidence at axis 4 —
-# those are the only subtypes ambiguous enough to benefit from cross-method
-# corroboration. split_all = TRUE splits all 8 subtypes instead, for
-# inspecting how corroboration lines up with every category at once.
-make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
+# those are the two subtypes whose prescribed action is an independent method.
+# split_all = TRUE splits all 8 subtypes instead, for inspecting how
+# corroboration lines up with every category at once. Either way the split
+# node names the scope its evidence was drawn from, since that differs by
+# category (VALIDATION_SCOPE, Section 3).
+# df_categorized must already carry the add_obs column that
+# add_cross_method_evidence() attaches, so the category-dependent scope is
+# settled once, in one place, rather than per figure.
+make_sankey_validated <- function(df_categorized, method_label,
                                    validation_label = "Additional method",
                                    show_labels = TRUE,
                                    split_all = FALSE) {
+
+  stopifnot("add_obs" %in% names(df_categorized))
 
   # ---- lavender gradient (locally_unique lightest -> possibly_forbidden darkest) --
   # Defined in Section 2 so map_colors_sankey reuses exactly these colors.
@@ -381,7 +472,6 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
   flows_tbl <- df_categorized %>%
     dplyr::filter(link_category != "unclassified", confusion != "UNK") %>%
     dplyr::mutate(
-      add_obs = interaction_id %in% add_obs_ids,
       L4 = if (!split_all) {
         dplyr::case_when(
           link_category == "phantom"          & add_obs  ~ "phantom — have evidence",
@@ -442,6 +532,16 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
         node %in% c("TP", "FP", "TN", "FN"),
         node,
         sub("^(.)", "\\U\\1", stringr::str_replace_all(node, "_", " "), perl = TRUE)
+      ),
+      # The have/no-evidence nodes name the scope their evidence came from, so
+      # the reader can see that locally unique is corroborated from the other
+      # five sites while phantom is corroborated from this one. Only axis-4
+      # split nodes carry an em dash, so only they are relabelled.
+      node_clean = dplyr::if_else(
+        grepl(" — ", node, fixed = TRUE),
+        sprintf("%s (%s)", node_clean,
+                unname(SCOPE_LABEL[VALIDATION_SCOPE[sub(" — .*$", "", node)]])),
+        node_clean
       )
     ) %>%
     dplyr::select(-alluvium, -x_raw, -next_x_raw) %>%
@@ -570,10 +670,10 @@ make_sankey_validated <- function(df_categorized, add_obs_ids, method_label,
 # sites. See the section comment above the calls (Summary section) for the
 # full terminology (link-site records vs. unique species interactions, and
 # the FP/TN subtype definitions).
-summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_name) {
+summarise_unobserved <- function(df_cat, method_name, other_method_name) {
+  stopifnot("add_obs" %in% names(df_cat))
   df <- df_cat %>%
-    dplyr::filter(link_category != "unclassified", confusion != "UNK") %>%
-    dplyr::mutate(add_obs = interaction_id %in% add_obs_ids)
+    dplyr::filter(link_category != "unclassified", confusion != "UNK")
 
   total   <- nrow(df)
   n_obs   <- sum(df$original_binary == 1)
@@ -596,6 +696,11 @@ summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_
         have_evidence = sum(add_obs),
         no_evidence   = sum(!add_obs),
         total_cat     = dplyr::n(),
+        # the focal-site rule alongside whichever rule the category uses, so
+        # the two are visible side by side wherever the scope is not this site
+        here_only     = sum(add_obs_site),
+        watched_here  = sum(watched_site),
+        scope         = dplyr::first(scope),
         .groups = "drop"
       ) %>%
       dplyr::mutate(
@@ -609,22 +714,26 @@ summarise_unobserved <- function(df_cat, add_obs_ids, method_name, other_method_
   tn_tbl <- make_tbl("TN", n_tn)
 
   print_tbl <- function(tbl, denom, denom_label) {
-    hdr <- sprintf("  %-20s  %7s  %-14s  %-16s  %s\n",
+    hdr <- sprintf("  %-20s  %7s  %-10s  %-18s  %-14s  %-10s  %s\n",
                    "Category", "n",
                    sprintf("%% of %s", denom_label),
-                   sprintf("have evidence (%s)", other_method_name),
-                   "% corroborated")
+                   "evidence scope",
+                   sprintf("have evid. (%s)", other_method_name),
+                   "% corrob.",
+                   "this site / watched")
     cat(hdr)
     cat(strrep("-", nchar(hdr) - 1L), "\n")
     for (i in seq_len(nrow(tbl))) {
       r <- tbl[i, ]
-      cat(sprintf("  %-20s  %7d  %-14s  %-16d  %s\n",
+      cat(sprintf("  %-20s  %7d  %-10s  %-18s  %-14d  %-10s  %d / %d\n",
                   r$link_category, r$total_cat, r$pct_of_group,
-                  r$have_evidence, r$pct_hev))
+                  unname(SCOPE_LABEL[r$scope]),
+                  r$have_evidence, r$pct_hev, r$here_only, r$watched_here))
     }
     cat(strrep("-", nchar(hdr) - 1L), "\n")
-    cat(sprintf("  %-20s  %7d  %-14s  %d\n",
-                "Total", denom, "100.0%", sum(tbl$have_evidence)))
+    cat(sprintf("  %-20s  %7d  %-10s  %-18s  %-14d  %-10s  %d / %d\n",
+                "Total", denom, "100.0%", "", sum(tbl$have_evidence), "",
+                sum(tbl$here_only), sum(tbl$watched_here)))
   }
 
   sep <- strrep("=", 72)
@@ -698,20 +807,31 @@ summary_obs        <- results_obs$summary
 df_rpi_categorized <- results_rpi$categorized
 summary_rpi        <- results_rpi$summary
 
-# Cross-method evidence: interaction IDs observed (ground_truth == 1) by the
-# *other* method, used to flag "have evidence" for ambiguous subtypes below.
-add_obs_for_obs <- df_all %>%
-  filter(method == "rpi", ground_truth == 1) %>%
-  pull(interaction_id) %>% unique()
+# Cross-method evidence, attached once per classified record under the
+# category-dependent scope defined in Section 3. Symmetric: the obs
+# classifications are corroborated by the cameras and the camera
+# classifications by the observations, under the same rule.
+# ("rpi" is the camera method as the CSV labels it; figures and the
+# interactive app call it "camera".)
+df_obs_categorized <- add_cross_method_evidence(df_obs_categorized, df_all, "rpi")
+df_rpi_categorized <- add_cross_method_evidence(df_rpi_categorized, df_all, "obs")
 
-add_obs_for_rpi <- df_all %>%
-  filter(method == "obs", ground_truth == 1) %>%
-  pull(interaction_id) %>% unique()
-
-cat(sprintf("Cross-method (rpi → obs validation): %d interaction IDs\n",
-            length(add_obs_for_obs)))
-cat(sprintf("Cross-method (obs → rpi validation): %d interaction IDs\n",
-            length(add_obs_for_rpi)))
+for (nm in c("obs", "rpi")) {
+  d <- if (nm == "obs") df_obs_categorized else df_rpi_categorized
+  other <- if (nm == "obs") "camera" else "observation"
+  cat(sprintf("\nCross-method evidence for %s classifications (from %s):\n",
+              if (nm == "obs") "observation" else "camera", other))
+  d %>%
+    filter(link_category != "unclassified") %>%
+    group_by(link_category) %>%
+    summarise(n = n(), scope = first(scope), have_evidence = sum(add_obs),
+              this_site = sum(add_obs_site), watched_here = sum(watched_site),
+              .groups = "drop") %>%
+    mutate(scope = unname(SCOPE_LABEL[scope])) %>%
+    arrange(desc(n)) %>%
+    as.data.frame() %>%
+    print(row.names = FALSE)
+}
 
 # ---- 6. Diagnostics (sanity checks) ----
 # Confirms record counts, site/method coverage, and that no interaction was
@@ -776,86 +896,80 @@ cat(sprintf(
 
 gg_obs_sankey <- make_sankey_validated(
   df_obs_categorized,
-  add_obs_ids      = add_obs_for_obs,
-  method_label     = "Direct observation (obs)",
-  validation_label = "Raspberry Pi camera (rpi)"
+  method_label     = "Direct observation",
+  validation_label = "Camera"
 )
 gg_obs_sankey
 
-# ggsave("results/figures/sankey_obs_validated_with_cameras.pdf",
-#        plot = gg_obs_sankey, width = 14, height = 6, device = cairo_pdf)
-# ggsave("results/figures/sankey_obs_validated_with_cameras.png",
-#        plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+ggsave("results/figures/sankey_obs_validated_with_cameras.pdf",
+       plot = gg_obs_sankey, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_obs_validated_with_cameras.png",
+       plot = gg_obs_sankey, width = 14, height = 6, dpi = 300, bg = "white")
 
 gg_obs_sankey_clean <- make_sankey_validated(
   df_obs_categorized,
-  add_obs_ids      = add_obs_for_obs,
-  method_label     = "Direct observation (obs)",
-  validation_label = "Raspberry Pi camera (rpi)",
+  method_label     = "Direct observation",
+  validation_label = "Camera",
   show_labels      = FALSE             # <-- toggle here
 )
 gg_obs_sankey_clean
-# ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
-#        plot = gg_obs_sankey_clean, width = 14, height = 6, device = cairo_pdf)
-# ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
-#        plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
+       plot = gg_obs_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
+       plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 
-# ggsave("results/figures/gg_obs_sankey_clean.svg",
-#        plot = gg_obs_sankey_clean, width = 14, height = 10, bg = "transparent")
+ggsave("results/figures/gg_obs_sankey_clean.svg",
+       plot = gg_obs_sankey_clean, width = 14, height = 10, bg = "transparent")
 
 gg_rpi_sankey <- make_sankey_validated(
   df_rpi_categorized,
-  add_obs_ids      = add_obs_for_rpi,
-  method_label     = "Raspberry Pi camera (rpi)",
-  validation_label = "Direct observation (obs)"
+  method_label     = "Camera",
+  validation_label = "Direct observation"
 )
 gg_rpi_sankey
-# ggsave("results/figures/sankey_rpi_validated_with_obs.pdf",
-#        plot = gg_rpi_sankey, width = 14, height = 6, device = cairo_pdf)
-# ggsave("results/figures/sankey_rpi_validated_with_obs.png",
-#        plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
+ggsave("results/figures/sankey_rpi_validated_with_obs.pdf",
+       plot = gg_rpi_sankey, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_rpi_validated_with_obs.png",
+       plot = gg_rpi_sankey, width = 14, height = 6, dpi = 300, bg = "white")
 
 gg_rpi_sankey_clean <- make_sankey_validated(
   df_rpi_categorized,
-  add_obs_ids      = add_obs_for_rpi,
-  method_label     = "Raspberry Pi camera (rpi)",
-  validation_label = "Direct observation (obs)",
+  method_label     = "Camera",
+  validation_label = "Direct observation",
   show_labels      = FALSE             # <-- toggle here
 )
 gg_rpi_sankey_clean
-# ggsave("results/figures/sankey_rpi_validated_with_obs_clean.pdf",
-#        plot = gg_rpi_sankey_clean, width = 14, height = 6, device = cairo_pdf)
-# ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
-#        plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
+ggsave("results/figures/sankey_rpi_validated_with_obs_clean.pdf",
+       plot = gg_rpi_sankey_clean, width = 14, height = 6, device = cairo_pdf)
+ggsave("results/figures/sankey_rpi_validated_with_obs_clean.png",
+       plot = gg_rpi_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 
 # -- Inspection versions: all 8 categories split into have / no evidence --
 # split_all = TRUE adds have evidence / no evidence at axis 4 for every
-# category, not just phantom / weakly-supported / possibly_forbidden. Used to
-# check corroboration patterns across every subtype at once.
+# category, not just phantom / possibly_forbidden. Used to check corroboration
+# patterns across every subtype at once.
 gg_obs_sankey_full <- make_sankey_validated(
   df_obs_categorized,
-  add_obs_ids      = add_obs_for_obs,
-  method_label     = "Direct observation (obs) — all categories",
-  validation_label = "Raspberry Pi camera (rpi)",
+  method_label     = "Direct observation — all categories",
+  validation_label = "Camera",
   split_all        = TRUE
 )
 gg_obs_sankey_full
 
 gg_rpi_sankey_full <- make_sankey_validated(
   df_rpi_categorized,
-  add_obs_ids      = add_obs_for_rpi,
-  method_label     = "Raspberry Pi camera (rpi) — all categories",
-  validation_label = "Direct observation (obs)",
+  method_label     = "Camera — all categories",
+  validation_label = "Direct observation",
   split_all        = TRUE
 )
 gg_rpi_sankey_full
 
 # ---- 8. Interactive alluvial plot ----
-# Self-contained interactive Plotly Sankey with method/threshold controls.
-# Sourced as a separate script (from the project root) because it precomputes
-# its own link datasets across 11 thresholds x 2 methods.
-# Requires: plotly, htmlwidgets, jsonlite (checked/installed in Section 1).
-source("code/make_interactive_sankey_app.R")
+# Built by code/make_interactive_sankey_app.R, which is run on its own from the
+# project root. It is not sourced from here: it is a standalone script that
+# re-reads the prediction CSV and defines its own palettes and classification,
+# so sourcing it would overwrite df_all and col_subcats in this session and a
+# failure in it would abort this run before the maps below are written.
 
 # ---- 9. Maps ----
 
@@ -883,7 +997,8 @@ cat(sprintf("\nMost species-rich site: %s (%s) — %d species\n",
 df_site_cat_rich <- (if (rich_method == "obs") df_obs_categorized else df_rpi_categorized) %>%
   filter(location == rich_site)
 
-add_obs_ids_rich <- if (rich_method == "obs") add_obs_for_obs else add_obs_for_rpi
+# add_obs already travels with the classified rows, under the scope its
+# category dictates (Section 3), so nothing is recomputed here.
 
 # Species ordered by overall degree across all sites under this method, so
 # generalists cluster together regardless of what happens at this one site.
@@ -901,7 +1016,6 @@ df_map_rich <- df_site_cat_rich %>%
   left_join(overall_poll_degree_rich,  by = "higher_level") %>%
   left_join(overall_plant_degree_rich, by = "lower_level") %>%
   mutate(
-    add_obs = interaction_id %in% add_obs_ids_rich,
     link_display = factor(case_when(
       link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
@@ -953,16 +1067,18 @@ map_rich <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich
 
-# pdf(file   = "results/figures/map_richest_site.pdf",
-#     width  = 14,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# map_rich
-# dev.off()
-# 
-# ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
-#        plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
+pdf(file   = "results/figures/map_richest_site.pdf",
+    width  = 14,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+print(map_rich)
+dev.off()
+
+# Read by note_empirical_bayesian_overview.Rmd, so it has to be rewritten
+# whenever the evidence rule changes the phantom have/no-evidence split.
+ggsave("results/figures/richest_site_map_obs_validated_with_rpi.png",
+       plot = map_rich, width = 14, height = 7, dpi = 300, bg = "white")
 
 # without axis titles
 map_rich_blank <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
@@ -987,8 +1103,8 @@ map_rich_blank <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 
 map_rich_blank
 
-# ggsave("results/figures/map_rich_blank.svg",
-#        plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
+ggsave("results/figures/map_rich_blank.svg",
+       plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
 
 # -- Same map, alluvial (Sankey) colors --
 # Identical data, species ordering and theme as map_rich; only the fill palette
@@ -1002,8 +1118,8 @@ map_rich_sankey <- suppressMessages(
 
 map_rich_sankey
 
-# ggsave("results/figures/map_richest_site_sankey_colors.png",
-#        plot = map_rich_sankey, width = 14, height = 7, dpi = 300, bg = "white")
+ggsave("results/figures/map_richest_site_sankey_colors.png",
+       plot = map_rich_sankey, width = 14, height = 7, dpi = 300, bg = "white")
 #
 # Unlabeled counterpart, matching map_rich_blank:
 # map_rich_sankey_blank <- suppressMessages(
@@ -1013,8 +1129,8 @@ map_rich_sankey
 # -- Richest rpi (camera) site specifically, corroborated by observations --
 # Same logic as above but pinned to method == "rpi" so the richest camera
 # site is shown regardless of whether obs or rpi wins the overall comparison.
-# have evidence / no evidence: an interaction is corroborated when it also
-# appears in the obs ground truth (add_obs_for_rpi).
+# have evidence / no evidence comes from the add_obs flag attached in
+# Section 5, under the scope each category dictates.
 rich_row_rpi   <- richness_table %>%
   dplyr::filter(method == "rpi") %>%
   dplyr::slice_max(n_species, n = 1)
@@ -1040,7 +1156,6 @@ df_map_rpi_rich <- df_site_cat_rpi_rich %>%
   dplyr::left_join(overall_poll_degree_rpi_rich,  by = "higher_level") %>%
   dplyr::left_join(overall_plant_degree_rpi_rich, by = "lower_level") %>%
   dplyr::mutate(
-    add_obs = interaction_id %in% add_obs_for_rpi,
     link_display = factor(dplyr::case_when(
       link_category == "phantom"          & add_obs  ~ "Phantom — have evidence",
       link_category == "phantom"          & !add_obs ~ "Phantom — no evidence",
@@ -1083,7 +1198,7 @@ map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
     legend.text  = element_text(size = 12)
   ) +
   labs(x = "Pollinator", y = "Plant",
-       title = sprintf("Richest camera site: %s — rpi classifications, obs corroboration",
+       title = sprintf("Richest camera site: %s — camera classifications, observation corroboration",
                        rich_site_rpi)) +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, " "), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
@@ -1094,10 +1209,12 @@ map_rpi_rich <- ggplot(df_map_rpi_rich, aes(x = higher_level, y = lower_level,
 
 map_rpi_rich
 
-# ggsave("results/figures/map_richest_rpi_site.pdf",
-#        plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
-# ggsave("results/figures/map_richest_rpi_site.png",
-#        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
+ggsave("results/figures/map_richest_rpi_site.pdf",
+       plot = map_rpi_rich, width = 14, height = 7, device = cairo_pdf)
+ggsave("results/figures/map_richest_rpi_site.png",
+       plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
+ggsave("results/figures/map_richest_rpi_site.svg",
+       plot = map_rpi_rich, width = 14, height = 7, bg = "transparent")
 
 # ---- 10. Summary ----
 # For a given sampling method, pooling all six sites:
@@ -1123,20 +1240,23 @@ map_rpi_rich
 #     - locally_absent   — recorded at ≥1 other site under this method,
 #                          but model correctly predicts absence here (locally unsuitable)
 #
-# CROSS-METHOD EVIDENCE ("have evidence"): the interaction_id appears as
-#   ground_truth == 1 in the orthogonal sampling method (cameras for obs, or
-#   vice versa).  "% corroborated" = have evidence / category total.
+# CROSS-METHOD EVIDENCE ("have evidence"): the orthogonal sampling method
+#   (cameras for obs, or vice versa) recorded this pair within the scope the
+#   category's claim leaves open — all six sites for possibly_forbidden, the
+#   other five for locally_unique, here and >= 1 other site for recurrent, and
+#   this site alone for the remaining five. See VALIDATION_SCOPE in Section 3.
+#   "% corroborated" = have evidence / category total. The last column gives
+#   the focal-site count and the number of links the other method watched
+#   here, so a scope wider than this site can be read against the local rule.
 
 summarise_unobserved(
   df_obs_categorized,
-  add_obs_ids      = add_obs_for_obs,
-  method_name      = "Direct observation (obs)",
-  other_method_name = "rpi"
+  method_name      = "Direct observation",
+  other_method_name = "camera"
 )
 
 summarise_unobserved(
   df_rpi_categorized,
-  add_obs_ids      = add_obs_for_rpi,
-  method_name      = "Raspberry Pi camera (rpi)",
-  other_method_name = "obs"
+  method_name      = "Camera",
+  other_method_name = "observation"
 )
