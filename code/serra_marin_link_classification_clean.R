@@ -148,7 +148,7 @@ map_colors_sankey <- c(
 #                       so what is open is realisation at the other sites.
 #   here_and_elsewhere  recurrent: the claim is presence here AND in the
 #                       replicates, so both halves must be corroborated.
-#   focal_site          the open question is about this site alone.
+#   focal_site          the open question is about the predicted site alone.
 # Applied symmetrically: whichever method is being classified, the other one
 # supplies the evidence under this same rule. Same rule in
 # code/make_interactive_sankey_app.R and in
@@ -170,7 +170,7 @@ SCOPE_LABEL <- c(
   "all_sites"          = "all 6 sites",
   "other_sites"        = "other 5 sites",
   "here_and_elsewhere" = "here and elsewhere",
-  "focal_site"         = "this site"
+  "focal_site"         = "predicted site"
 )
 
 # Attaches the cross-method evidence flags to a classified data frame.
@@ -178,7 +178,7 @@ SCOPE_LABEL <- c(
 #   add_obs_site   the other method recorded this pair AT THIS SITE
 #   add_obs_other  the other method recorded this pair at a site OTHER than
 #                  this one
-#   watched_site   this pair is in the other method's grid at this site, so a
+#   watched_site   this pair is in the other method's grid at the predicted site, so a
 #                  FALSE in add_obs_site is a real non-detection there rather
 #                  than an absence of coverage
 #   add_obs        whichever combination the category's scope selects. This is
@@ -194,7 +194,7 @@ add_cross_method_evidence <- function(df_cat, df_all, other_method) {
   seen <- unique(paste(other$interaction_id, other$location))
 
   # sites per pair under the other method, so "recorded elsewhere" can subtract
-  # this site's own record, as obs_elsewhere does in classify_by_location()
+  # the predicted site's own record, as obs_elsewhere does in classify_by_location()
   n_hit_sites <- hits %>%
     dplyr::count(interaction_id, name = "n_other_hits")
 
@@ -697,7 +697,7 @@ summarise_unobserved <- function(df_cat, method_name, other_method_name) {
         no_evidence   = sum(!add_obs),
         total_cat     = dplyr::n(),
         # the focal-site rule alongside whichever rule the category uses, so
-        # the two are visible side by side wherever the scope is not this site
+        # the two are visible side by side wherever the scope is not the predicted site
         here_only     = sum(add_obs_site),
         watched_here  = sum(watched_site),
         scope         = dplyr::first(scope),
@@ -720,7 +720,7 @@ summarise_unobserved <- function(df_cat, method_name, other_method_name) {
                    "evidence scope",
                    sprintf("have evid. (%s)", other_method_name),
                    "% corrob.",
-                   "this site / watched")
+                   "pred. site / watched")
     cat(hdr)
     cat(strrep("-", nchar(hdr) - 1L), "\n")
     for (i in seq_len(nrow(tbl))) {
@@ -1244,10 +1244,10 @@ ggsave("results/figures/map_richest_rpi_site.svg",
 #   (cameras for obs, or vice versa) recorded this pair within the scope the
 #   category's claim leaves open — all six sites for possibly_forbidden, the
 #   other five for locally_unique, here and >= 1 other site for recurrent, and
-#   this site alone for the remaining five. See VALIDATION_SCOPE in Section 3.
+#   the predicted site alone for the remaining five. See VALIDATION_SCOPE in Section 3.
 #   "% corroborated" = have evidence / category total. The last column gives
 #   the focal-site count and the number of links the other method watched
-#   here, so a scope wider than this site can be read against the local rule.
+#   here, so a scope wider than the predicted site can be read against the local rule.
 
 summarise_unobserved(
   df_obs_categorized,

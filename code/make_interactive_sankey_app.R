@@ -152,7 +152,7 @@ flagged_cats <- c("phantom", "possibly_forbidden")
 #                       so what is open is realisation at the other sites.
 #   here_and_elsewhere  recurrent: the claim is presence here AND in the
 #                       replicates, so both halves must be corroborated.
-#   focal_site          the open question is about this site alone.
+#   focal_site          the open question is about the predicted site alone.
 # Same rule as VALIDATION_SCOPE in code/serra_marin_link_classification_clean.R
 # and in Bayesian_framework/bayesian_empirical.R; change all three together.
 VALIDATION_SCOPE <- c(
@@ -171,11 +171,11 @@ SCOPE_LABEL <- c(
   "all_sites"          = "all 6 sites",
   "other_sites"        = "other 5 sites",
   "here_and_elsewhere" = "here and elsewhere",
-  "focal_site"         = "this site"
+  "focal_site"         = "predicted site"
 )
 
 # Categories that also report the focal-site-only count, because their own
-# scope is wider than this site and the two are worth seeing side by side.
+# scope is wider than the predicted site and the two are worth seeing side by side.
 SITE_COL_CATS <- c("possibly_forbidden", "locally_unique")
 
 # ---- 4. Data ----
@@ -252,7 +252,7 @@ classify_at_threshold <- function(df_method, threshold, ev) {
 
       # the two primitive flags, then whichever combination the category's
       # scope selects. add_obs_site is reported in its own table column for
-      # the categories whose scope is wider than this site.
+      # the categories whose scope is wider than the predicted site.
       add_obs_site  = paste(interaction_id, location) %in% ev$keys,
       watched_site  = paste(interaction_id, location) %in% ev$seen,
       add_obs_all   = n_other_hits >= 1,
@@ -376,7 +376,7 @@ node_meta <- bind_rows(
       axis  = 4L,
       # the label names the scope the evidence was drawn from, since that
       # differs by category: "have evidence (other 5 sites)" for locally
-      # unique against "have evidence (this site)" for phantom
+      # unique against "have evidence (predicted site)" for phantom
       label = paste0(cat_display[cat],
                      if_else(ev == "have", " — have evidence", " — no evidence"),
                      " (", SCOPE_LABEL[VALIDATION_SCOPE[cat]], ")"),
@@ -622,7 +622,7 @@ html_template <- '<!DOCTYPE html>
       <table id="catTable"><thead><tr>
         <th class="name">Link category</th><th>n</th><th>% of total</th>
         <th>Evidence scope</th><th>Have evidence</th>
-        <th>% with cross-method evidence</th><th>Have evidence, this site</th>
+        <th>% with cross-method evidence</th><th>Have evidence, predicted site</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </details>
@@ -920,7 +920,7 @@ function renderTable(){
     const r = per[c] || {n:0, have:0, site:0};
     const splitHere = state.split === "all" || META.flagged.indexOf(c) >= 0;
     // the focal-site column is only meaningful where the category\'s own scope
-    // is wider than this site; elsewhere it would repeat the Have evidence cell
+    // is wider than the predicted site; elsewhere it would repeat the Have evidence cell
     const siteCol = META.siteColCats.indexOf(c) >= 0
       ? `${r.site} <span class="muted">(${pct(r.site, r.n)})</span>` : "–";
     return `<tr class="${c === selCat ? "hl" : ""}">` +
@@ -1101,9 +1101,12 @@ const INFO = {
     b: "<p><b>Have evidence</b> counts the links the other method recorded within the scope that " +
        "category\'s own claim leaves open, which the <b>Evidence scope</b> column names and the " +
        "diagram\'s info box explains.</p>" +
-       "<p><b>Have evidence, this site</b> is the same count under the focal-site rule alone. It is " +
-       "shown for the two categories whose scope reaches beyond this site, so the wider rule can be " +
-       "read against the local one; for the rest the two would be identical.</p>"
+       "<p><b>Have evidence, predicted site</b> is the same count under the predicted-site rule " +
+       "alone, shown for possibly forbidden and locally unique so the wider rule can be read against " +
+       "the local one. For the five categories that already use that rule the two would be " +
+       "identical. Recurrent is the exception: its scope also reaches beyond the predicted site, but " +
+       "a predicted-site count on its own is uninformative there, because the link was already " +
+       "recorded at that site by the method being categorised.</p>"
   },
   sankey: {
     t: "Reading the diagram",
@@ -1122,7 +1125,8 @@ const INFO = {
        "is open is realisation at the other sites.</li>" +
        "<li><b>Recurrent &mdash; here and elsewhere.</b> The claim is presence here and in the " +
        "replicates, so both halves must be corroborated.</li>" +
-       "<li><b>The other five &mdash; this site.</b> The open question is about this site alone.</li>" +
+       "<li><b>The other five &mdash; predicted site.</b> The open question is about the predicted " +
+       "site alone.</li>" +
        "</ul>" +
        "<p>Hovering a block names its scope. A pair outside the other method\'s grid at a site counts " +
        "as no evidence.</p>"
