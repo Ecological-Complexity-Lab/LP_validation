@@ -59,6 +59,72 @@ cats <- tibble(
 # the replicates. Feasibility confidence is one minus their posterior mass.
 NOT_FEASIBLE <- c("phantom", "possibly forbidden")
 
+# -- Cross-method validation scope, per category --
+# A record from the other method is sought where the label leaves the link's status open.
+# What the label settles differs by category.
+#   all_sites           possibly forbidden: nothing is recorded anywhere and
+#                       the model agrees, so feasibility is open everywhere.
+#   other_sites         locally unique: presence here is already established,
+#                       so what is open is realisation at the other sites.
+#   here_and_elsewhere  recurrent: the claim is presence here AND in the
+#                       replicates, so both halves must be corroborated.
+#   focal_site          the open question is about the predicted site alone.
+# Same rule as VALIDATION_SCOPE in code/serra_marin_link_classification_clean.R
+# and in code/make_interactive_sankey_app.R; change all three together.
+VALIDATION_SCOPE <- c(
+  "possibly forbidden" = "all_sites",
+  "locally unique"     = "other_sites",
+  "recurrent"          = "here_and_elsewhere",
+  "phantom"            = "focal_site",
+  "possibly missing"   = "focal_site",
+  "model-elusive"      = "focal_site",
+  "locally absent"     = "focal_site",
+  "weakly-supported"   = "focal_site"
+)
+
+# How each scope is named wherever a reader sees it.
+SCOPE_LABEL <- c(
+  "all_sites"          = "all 6 sites",
+  "other_sites"        = "other 5 sites",
+  "here_and_elsewhere" = "here and elsewhere",
+  "focal_site"         = "predicted site"
+)
+
+# Each scope also fixes who is IN the test: the links the cameras could have
+# recorded under it. For recurrent that means watched here and at >= 1 other
+# site, so its n is smaller than the other categories'. Both columns are built
+# in Section 1 and travel on `results`.
+SCOPE_OUTCOME <- c(all_sites          = "cam_any",
+                   other_sites        = "cam_other",
+                   here_and_elsewhere = "cam_both",
+                   focal_site         = "camera")
+SCOPE_IN_TEST <- c(all_sites          = "watch_any",
+                   other_sites        = "watch_other",
+                   here_and_elsewhere = "watch_both",
+                   focal_site         = "watch_here")
+
+# Each row's camera outcome under the scope of the category named in `k`,
+# defaulting to the row's own deterministic label. Returns 1 only where the
+# scope put the link in the test AND the cameras recorded it there, so a link
+# the scope never watched reads as 0, the same as one watched and not found.
+# Used by the maps and the corroboration tables so none of them re-derives it.
+cam_at_scope <- function(d, k = d$det_category) {
+  sc <- unname(VALIDATION_SCOPE[k])
+  hit <- dplyr::case_when(
+    sc == "all_sites"          ~ as.integer(d$cam_any),
+    sc == "other_sites"        ~ as.integer(d$cam_other),
+    sc == "here_and_elsewhere" ~ as.integer(d$cam_both),
+    sc == "focal_site"         ~ as.integer(d$camera),
+    TRUE                       ~ NA_integer_)
+  inn <- dplyr::case_when(
+    sc == "all_sites"          ~ d$watch_any,
+    sc == "other_sites"        ~ d$watch_other,
+    sc == "here_and_elsewhere" ~ d$watch_both,
+    sc == "focal_site"         ~ d$watch_here,
+    TRUE                       ~ NA)
+  as.integer(!is.na(inn) & inn & !is.na(hit) & hit == 1)
+}
+
 
 # ---- 1. The evidence ----
 # Each link needs four things: Y, O_l, n and R.
@@ -91,10 +157,18 @@ obs <- raw %>%
 
 N_REPLICATES <- n_distinct(obs$focal_site) - 1     # every site but the focal one
 
-# camera records, used twice: to estimate the miss rate, and to mark the map
+# camera records, used twice: to estimate the miss rate, and to mark the map.
+# "rpi" is the camera method as the CSV labels it; figures call it "camera".
 cam <- raw %>%
   filter(method == "rpi") %>%
   transmute(higher_level, lower_level, focal_site, camera = ground_truth)
+
+# Per-pair camera totals across the six sites, so the scopes that look beyond
+# the predicted site can be built: cam_sites counts the sites where the pair
+# was in the camera grid at all, cam_hits those where the cameras recorded it.
+cam_pair <- cam %>%
+  group_by(higher_level, lower_level) %>%
+  summarise(cam_hits = sum(camera), cam_sites = n(), .groups = "drop")
 
 ev <- obs %>%
   group_by(pair) %>%
@@ -114,7 +188,26 @@ ev <- obs %>%
   ) %>%
   left_join(cam, by = c("pollinator" = "higher_level",
                         "plant"      = "lower_level",
-                        "focal_site" = "focal_site"))
+                        "focal_site" = "focal_site")) %>%
+  left_join(cam_pair, by = c("pollinator" = "higher_level",
+                             "plant"      = "lower_level")) %>%
+  mutate(
+    cam_hits  = replace_na(cam_hits, 0L),
+    cam_sites = replace_na(cam_sites, 0L),
+    # who the cameras could have recorded, per scope. `camera` is NA where the
+    # pair is outside this site's camera grid, so watch_here is its complement.
+    watch_here  = !is.na(camera),
+    watch_other = (cam_sites - as.integer(watch_here)) >= 1,
+    watch_any   = cam_sites >= 1,
+    watch_both  = watch_here & watch_other,
+    # the outcome each scope tests. cam_other subtracts this site's own record,
+    # as n does for the replicates above.
+    cam_here  = watch_here & camera == 1,
+    cam_other = as.integer((cam_hits - as.integer(cam_here %in% TRUE)) >= 1),
+    cam_any   = as.integer(cam_hits >= 1),
+    cam_both  = as.integer((cam_here %in% TRUE) & cam_other == 1)
+  ) %>%
+  select(-cam_here)
 
 # the deterministic label, for side-by-side comparison later
 ev <- ev %>%
@@ -696,7 +789,10 @@ results <- imap_dfr(run_settings, function(cfg, run_name) {
 
   ev %>%
     select(focal_site, pollinator, plant,
-           Y, O_l, n, R, camera, det_category) %>%
+           Y, O_l, n, R, camera, det_category,
+           # the scope-dependent camera outcomes and in-test flags (Section 1)
+           cam_any, cam_other, cam_both,
+           watch_here, watch_other, watch_any, watch_both) %>%
     bind_cols(as_tibble(post)) %>%
     mutate(
       run          = run_name,
@@ -898,20 +994,29 @@ make_map <- function(run      = "A-uniform",
 
   conf_max <- if (is.null(limit)) max(d$conf) else limit
 
-  # Which links carry an asterisk. camera == 1 drops NA of its own accord, so
-  # links with no camera coverage are simply unmarked, the same as links the
-  # cameras watched and did not find. The map cannot tell those two apart; the
-  # corroboration table in Section 6 is where that distinction lives.
+  # Which links carry an asterisk. The shaded category sets the scope, so a
+  # possibly forbidden map marks a camera record at any of the six sites while
+  # a phantom map marks one at the predicted site. Links the scope did not put
+  # in the test are simply unmarked, the same as links the cameras watched and
+  # did not find; the map cannot tell those two apart, and the corroboration
+  # table in Section 6 is where that distinction lives.
+  # the SHADED category sets the scope, not each row's own label, since the
+  # asterisks are read against the category the map is about
+  mark_scope <- unname(VALIDATION_SCOPE[category])
+  d$cam_mark <- cam_at_scope(d, category) == 1
+
   marked <- switch(camera_marks,
     none     = d[0, ],
-    all      = filter(d, camera == 1),
-    assigned = filter(d, camera == 1, det_category == category)
+    all      = filter(d, cam_mark),
+    assigned = filter(d, cam_mark, det_category == category)
   )
 
   cap_marks <- switch(camera_marks,
     none     = "",
-    all      = sprintf(". * marks a camera record (%d)", nrow(marked)),
-    assigned = sprintf(". * marks a camera record among the %d links assigned to this category (%d of them)",
+    all      = sprintf(". * marks a camera record at %s (%d)",
+                       SCOPE_LABEL[mark_scope], nrow(marked)),
+    assigned = sprintf(". * marks a camera record at %s among the %d links assigned to this category (%d of them)",
+                       SCOPE_LABEL[mark_scope],
                        sum(d$det_category == category), nrow(marked))
   )
 
@@ -981,15 +1086,25 @@ camera_mark_summary <- function(run = "A-uniform", site = richest,
   d <- results_df %>% filter(run == !!run, focal_site == !!site)
   if (nrow(d) == 0) stop("no rows for run '", run, "' at site '", site, "'")
 
+  # each category is counted at its own scope, so `confirmed` comes from that
+  # scope rather than from the predicted-site column for all eight. `covered`
+  # is that scope's in-test count, the honest denominator for its rate.
+  d <- d %>%
+    mutate(cam_scope = cam_at_scope(d),
+           in_test = as.logical(mapply(
+             function(k, i) d[[unname(SCOPE_IN_TEST[VALIDATION_SCOPE[k]])]][i],
+             det_category, seq_len(n()))))
+
   d %>%
     group_by(category = det_category) %>%
     summarise(
       assigned  = n(),
-      covered   = sum(!is.na(camera)),
-      confirmed = sum(camera == 1, na.rm = TRUE),
+      covered   = sum(in_test, na.rm = TRUE),
+      confirmed = sum(cam_scope == 1, na.rm = TRUE),
       .groups   = "drop"
     ) %>%
     right_join(tibble(category = cats$category), by = "category") %>%
+    mutate(scope = unname(SCOPE_LABEL[VALIDATION_SCOPE[category]])) %>%
     mutate(across(c(assigned, covered, confirmed), ~ replace_na(.x, 0)),
            rate_assigned = confirmed / pmax(assigned, 1),
            rate_covered  = ifelse(covered > 0, confirmed / covered, NA_real_)) %>%
@@ -1410,17 +1525,25 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 # the same, does the posterior still say which ones the cameras find?
 #
 # VARIABLES
-#   camera        outcome. Did the cameras record this pair at this site? 1/0,
-#                 and NA where the pair falls outside the camera grid.
-#                 What NA means: the candidate set for a method at a site is the
-#                 full plant x pollinator grid of the species THAT METHOD
+#   camera        outcome, but NOT one column for all eight categories. Each
+#                 category is tested at its own scope (VALIDATION_SCOPE, top of
+#                 file), because a camera record is evidence about the LINK and
+#                 is sought where the label leaves the link's status open:
+#                 cam_any for possibly forbidden, cam_other for locally unique,
+#                 cam_both for recurrent, and the predicted-site `camera`
+#                 column for the other five. The scope also fixes who is in the
+#                 test, so the four samples differ in size and rows with
+#                 different scopes are not comparable.
+#                 What a zero means: the candidate set for a method at a site is
+#                 the full plant x pollinator grid of the species THAT METHOD
 #                 recorded there, so a link has a camera row only when BOTH
 #                 partners appear in that site's camera data. Of the 673 links
 #                 without one, 424 lack the pollinator, 158 the plant, 91 both.
-#                 So camera = 0 means the cameras caught both species at this
+#                 So camera = 0 means the cameras caught both species at that
 #                 site but never together, which is a real negative; it does NOT
-#                 mean a camera was trained on that particular pair. Those NA
-#                 links are dropped, since they can neither confirm nor refute.
+#                 mean a camera was trained on that particular pair. Links the
+#                 scope never watched are excluded, since they can neither
+#                 confirm nor refute.
 #                 Note the selection this implies: a pollinator enters a site's
 #                 camera set only if the cameras detected it there at all, so
 #                 the graded subset is enriched for camera-detectable species
@@ -1484,13 +1607,16 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #                  opposite sign to OR_adj, as possibly missing has done. Never
 #                  read it against the verdict.
 
-# What each category claims, and therefore what the cameras should show.
+# What each category claims, and therefore what the cameras should show. Read
+# each expectation against its scope (VALIDATION_SCOPE, top of file): the
+# direction is a claim about the records sought under that scope, not about
+# camera records in general.
 cam_expectation <- tibble::tribble(
   ~category,             ~expect,     ~rationale,
   "recurrent",           "higher",
-  "Predicted and recorded both here and in replicates. Every source agrees the interaction is real, so an independent method should find it too.",
-  "locally unique",      "higher",
-  "Predicted and recorded here but in no replicate. It is real at this site, and the absence elsewhere says nothing about here, so the camera should find it.",
+  "Predicted and recorded both here and in replicates. Every source agrees the interaction is real, so an independent method should find it at the predicted site and at one of the others.",
+  "locally unique",      "lower",
+  "Predicted and recorded here but in no replicate. Presence here is already established, so the open question is whether the link is realised elsewhere; a genuinely unique link should be found LESS often at the other five sites. A record there means the label was wrong.",
   "possibly missing",    "higher",
   "Predicted and recorded in replicates but not here. The claim is that the interaction is present and direct observation missed it, so an independent method should recover it more often than for comparable unobserved links.",
   "phantom",             "unclear",
@@ -1502,16 +1628,24 @@ cam_expectation <- tibble::tribble(
   "locally absent",      "lower",
   "Not predicted, recorded in replicates, not here. Feasible in the system but not realised at this site, so the camera should not find it here.",
   "possibly forbidden",  "lower",
-  "Not predicted and recorded nowhere. Either genuinely impossible or invisible to every method in use, and either way the camera should rarely find it."
-)
+  "Not predicted and recorded nowhere. Either genuinely impossible or invisible to every method in use, and either way the camera should rarely find it at any site."
+) %>%
+  dplyr::mutate(scope = unname(VALIDATION_SCOPE[category]))
 
-# One category, one run: three nested models, odds ratio per SD of the posterior.
-cam_fit_one <- function(d, k) {
+stopifnot(!any(is.na(cam_expectation$scope)),
+          setequal(cam_expectation$category, cats$category))
+
+# One category, one run: three nested models, odds ratio per SD of the
+# posterior. `k` is the category, whose posterior is the predictor; `outcome`
+# names the camera column its scope tests, so the same fit serves every scope.
+cam_fit_one <- function(d, k, outcome = "camera") {
   d$P <- d[[k]]
+  d$cam_y <- as.integer(d[[outcome]])
   na4 <- tibble(OR = NA_real_, lo = NA_real_, hi = NA_real_, p = NA_real_,
                 OR_adj = NA_real_, p_adj = NA_real_,
                 OR_adj2 = NA_real_, p_adj2 = NA_real_)
   if (dplyr::n_distinct(round(d$P, 9)) < 2) return(na4)
+  if (dplyr::n_distinct(d$cam_y) < 2) return(na4)   # no contrast to fit
   d$Ps <- as.numeric(scale(d$P))
   grab <- function(form) {
     m  <- glm(as.formula(form), family = binomial, data = d)
@@ -1522,9 +1656,9 @@ cam_fit_one <- function(d, k) {
       exp(co["Ps", 1] + 1.96 * co["Ps", 2]),
       co["Ps", 4])
   }
-  a  <- grab("camera ~ Ps")
-  b  <- grab("camera ~ Ps + O_l")
-  cc <- grab("camera ~ Ps + O_l + focal_site")
+  a  <- grab("cam_y ~ Ps")
+  b  <- grab("cam_y ~ Ps + O_l")
+  cc <- grab("cam_y ~ Ps + O_l + focal_site")
 
   # The same effect on the probability scale, which is what a reader without a
   # regression background can act on. An odds ratio is constant by
@@ -1535,7 +1669,7 @@ cam_fit_one <- function(d, k) {
   # once at the average posterior and once a standard deviation above it, and
   # average over the links. That respects the actual mix of O_l in the data and
   # answers "for a typical link here, how much does the chance move?".
-  mb <- glm(camera ~ Ps + O_l, family = binomial, data = d)
+  mb <- glm(cam_y ~ Ps + O_l, family = binomial, data = d)
   d0 <- d; d0$Ps <- 0                       # at the average posterior
   d1 <- d; d1$Ps <- 1                       # one SD above it
   pr_avg <- mean(predict(mb, d0, type = "response"))
@@ -1546,15 +1680,25 @@ cam_fit_one <- function(d, k) {
          pr_avg = pr_avg, pr_1sd = pr_1sd, pr_diff = pr_1sd - pr_avg)
 }
 
+# Each category is tested at its own scope, so each gets its own sample: the
+# links the cameras could have recorded under that scope, and the camera
+# outcome that scope asks about. The fit still runs over ALL links in that
+# sample, not just the ones the deterministic rule assigned to the category,
+# because the predictor is the category's posterior over every link.
 camera_validation <- function(run_name, results_df = results, alpha = 0.05) {
-  d <- results_df %>% filter(run == !!run_name, !is.na(camera))
+  run_rows <- results_df %>% filter(run == !!run_name)
   map_dfr(cam_expectation$category, function(k) {
-    e <- cam_expectation %>% filter(category == k)
+    e  <- cam_expectation %>% filter(category == k)
+    oc <- unname(SCOPE_OUTCOME[e$scope])
+    wc <- unname(SCOPE_IN_TEST[e$scope])
+    d  <- run_rows %>% filter(.data[[wc]])
     bind_cols(
-      tibble(category = k, expect = e$expect,
+      tibble(category = k, expect = e$expect, scope = e$scope,
+             n_in_test             = nrow(d),
              links_in_category     = sum(d$det_category == k),
-             confirmed_in_category = sum(d$det_category == k & d$camera == 1)),
-      cam_fit_one(d, k)
+             confirmed_in_category = sum(d$det_category == k &
+                                         as.integer(d[[oc]]) == 1)),
+      cam_fit_one(d, k, outcome = oc)
     )
   }) %>%
     mutate(
@@ -1574,11 +1718,22 @@ camera_validation <- function(run_name, results_df = results, alpha = 0.05) {
 cat("\n\n=====================================================================\n")
 cat("CAMERA VALIDATION OF THE CATEGORIES\n")
 cat("=====================================================================\n")
-cam_cov <- results %>% filter(run == names(run_settings)[1], !is.na(camera))
-n_run   <- sum(results$run == names(run_settings)[1])
-cat(sprintf("Links inside the camera grid: %d of %d (%.0f%%); %d were recorded.\n",
-            nrow(cam_cov), n_run, 100 * nrow(cam_cov) / n_run,
-            sum(cam_cov$camera == 1)))
+# Coverage is now per scope, not one figure: each scope admits the links the
+# cameras could have recorded under it, so the four samples differ in size.
+cam_cov <- results %>% filter(run == names(run_settings)[1])
+n_run   <- nrow(cam_cov)
+cat(sprintf("Links assessed: %d. Camera coverage and records, per scope:\n", n_run))
+for (sc in names(SCOPE_LABEL)) {
+  wc <- unname(SCOPE_IN_TEST[sc]); oc <- unname(SCOPE_OUTCOME[sc])
+  inn <- cam_cov[[wc]]
+  cat(sprintf("  %-18s in test %4d (%2.0f%%); %4d carry a record\n",
+              SCOPE_LABEL[sc], sum(inn), 100 * mean(inn),
+              sum(as.integer(cam_cov[[oc]])[inn] == 1, na.rm = TRUE)))
+}
+cat(sprintf("  %-18s %s\n", "",
+            paste("scopes used:",
+                  paste(sprintf("%s = %s", names(VALIDATION_SCOPE),
+                                SCOPE_LABEL[VALIDATION_SCOPE]), collapse = "; "))))
 
 cam_report <- map_dfr(names(run_settings), camera_validation)
 
@@ -1588,12 +1743,15 @@ cam_report <- map_dfr(names(run_settings), camera_validation)
 # opposite sign, as possibly missing has done, and only the adjusted figure is
 # a claim about anything the direct observation had not
 # already said. n and confirmed describe the deterministic category, not the
-# regression, which uses all links inside the camera grid.
+# regression, which uses every link in that category's scope sample; n_test is
+# how many that is, and it differs by scope.
 cam_report %>%
   transmute(
     run, category, expect,
+    scope     = unname(SCOPE_LABEL[scope]),
     n         = links_in_category,
     confirmed = confirmed_in_category,
+    n_test    = n_in_test,
     OR_adj    = round(OR_adj, 2),          # decisive: O_l held fixed
     p_adj     = signif(p_adj, 2),
     # the same effect as a camera-detection chance, averaged over the links
@@ -1670,10 +1828,11 @@ cam_summary <- cam_report %>%
     wrong_way = p_adj < SIG & ((expect == "higher" & OR_adj < 1) |
                                (expect == "lower"  & OR_adj > 1))
   ) %>%
-  group_by(category, expect) %>%
+  group_by(category, expect, scope) %>%
   summarise(
     n         = first(links_in_category),
     confirmed = first(confirmed_in_category),
+    n_test    = first(n_in_test),
     pct_conf  = round(100 * first(confirmed_in_category) /
                             first(links_in_category)),
     n_sig     = sum(p_adj < SIG & run %in% PRIOR_RUNS,   na.rm = TRUE),
@@ -1712,19 +1871,27 @@ cam_summary <- cam_report %>%
 cam_summary_tbl <- cam_summary %>%
   left_join(cam_by_run, by = "category") %>%
   left_join(cam_no_nu,  by = "category") %>%
-  select(category, expect, n, confirmed, pct_conf,
+  mutate(scope = unname(SCOPE_LABEL[scope])) %>%
+  select(category, expect, scope, n, confirmed, pct_conf, n_test,
          all_of(PRIOR_RUNS), verdict, site, no_nu, chance) %>%
   arrange(match(category, cats$category))
 
 # COLUMNS
-#   n, confirmed  size of the DETERMINISTIC category among links inside the
-#                 camera grid, and how many of those the cameras recorded, with
-#                 pct_conf the share. Not the size of the whole category.
-#                 Identical in every run, so stated once. Descriptive only: the
-#                 regressions use all links inside the camera grid.
+#   scope         where this category's evidence is sought (VALIDATION_SCOPE).
+#                 It sets both what counts as a camera record and who is in
+#                 the test, so the columns below are not comparable across
+#                 rows with different scopes.
+#   n, confirmed  size of the DETERMINISTIC category within that scope's
+#                 sample, and how many of those the cameras recorded under the
+#                 scope, with pct_conf the share. Not the size of the whole
+#                 category. Identical in every run, so stated once.
+#                 Descriptive only: the regressions use the whole sample.
+#   n_test        that sample: the links the cameras could have recorded under
+#                 this scope. Smallest for recurrent, which needs a link
+#                 watched at the predicted site AND at >= 1 other one.
 #   run columns   OR_adj, the odds ratio per 1 SD of that category's posterior
 #                 with the direct observation held fixed. Above 1, a higher
-#                 posterior goes with MORE camera records.
+#                 posterior goes with MORE camera records at that scope.
 #                 *** p<0.001   ** p<0.01   * p<0.05
 #   verdict       how many runs move the way the category claims. Read it with
 #                 expect, which is the ecological claim, not the z_l bit.
@@ -2289,10 +2456,11 @@ fig_link <- results %>%
   filter(run == FIG_RUN, focal_site == richest,
          plant == FIG_PLANT, pollinator == FIG_POLLINATOR)
 stopifnot(nrow(fig_link) == 1, fig_link$det_category == FIG_CATEGORY)
-cat(sprintf("\n  figure link: %s x %s, deterministic %s, camera record %s, P(%s) = %.2f under %s\n",
+cat(sprintf("\n  figure link: %s x %s, deterministic %s, camera record at %s %s, P(%s) = %.2f under %s\n",
             FIG_PLANT, FIG_POLLINATOR, fig_link$det_category,
-            ifelse(fig_link$camera %in% 1, "yes", "no"), FIG_CATEGORY,
-            fig_link[[FIG_CATEGORY]], FIG_RUN))
+            SCOPE_LABEL[VALIDATION_SCOPE[FIG_CATEGORY]],
+            ifelse(cam_at_scope(fig_link, FIG_CATEGORY) == 1, "yes", "no"),
+            FIG_CATEGORY, fig_link[[FIG_CATEGORY]], FIG_RUN))
 
 # the Box 2 key: phantom and possibly forbidden split by camera evidence
 DET_COLOUR <- c(
@@ -2320,11 +2488,17 @@ fig_map_theme <- theme(axis.text.x      = element_blank(),
 # a  the deterministic map, species ordered as in make_map
 fig_det_map <- function() {
   d <- results %>%
-    filter(run == FIG_RUN, focal_site == richest) %>%
-    mutate(shown = case_when(
-      det_category %in% c("phantom", "possibly forbidden") ~
-        paste(det_category, ifelse(camera %in% 1, "— have evidence", "— no evidence")),
-      TRUE ~ det_category))
+    filter(run == FIG_RUN, focal_site == richest)
+  # the have/no-evidence split follows each category's own scope: possibly
+  # forbidden is corroborated from all six sites, phantom from the predicted
+  # one, so the two halves of this key are not read under one rule
+  d <- d %>%
+    mutate(cam_scope = cam_at_scope(d),
+           shown = case_when(
+             det_category %in% c("phantom", "possibly forbidden") ~
+               paste(det_category,
+                     ifelse(cam_scope == 1, "— have evidence", "— no evidence")),
+             TRUE ~ det_category))
   pol_levels <- d %>% distinct(pollinator) %>%
     left_join(deg_pol, by = c("pollinator" = "higher_level")) %>%
     arrange(desc(deg)) %>% pull(pollinator)
@@ -2360,6 +2534,8 @@ fig_row_strip <- function() {
   d <- site_rows %>%
     filter(plant == FIG_PLANT) %>%
     mutate(pollinator = factor(pollinator, levels = pol_levels))
+  # asterisks at FIG_CATEGORY's own scope, as make_map does
+  d$cam_mark <- cam_at_scope(d, FIG_CATEGORY) == 1
 
   ggplot(d, aes(pollinator, plant, fill = conf)) +
     geom_tile(colour = "white") +
@@ -2369,7 +2545,7 @@ fig_row_strip <- function() {
                         name = sprintf("P(%s)", FIG_CATEGORY)) +
     geom_tile(data = filter(d, det_category == FIG_CATEGORY), fill = NA,
               colour = "black", linewidth = 0.4) +
-    geom_text(data = filter(d, camera == 1, det_category == FIG_CATEGORY),
+    geom_text(data = filter(d, cam_mark, det_category == FIG_CATEGORY),
               aes(label = "*"), colour = "grey20", size = 3.4, vjust = 0.72) +
     scale_x_discrete(labels = ital) +
     labs(x = NULL, y = NULL) +
