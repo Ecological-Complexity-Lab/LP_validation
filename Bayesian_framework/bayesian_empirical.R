@@ -1914,7 +1914,7 @@ cat(sprintf("\nWritten: %s\n         %s\n",
             file.path(OUT_DIR, "camera_validation_summary.csv")))
 
 
-# ---- 10. Evidence accumulation on the empirical rates (Fig. 3a applied) ----
+# ---- 10. Evidence accumulation on the empirical rates (Fig. 3a applied - consider removing) ----
 #
 # Figure 3a of the manuscript shows confidence climbing as replicates keep
 # recording a link, and stopping at kappa. That figure uses illustrative rates.
