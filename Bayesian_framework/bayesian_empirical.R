@@ -1567,12 +1567,20 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #   eps_l enters through the local axis.
 #
 # READING THE OUTPUT
-#   n, confirmed   size of the DETERMINISTIC category AMONG LINKS INSIDE THE
-#                  CAMERA GRID, and how many of those the cameras recorded. Not
-#                  the size of the whole category: possibly forbidden has 941
-#                  links in total and 452 here. Descriptive only: every
-#                  regression below
-#                  uses all links inside the camera grid, not just these.
+#
+# "adj" throughout means ADJUSTED FOR O_l, the direct-observation record. Two
+# models are fitted, and every column below comes from one of them:
+#
+#   OR_adj,      lo_adj, hi_adj, p_adj   <-  cam_y ~ Ps + O_l
+#   OR_adj_site,                p_adj_site <- cam_y ~ Ps + O_l + focal_site
+#
+# So the second is the first PLUS site, not site instead of O_l.
+#
+#   n, confirmed   size of the DETERMINISTIC category within this category's
+#                  scope sample, and how many of those the cameras recorded
+#                  under that scope. Not the size of the whole category:
+#                  possibly forbidden has 941 links in total and 638 here.
+#                  Descriptive only: the regressions use the whole sample.
 #   OR_adj, p_adj  the decisive columns. Odds ratio per 1 SD of this category's
 #                  posterior, with O_l held fixed, and its p-value.
 #                  OR > 1  a higher posterior goes with MORE camera records
@@ -1602,8 +1610,10 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #                  was missed, so the cameras should find it MORE often.
 #   lo_adj, hi_adj the 95% interval on OR_adj, so the precision of the
 #                  decisive estimate is visible beside it.
-#   OR_site        as OR_adj but also adjusting for focal_site, since camera
-#   p_site         coverage runs from 41% to 82% across sites.
+#   OR_adj_site    OR_adj with focal_site added as well, since camera coverage
+#   p_adj_site     runs from 41% to 82% across sites. A category could
+#                  otherwise look corroborated merely by sitting at
+#                  well-watched sites.
 #
 # A model without covariates is deliberately NOT reported. The categories are
 # defined partly BY O_l, so it largely re-expresses the observation and can
@@ -1650,7 +1660,7 @@ cam_fit_one <- function(d, k, outcome = "camera") {
   # sample, or the camera outcome is. Same columns as a successful fit, so the
   # stacked report can never come out ragged.
   no_fit <- tibble(OR_adj = NA_real_, lo_adj = NA_real_, hi_adj = NA_real_,
-                   p_adj = NA_real_, OR_site = NA_real_, p_site = NA_real_,
+                   p_adj = NA_real_, OR_adj_site = NA_real_, p_adj_site = NA_real_,
                    pr_avg = NA_real_, pr_1sd = NA_real_)
   if (dplyr::n_distinct(round(d$P, 9)) < 2) return(no_fit)
   if (dplyr::n_distinct(d$cam_y) < 2) return(no_fit)
@@ -1689,7 +1699,7 @@ cam_fit_one <- function(d, k, outcome = "camera") {
   d1 <- d; d1$Ps <- 1                       # one SD above it
 
   tibble(OR_adj = a[1], lo_adj = a[2], hi_adj = a[3], p_adj = a[4],
-         OR_site = b[1], p_site = b[4],
+         OR_adj_site = b[1], p_adj_site = b[4],
          pr_avg = mean(predict(m_adj, d0, type = "response")),
          pr_1sd = mean(predict(m_adj, d1, type = "response")))
 }
@@ -1772,14 +1782,18 @@ cam_report_out <- cam_report %>%
     OR_adj, lo_adj, hi_adj, p_adj,         # decisive: O_l held fixed, with CI
     pct_avg   = 100 * pr_avg,              # chance at the average posterior
     pct_1sd   = 100 * pr_1sd,              # chance one SD above it
-    OR_site, p_site,                       # the same, also adjusting for site
+    OR_adj_site, p_adj_site,               # the same, with site added too
     verdict
   ) %>%
   arrange(match(category, cats$category), match(run, names(run_settings)))
 
+cat("\n  adj = adjusted for O_l, the direct-observation record.\n")
+cat("    OR_adj      lo_adj hi_adj p_adj       <-  cam_y ~ Ps + O_l\n")
+cat("    OR_adj_site               p_adj_site  <-  cam_y ~ Ps + O_l + focal_site\n\n")
+
 cam_report_out %>%
-  mutate(across(c(OR_adj, lo_adj, hi_adj, OR_site), ~ round(.x, 2)),
-         across(c(p_adj, p_site), ~ signif(.x, 2)),
+  mutate(across(c(OR_adj, lo_adj, hi_adj, OR_adj_site), ~ round(.x, 2)),
+         across(c(p_adj, p_adj_site), ~ signif(.x, 2)),
          across(c(pct_avg, pct_1sd), ~ round(.x, 1))) %>%
   print(n = Inf, width = Inf)
 
@@ -1856,7 +1870,7 @@ cam_summary <- cam_report %>%
     against   = sum(wrong_way    & run %in% PRIOR_RUNS,  na.rm = TRUE),
     # of the runs that found a directional effect, how many keep it once
     # camera placement is adjusted for as well
-    site_ok   = sum((right_way | wrong_way) & p_site < SIG &
+    site_ok   = sum((right_way | wrong_way) & p_adj_site < SIG &
                     run %in% PRIOR_RUNS, na.rm = TRUE),
     # the probability translation, ranged over the runs that found an effect.
     # scalar if(), not ifelse(), because ifelse evaluates both branches and
@@ -1947,7 +1961,7 @@ cat(sprintf("  odds multiplier per SD of posterior : %.2f   (p = %.2g, n = %d)\n
 cat(sprintf("  chance of a camera record           : %.0f%% at the average posterior -> %.0f%% at +1 SD\n",
             100 * main_row$pr_avg, 100 * main_row$pr_1sd))
 cat(sprintf("  site-adjusted                       : %.2f   (p = %.2g)\n",
-            main_row$OR_site, main_row$p_site))
+            main_row$OR_adj_site, main_row$p_adj_site))
 cat(sprintf("  records: %d of %d in the scope sample (%.1f%%), %d of %d assigned (%.1f%%)\n",
             main_row$confirmed_in_category, main_row$links_in_category,
             100 * main_row$confirmed_in_category / main_row$links_in_category,

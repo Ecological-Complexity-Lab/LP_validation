@@ -1,4 +1,4 @@
-category,expect,scope,n,confirmed,pct_conf,n_test,A-uniform,A-degree,B-uniform,B-degree,verdict,site,no_nu,chance
+category,expect,scope,n,confirmed,pct_conf,n_test,A-uniform,A-degree,B-uniform,B-degree,verdict,site,no_nu,chance range across priors
 recurrent,higher,here and elsewhere,94,55,59,585,2.14***,1.75***,2.25***,1.91***,supported in 4/4,holds,4/4 same,18 -> 28-32
 locally unique,lower,other 5 sites,61,28,46,884,0.77*,0.87,1.00,0.89,supported in 1/4,0 of 1,4/4 same,34 -> 30
 possibly missing,higher,predicted site,34,13,38,951,1.55***,1.38***,1.54***,1.36***,supported in 4/4,holds,4/4 same,28-29 -> 32-35
