@@ -1120,10 +1120,10 @@ all_sig <- camsum %>% select(all_of(run_cols)) %>%
   rowSums() == length(run_cols)
 
 camsum %>%
-  rename(Category = category, Expect = expect,
-         `Camera-confirmed` = confirmed, `%` = pct_conf,
+  rename(Category = category, Expect = expect, Scope = scope,
+         `Camera-confirmed` = confirmed, `%` = pct_conf, `n in test` = n_test,
          Verdict = verdict, `Site-adjusted` = site,
-         `Camera chance, mean -> +1 SD` = chance) %>%
+         `Camera chance, mean -> +1 SD` = `chance range across priors`) %>%
   show() %>%
   row_spec(which(all_sig), bold = TRUE)
 ```
@@ -1158,7 +1158,7 @@ adjustment:
 - **weakly-supported** and **possibly forbidden** go the right way downward. For
   possibly forbidden, one standard deviation up the posterior takes the chance
   of a camera record from
-  `r sub(" -> ", "% to ", camsum$chance[camsum$category == "possibly forbidden"])`%,
+  `r sub(" -> ", "% to ", camsum[["chance range across priors"]][camsum$category == "possibly forbidden"])`%,
   ranged over the settings.
 
 **Takeaway.** The posterior is not merely re-describing the observations.

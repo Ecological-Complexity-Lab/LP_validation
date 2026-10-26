@@ -1582,9 +1582,9 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #                  probability, so 1.6 is NOT "1.6 times as likely".
 #   pct_avg        the same effect on the probability scale, which is what to
 #   pct_1sd        quote in prose. Every link is predicted twice from the
-#   pct_diff       O_l-adjusted model, once at the average posterior (pct_avg)
+#                  O_l-adjusted model, once at the average posterior (pct_avg)
 #                  and once one SD above it (pct_1sd), then averaged across
-#                  links; pct_diff is the gap in percentage points. Averaging
+#                  links. Averaging
 #                  is necessary because a fixed odds ratio implies DIFFERENT
 #                  probability changes at different starting points, smaller
 #                  among locally unobserved links, where camera records are
@@ -1600,12 +1600,16 @@ bind_rows(main_dist$expected %>% mutate(nu = "het"),
 #                  its z_l bit. Those differ: possibly missing carries z_l = 0,
 #                  yet its whole claim is that the interaction IS present and
 #                  was missed, so the cameras should find it MORE often.
+#   lo_adj, hi_adj the 95% interval on OR_adj, so the precision of the
+#                  decisive estimate is visible beside it.
 #   OR_site        as OR_adj but also adjusting for focal_site, since camera
 #   p_site         coverage runs from 41% to 82% across sites.
-#   OR_raw, p_raw  reference only, no covariates. Close to tautological, since
-#                  categories are defined partly BY O_l. It can even carry the
-#                  opposite sign to OR_adj, as possibly missing has done. Never
-#                  read it against the verdict.
+#
+# A model without covariates is deliberately NOT reported. The categories are
+# defined partly BY O_l, so it largely re-expresses the observation and can
+# carry the opposite sign to OR_adj, as possibly missing once did. It invited
+# being read against the verdict, which it cannot support. Restoring it means
+# adding one glm call to cam_fit_one.
 
 # What each category claims, and therefore what the cameras should show. Read
 # each expectation against its scope (VALIDATION_SCOPE, top of file): the
@@ -1641,14 +1645,27 @@ stopifnot(!any(is.na(cam_expectation$scope)),
 cam_fit_one <- function(d, k, outcome = "camera") {
   d$P <- d[[k]]
   d$cam_y <- as.integer(d[[outcome]])
-  na4 <- tibble(OR = NA_real_, lo = NA_real_, hi = NA_real_, p = NA_real_,
-                OR_adj = NA_real_, p_adj = NA_real_,
-                OR_adj2 = NA_real_, p_adj2 = NA_real_)
-  if (dplyr::n_distinct(round(d$P, 9)) < 2) return(na4)
-  if (dplyr::n_distinct(d$cam_y) < 2) return(na4)   # no contrast to fit
+
+  # Returned when no fit is possible: the posterior is constant across the
+  # sample, or the camera outcome is. Same columns as a successful fit, so the
+  # stacked report can never come out ragged.
+  no_fit <- tibble(OR_adj = NA_real_, lo_adj = NA_real_, hi_adj = NA_real_,
+                   p_adj = NA_real_, OR_site = NA_real_, p_site = NA_real_,
+                   pr_avg = NA_real_, pr_1sd = NA_real_)
+  if (dplyr::n_distinct(round(d$P, 9)) < 2) return(no_fit)
+  if (dplyr::n_distinct(d$cam_y) < 2) return(no_fit)
+
   d$Ps <- as.numeric(scale(d$P))
-  grab <- function(form) {
-    m  <- glm(as.formula(form), family = binomial, data = d)
+
+  # Two models, each fitted once. The adjusted one decides the verdict and is
+  # also what the probability translation below predicts from, so it is kept
+  # rather than refitted. A model without covariates is not reported: the
+  # categories are defined partly BY O_l, so it largely re-expresses the
+  # observation and can even carry the opposite sign.
+  m_adj  <- glm(cam_y ~ Ps + O_l,              family = binomial, data = d)
+  m_site <- glm(cam_y ~ Ps + O_l + focal_site, family = binomial, data = d)
+
+  est <- function(m) {
     co <- summary(m)$coefficients
     if (!"Ps" %in% rownames(co)) return(rep(NA_real_, 4))
     c(exp(co["Ps", 1]),
@@ -1656,28 +1673,25 @@ cam_fit_one <- function(d, k, outcome = "camera") {
       exp(co["Ps", 1] + 1.96 * co["Ps", 2]),
       co["Ps", 4])
   }
-  a  <- grab("cam_y ~ Ps")
-  b  <- grab("cam_y ~ Ps + O_l")
-  cc <- grab("cam_y ~ Ps + O_l + focal_site")
+  a <- est(m_adj)
+  b <- est(m_site)
 
   # The same effect on the probability scale, which is what a reader without a
   # regression background can act on. An odds ratio is constant by
   # construction, but the probability change it implies is not: the same odds
   # ratio moves the chance less where it starts low (locally unobserved links)
   # than where it starts higher. So rather than quote one stratum, predict every
-  # link twice,
-  # once at the average posterior and once a standard deviation above it, and
-  # average over the links. That respects the actual mix of O_l in the data and
-  # answers "for a typical link here, how much does the chance move?".
-  mb <- glm(cam_y ~ Ps + O_l, family = binomial, data = d)
+  # link twice, once at the average posterior and once a standard deviation
+  # above it, and average over the links. That respects the actual mix of O_l in
+  # the data and answers "for a typical link here, how much does the chance
+  # move?".
   d0 <- d; d0$Ps <- 0                       # at the average posterior
   d1 <- d; d1$Ps <- 1                       # one SD above it
-  pr_avg <- mean(predict(mb, d0, type = "response"))
-  pr_1sd <- mean(predict(mb, d1, type = "response"))
 
-  tibble(OR = a[1], lo = a[2], hi = a[3], p = a[4],
-         OR_adj = b[1], p_adj = b[4], OR_adj2 = cc[1], p_adj2 = cc[4],
-         pr_avg = pr_avg, pr_1sd = pr_1sd, pr_diff = pr_1sd - pr_avg)
+  tibble(OR_adj = a[1], lo_adj = a[2], hi_adj = a[3], p_adj = a[4],
+         OR_site = b[1], p_site = b[4],
+         pr_avg = mean(predict(m_adj, d0, type = "response")),
+         pr_1sd = mean(predict(m_adj, d1, type = "response")))
 }
 
 # Each category is tested at its own scope, so each gets its own sample: the
@@ -1737,34 +1751,36 @@ cat(sprintf("  %-18s %s\n", "",
 
 cam_report <- map_dfr(names(run_settings), camera_validation)
 
-# Printed as one table. Column order matters here: the verdict is decided by
-# the O_l-adjusted model, so OR_adj sits next to it. The raw OR is kept for
-# reference but must not be read against the verdict, because it can carry the
-# opposite sign, as possibly missing has done, and only the adjusted figure is
-# a claim about anything the direct observation had not
-# already said. n and confirmed describe the deterministic category, not the
-# regression, which uses every link in that category's scope sample; n_test is
-# how many that is, and it differs by scope.
-cam_report %>%
+# Printed as one table, 32 rows, one per category per run. Every column is
+# either quoted somewhere or feeds the summary below; nothing is carried for
+# reference only. Reading order: scope says where the evidence came from,
+# n_test how many links that admitted, then the decisive OR_adj with its
+# interval and p, then the same effect as a chance of a record, then the
+# site-adjusted check, then the verdict built from them. n and confirmed
+# describe the deterministic category within that sample, not the regression,
+# which uses the whole sample.
+# cam_report_out is both printed and written, so the console table and the CSV
+# carry the same columns under the same names. Rounding is the only difference
+# between them: the CSV keeps full precision.
+cam_report_out <- cam_report %>%
   transmute(
     run, category, expect,
     scope     = unname(SCOPE_LABEL[scope]),
-    n         = links_in_category,
-    confirmed = confirmed_in_category,
-    n_test    = n_in_test,
-    OR_adj    = round(OR_adj, 2),          # decisive: O_l held fixed
-    p_adj     = signif(p_adj, 2),
-    # the same effect as a camera-detection chance, averaged over the links
-    pct_avg   = round(100 * pr_avg, 1),    # at the average posterior
-    pct_1sd   = round(100 * pr_1sd, 1),    # one SD above it
-    pct_diff  = round(100 * pr_diff, 1),   # percentage points
-    verdict,
-    OR_site   = round(OR_adj2, 2),         # also adjusted for camera placement
-    p_site    = signif(p_adj2, 2),
-    OR_raw    = round(OR, 2),              # reference only, see note above
-    p_raw     = signif(p, 2)
+    n_test    = n_in_test,                 # links the cameras could have found
+    n         = links_in_category,         # of those, assigned to this category
+    confirmed = confirmed_in_category,     # of those, carrying a record
+    OR_adj, lo_adj, hi_adj, p_adj,         # decisive: O_l held fixed, with CI
+    pct_avg   = 100 * pr_avg,              # chance at the average posterior
+    pct_1sd   = 100 * pr_1sd,              # chance one SD above it
+    OR_site, p_site,                       # the same, also adjusting for site
+    verdict
   ) %>%
-  arrange(match(category, cats$category), match(run, names(run_settings))) %>%
+  arrange(match(category, cats$category), match(run, names(run_settings)))
+
+cam_report_out %>%
+  mutate(across(c(OR_adj, lo_adj, hi_adj, OR_site), ~ round(.x, 2)),
+         across(c(p_adj, p_site), ~ signif(.x, 2)),
+         across(c(pct_avg, pct_1sd), ~ round(.x, 1))) %>%
   print(n = Inf, width = Inf)
 
 # The table above is the full record: 32 rows, one per category per run. This
@@ -1840,7 +1856,7 @@ cam_summary <- cam_report %>%
     against   = sum(wrong_way    & run %in% PRIOR_RUNS,  na.rm = TRUE),
     # of the runs that found a directional effect, how many keep it once
     # camera placement is adjusted for as well
-    site_ok   = sum((right_way | wrong_way) & p_adj2 < SIG &
+    site_ok   = sum((right_way | wrong_way) & p_site < SIG &
                     run %in% PRIOR_RUNS, na.rm = TRUE),
     # the probability translation, ranged over the runs that found an effect.
     # scalar if(), not ifelse(), because ifelse evaluates both branches and
@@ -1873,7 +1889,8 @@ cam_summary_tbl <- cam_summary %>%
   left_join(cam_no_nu,  by = "category") %>%
   mutate(scope = unname(SCOPE_LABEL[scope])) %>%
   select(category, expect, scope, n, confirmed, pct_conf, n_test,
-         all_of(PRIOR_RUNS), verdict, site, no_nu, chance) %>%
+         all_of(PRIOR_RUNS), verdict, site, no_nu,
+         `chance range across priors` = chance) %>%
   arrange(match(category, cats$category))
 
 # COLUMNS
@@ -1901,13 +1918,44 @@ cam_summary_tbl <- cam_summary %>%
 #                 heterogeneity is removed. A call is "significant and upward",
 #                 "significant and downward", or "no signal", which is what the
 #                 verdict is built from. 4/4 means nu changes nothing here.
-#   chance        camera-record chance in percent at the average posterior ->
-#                 one SD above it, ranged over the significant runs. This is
-#                 the figure to quote in prose, not the odds ratio.
+#   chance range  camera-record chance in percent at the average posterior ->
+#   across priors one SD above it, ranged over the significant runs. This is
+#                 the figure to quote in prose, not the odds ratio. A single
+#                 run's pair is printed by the main-text block below, since
+#                 the manuscript quotes one run rather than the range.
 cat("\n\nSUMMARY: one row per category, the four runs side by side\n\n")
 print(cam_summary_tbl, n = Inf, width = Inf)
 
-write_csv(cam_report, file.path(OUT_DIR, "camera_validation_by_category.csv"))
+# --- the figures quoted in the main text ------------------------------------
+# The manuscript quotes one run and one category, so those numbers sit in a
+# single cell of the 32-row table above. This block lifts them out, so a
+# sentence can be checked against four lines instead of hunting a cell.
+# Two denominators are printed deliberately: the scope sample is what the
+# regression used, while the main text's percentage is out of every link the
+# deterministic rule assigned to the category, watched or not.
+MAIN_RUN <- "B-uniform"
+MAIN_CAT <- "possibly forbidden"
+
+main_row <- cam_report %>% filter(run == MAIN_RUN, category == MAIN_CAT)
+stopifnot(nrow(main_row) == 1)
+main_assigned <- sum(results$run == MAIN_RUN & results$det_category == MAIN_CAT)
+
+cat(sprintf("\n\nMAIN-TEXT FIGURES (%s, %s, evidence from %s)\n",
+            MAIN_RUN, MAIN_CAT, SCOPE_LABEL[main_row$scope]))
+cat(sprintf("  odds multiplier per SD of posterior : %.2f   (p = %.2g, n = %d)\n",
+            main_row$OR_adj, main_row$p_adj, main_row$n_in_test))
+cat(sprintf("  chance of a camera record           : %.0f%% at the average posterior -> %.0f%% at +1 SD\n",
+            100 * main_row$pr_avg, 100 * main_row$pr_1sd))
+cat(sprintf("  site-adjusted                       : %.2f   (p = %.2g)\n",
+            main_row$OR_site, main_row$p_site))
+cat(sprintf("  records: %d of %d in the scope sample (%.1f%%), %d of %d assigned (%.1f%%)\n",
+            main_row$confirmed_in_category, main_row$links_in_category,
+            100 * main_row$confirmed_in_category / main_row$links_in_category,
+            main_row$confirmed_in_category, main_assigned,
+            100 * main_row$confirmed_in_category / main_assigned))
+
+cam_report
+write_csv(cam_report_out, file.path(OUT_DIR, "camera_validation_by_category.csv"))
 write_csv(cam_summary_tbl, file.path(OUT_DIR, "camera_validation_summary.csv"))
 cat(sprintf("\nWritten: %s\n         %s\n",
             file.path(OUT_DIR, "camera_validation_by_category.csv"),
