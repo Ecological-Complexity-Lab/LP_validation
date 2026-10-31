@@ -166,10 +166,12 @@ VALIDATION_SCOPE <- c(
 
 # How each scope is named wherever a reader sees it: figure labels, the
 # printed summaries and the interactive app's table and node labels.
+# "any of" is deliberate: these scopes search a set of sites and one record in
+# it is enough. Only here_and_elsewhere requires a record at two of them.
 SCOPE_LABEL <- c(
-  "all_sites"          = "all 6 sites",
-  "other_sites"        = "other 5 sites",
-  "here_and_elsewhere" = "here and elsewhere",
+  "all_sites"          = "any of the 6 sites",
+  "other_sites"        = "any of the other 5",
+  "here_and_elsewhere" = "predicted site and at least one other",
   "focal_site"         = "predicted site"
 )
 
@@ -714,7 +716,7 @@ summarise_unobserved <- function(df_cat, method_name, other_method_name) {
   tn_tbl <- make_tbl("TN", n_tn)
 
   print_tbl <- function(tbl, denom, denom_label) {
-    hdr <- sprintf("  %-20s  %7s  %-10s  %-18s  %-14s  %-10s  %s\n",
+    hdr <- sprintf("  %-20s  %7s  %-10s  %-37s  %-14s  %-10s  %s\n",
                    "Category", "n",
                    sprintf("%% of %s", denom_label),
                    "evidence scope",
@@ -725,13 +727,13 @@ summarise_unobserved <- function(df_cat, method_name, other_method_name) {
     cat(strrep("-", nchar(hdr) - 1L), "\n")
     for (i in seq_len(nrow(tbl))) {
       r <- tbl[i, ]
-      cat(sprintf("  %-20s  %7d  %-10s  %-18s  %-14d  %-10s  %d / %d\n",
+      cat(sprintf("  %-20s  %7d  %-10s  %-37s  %-14d  %-10s  %d / %d\n",
                   r$link_category, r$total_cat, r$pct_of_group,
                   unname(SCOPE_LABEL[r$scope]),
                   r$have_evidence, r$pct_hev, r$here_only, r$watched_here))
     }
     cat(strrep("-", nchar(hdr) - 1L), "\n")
-    cat(sprintf("  %-20s  %7d  %-10s  %-18s  %-14d  %-10s  %d / %d\n",
+    cat(sprintf("  %-20s  %7d  %-10s  %-37s  %-14d  %-10s  %d / %d\n",
                 "Total", denom, "100.0%", "", sum(tbl$have_evidence), "",
                 sum(tbl$here_only), sum(tbl$watched_here)))
   }

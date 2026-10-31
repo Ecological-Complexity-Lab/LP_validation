@@ -83,10 +83,12 @@ VALIDATION_SCOPE <- c(
 )
 
 # How each scope is named wherever a reader sees it.
+# "any of" is deliberate: these scopes search a set of sites and one record in
+# it is enough. Only here_and_elsewhere requires a record at two of them.
 SCOPE_LABEL <- c(
-  "all_sites"          = "all 6 sites",
-  "other_sites"        = "other 5 sites",
-  "here_and_elsewhere" = "here and elsewhere",
+  "all_sites"          = "any of the 6 sites",
+  "other_sites"        = "any of the other 5",
+  "here_and_elsewhere" = "predicted site and at least one other",
   "focal_site"         = "predicted site"
 )
 
@@ -1750,11 +1752,11 @@ cat(sprintf("Links assessed: %d. Camera coverage and records, per scope:\n", n_r
 for (sc in names(SCOPE_LABEL)) {
   wc <- unname(SCOPE_IN_TEST[sc]); oc <- unname(SCOPE_OUTCOME[sc])
   inn <- cam_cov[[wc]]
-  cat(sprintf("  %-18s in test %4d (%2.0f%%); %4d carry a record\n",
+  cat(sprintf("  %-37s in test %4d (%2.0f%%); %4d carry a record\n",
               SCOPE_LABEL[sc], sum(inn), 100 * mean(inn),
               sum(as.integer(cam_cov[[oc]])[inn] == 1, na.rm = TRUE)))
 }
-cat(sprintf("  %-18s %s\n", "",
+cat(sprintf("  %-37s %s\n", "",
             paste("scopes used:",
                   paste(sprintf("%s = %s", names(VALIDATION_SCOPE),
                                 SCOPE_LABEL[VALIDATION_SCOPE]), collapse = "; "))))
@@ -2523,6 +2525,25 @@ cat(sprintf("\n  figure link: %s x %s, deterministic %s, camera record at %s %s,
             SCOPE_LABEL[VALIDATION_SCOPE[FIG_CATEGORY]],
             ifelse(cam_at_scope(fig_link, FIG_CATEGORY) == 1, "yes", "no"),
             FIG_CATEGORY, fig_link[[FIG_CATEGORY]], FIG_RUN))
+
+# --- panel d in numbers -----------------------------------------------------
+# The caption ranks the highlighted link against the other camera-recorded
+# links in this plant's row, so the row is printed with its posteriors and a
+# mark for the links the cameras found.
+fig_row_links <- results %>%
+  filter(run == FIG_RUN, focal_site == richest, plant == FIG_PLANT)
+fig_row_links$conf <- fig_row_links[[FIG_CATEGORY]]
+fig_row_links$cam  <- cam_at_scope(fig_row_links, FIG_CATEGORY) == 1
+
+cat(sprintf("\n  %s at %s: P(%s) per link, * = camera record at %s\n\n",
+            FIG_PLANT, richest, FIG_CATEGORY,
+            SCOPE_LABEL[VALIDATION_SCOPE[FIG_CATEGORY]]))
+fig_row_links %>%
+  arrange(conf) %>%
+  transmute(pollinator, det_category, P = round(conf, 4),
+            cam = ifelse(cam, "*", ""),
+            link = ifelse(pollinator == FIG_POLLINATOR, "<- highlighted", "")) %>%
+  as.data.frame() %>% print(row.names = FALSE)
 
 # the Box 2 key: phantom and possibly forbidden split by camera evidence
 DET_COLOUR <- c(

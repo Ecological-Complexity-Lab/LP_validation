@@ -235,7 +235,7 @@ N_SUPPORTED_SITE <- sum(is_supported & camsum$site %in% "holds")
 ```{r glance}
 tibble(
   Quantity = c("Candidate links, six sites",
-               "Inside the camera grid",
+               "In the predicted site's camera grid",
                "Camera records among them",
                "Prior and model settings compared",
                "Categories confirmed against cameras in all four settings",
@@ -1051,10 +1051,32 @@ worth being explicit about each choice.
 posterior never saw them, so they are a fourth source of evidence rather than a
 restatement of the three the posterior uses.
 
-*Who is in the test.* A link is inside the **camera grid** when both partners
-appear in that site's camera data. A zero then means the cameras saw both
-species there but never together, which is a real negative. Links outside the
-grid are dropped, since they can neither confirm nor refute.
+*Where the evidence is sought.* A camera record is evidence about the **link**,
+not the category, so it is sought where the label leaves the link's status open.
+What the label settles differs by category, because the model's call is made at
+the predicted site only. The scope names below are the ones in the `Scope`
+column of the table.
+
+- **any of the 6 sites** — *possibly forbidden.* Recorded nowhere and the model
+  agrees, so feasibility is open everywhere and one record anywhere bears on it.
+- **any of the other 5** — *locally unique.* Presence at the predicted site is
+  already established, so what is open is realisation elsewhere. One record
+  there means the label was wrong.
+- **predicted site and at least one other** — *recurrent.* The only scope
+  needing two records: the claim has two halves, presence at the predicted site
+  and in the replicates, so both must be corroborated.
+- **predicted site** — *possibly missing, phantom, model-elusive,
+  weakly-supported, locally absent.* Each makes a claim about the predicted site
+  alone, so only that site's records bear on it.
+
+*Who is in the test.* Each scope also fixes who can answer it. A link is inside
+a site's **camera grid** when both partners appear in that site's camera data; a
+zero then means the cameras saw both species there but never together, which is
+a real negative. Links the scope never watched are dropped, since they can
+neither confirm nor refute. The four scopes therefore admit different samples,
+and *recurrent* has the smallest, because it needs a link watched at the
+predicted site and at one other. Counts are in the `n in test` column, and rows
+with different scopes are not comparable with one another.
 
 *How agreement is measured.* One logistic regression per category per setting,
 predicting whether the cameras recorded a link from that category's posterior.
@@ -1068,8 +1090,8 @@ whose direct observation was the same, does the posterior still say which ones
 the cameras find? A second model also adjusts for site, since camera coverage
 differs between sites.
 
-*The model.* For category $k$, over the links inside the camera grid, with
-$c_i = 1$ when the cameras recorded link $i$:
+*The model.* For category $k$, over the links its scope admits, with
+$c_i = 1$ when the cameras recorded link $i$ within that scope:
 
 $$
 \log\frac{P(c_i = 1)}{1 - P(c_i = 1)} = \beta_0 + \beta_1 z_i + \beta_2 O_{l,i},
@@ -1110,7 +1132,10 @@ $OR$ falls on the side the category claims: above 1 for "higher", below 1 for
 *The expected direction* is set from what each category **claims
 ecologically**, not from its observation bit. These differ. Possibly missing
 carries "not seen here", yet its whole claim is that the interaction is present
-and was missed, so cameras should find it *more* often.
+and was missed, so cameras should find it *more* often. The direction is read
+against the scope, not against camera records in general: locally unique expects
+*fewer* records, because at the other five sites a genuinely unique link should
+not be found, and a record there means the label was wrong.
 :::
 
 ```{r cam-table}
@@ -1144,9 +1169,10 @@ downward", or "no signal", which is what the verdict is built from. Each twin is
 compared with its own prior, so `4/4 same` means $\nu$ changes nothing for that
 category under any of the four priors.
 
-`n` counts links of that category **inside the camera grid**, not the whole
+`n` counts links of that category **within its scope sample**, not the whole
 category: possibly forbidden has `r format(N_PF, big.mark = ",")` links in total
-and `r camsum$n[camsum$category == "possibly forbidden"]` here.
+and `r camsum$n[camsum$category == "possibly forbidden"]` here. `n in test` is
+that sample in full, which is what the regression uses.
 
 `r N_SUPPORTED` categories are supported in all `r length(RUNS)` settings, and
 `r N_SUPPORTED_SITE` of those `r N_SUPPORTED` still hold after the site
@@ -1161,6 +1187,14 @@ adjustment:
   `r sub(" -> ", "% to ", camsum[["chance range across priors"]][camsum$category == "possibly forbidden"])`%,
   ranged over the settings.
 
+Two of the four draw on evidence from beyond the predicted site, and in each
+case the scope is the one the claim implies: possibly forbidden against records
+at all six sites, since it asserts the interaction is infeasible anywhere, and
+recurrent against a record at the predicted site *and* at one other, since its
+claim has both halves. Restricting either to the predicted site would count a
+record the cameras made elsewhere as a non-detection of a claim that was never
+about one site, which weakens the test rather than tightening it.
+
 **Takeaway.** The posterior is not merely re-describing the observations.
 Holding the direct observation fixed, it still orders links by how likely an
 independent method is to find them, in the direction each category claims. That
@@ -1174,6 +1208,14 @@ ranked list, which is what makes a category of
   settings. Its claim is that the link is feasible in the system but not
   realised here, so cameras should find it less often, and under degree priors
   they find it more. This needs an explanation before it reaches the manuscript.
+- **Locally unique is the weakest directional test.** Tested at the other five
+  sites, where a genuinely unique link should not be found, it reaches
+  significance under one prior of four
+  (`r camsum[["verdict"]][camsum$category == "locally unique"]`). The evidence is
+  thin by construction: a record at another site overturns the label rather than
+  confirming it, so the category has no corroborating outcome of its own, only a
+  refuting one. Whether that belongs in the same table as the categories a
+  camera record can confirm is worth deciding before the manuscript.
 - $\epsilon_l$ is fitted on the same camera records this test uses. Holding the
   direct observation fixed limits the exposure, since $\epsilon_l$ enters
   through the local axis, but a leave-one-site-out refit would remove what

@@ -167,10 +167,12 @@ VALIDATION_SCOPE <- c(
 )
 
 # How each scope is named wherever a reader sees it.
+# "any of" is deliberate: these scopes search a set of sites and one record in
+# it is enough. Only here_and_elsewhere requires a record at two of them.
 SCOPE_LABEL <- c(
-  "all_sites"          = "all 6 sites",
-  "other_sites"        = "other 5 sites",
-  "here_and_elsewhere" = "here and elsewhere",
+  "all_sites"          = "any of the 6 sites",
+  "other_sites"        = "any of the other 5",
+  "here_and_elsewhere" = "predicted site and at least one other",
   "focal_site"         = "predicted site"
 )
 
@@ -375,7 +377,7 @@ node_meta <- bind_rows(
       id    = paste0(cat, "::", ev),
       axis  = 4L,
       # the label names the scope the evidence was drawn from, since that
-      # differs by category: "have evidence (other 5 sites)" for locally
+      # differs by category: "have evidence (any of the other 5)" for locally
       # unique against "have evidence (predicted site)" for phantom
       label = paste0(cat_display[cat],
                      if_else(ev == "have", " — have evidence", " — no evidence"),
@@ -1119,11 +1121,11 @@ const INFO = {
        "<p><b>Axis 4 is where cross-method evidence is sought.</b> A record from the other method is sought where the label leaves the link\'s status open, " +
        "and what the label settles differs by category.</p>" +
        "<ul>" +
-       "<li><b>Possibly forbidden &mdash; all 6 sites.</b> Nothing is recorded anywhere and the model " +
+       "<li><b>Possibly forbidden &mdash; any of the 6 sites.</b> Nothing is recorded anywhere and the model " +
        "agrees, so feasibility is open everywhere.</li>" +
-       "<li><b>Locally unique &mdash; other 5 sites.</b> Presence here is already established, so what " +
+       "<li><b>Locally unique &mdash; any of the other 5.</b> Presence here is already established, so what " +
        "is open is realisation at the other sites.</li>" +
-       "<li><b>Recurrent &mdash; here and elsewhere.</b> The claim is presence here and in the " +
+       "<li><b>Recurrent &mdash; predicted site and at least one other.</b> The claim is presence here and in the " +
        "replicates, so both halves must be corroborated.</li>" +
        "<li><b>The other five &mdash; predicted site.</b> The open question is about the predicted " +
        "site alone.</li>" +
