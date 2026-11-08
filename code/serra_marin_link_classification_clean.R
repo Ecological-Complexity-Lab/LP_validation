@@ -1,4 +1,4 @@
-# ---- Serra-Marin link classification and alluvial plots (reorganised) ----
+# ---- Serra-Marin link classification and alluvial plots ----
 # Loads cross-site SVD self-prediction results (6 habitat patches x 2 sampling
 # methods), classifies every predicted link via spatial corroboration across
 # the 6 sites, then corroborates each method's classifications using evidence
@@ -133,6 +133,19 @@ map_colors_sankey <- c(
   "Possibly forbidden — have evidence"  = "aquamarine3",
   "Possibly forbidden — no evidence"    = unname(col_lav["possibly_forbidden"]),
   "Locally absent"                     = unname(col_subcats["locally_absent"])
+)
+
+# -- Transparent export --
+# ggsave's bg = "transparent" only paints the device canvas. The theme then
+# paints over it: theme_sankey() fills panel.background white and leaves
+# plot.background inheriting the theme's white `rect`, and theme_minimal()
+# does the same for plot.background. So bg alone yields an opaque file. Add
+# this to the plot on any export that must be transparent.
+no_bg <- theme(
+  plot.background       = element_rect(fill = "transparent", colour = NA),
+  panel.background      = element_rect(fill = "transparent", colour = NA),
+  legend.background     = element_rect(fill = "transparent", colour = NA),
+  legend.box.background = element_rect(fill = "transparent", colour = NA)
 )
 
 # ---- 3. Functions ----
@@ -920,8 +933,17 @@ ggsave("results/figures/sankey_obs_validated_with_cameras_clean.pdf",
 ggsave("results/figures/sankey_obs_validated_with_cameras_clean.png",
        plot = gg_obs_sankey_clean, width = 14, height = 6, dpi = 300, bg = "white")
 
+# Transparent versions: no_bg (Section 2) is what makes them transparent, since
+# bg alone is painted over by the theme. The white mask tiles that separate each
+# node from its flows stay white, so these sit cleanly on a white surface but
+# show four columns of white blocks on a coloured one.
 ggsave("results/figures/gg_obs_sankey_clean.svg",
-       plot = gg_obs_sankey_clean, width = 14, height = 10, bg = "transparent")
+       plot = gg_obs_sankey_clean + no_bg,
+       width = 14, height = 10, bg = "transparent")
+
+ggsave("results/figures/gg_obs_sankey_clean.png",
+       plot = gg_obs_sankey_clean + no_bg,
+       width = 14, height = 10, dpi = 300, bg = "transparent")
 
 gg_rpi_sankey <- make_sankey_validated(
   df_rpi_categorized,
@@ -1106,7 +1128,7 @@ map_rich_blank <- ggplot(df_map_rich, aes(x = higher_level, y = lower_level,
 map_rich_blank
 
 ggsave("results/figures/map_rich_blank.svg",
-       plot = map_rich_blank, width = 14, height = 7, bg = "transparent")
+       plot = map_rich_blank + no_bg, width = 14, height = 7, bg = "transparent")
 
 # -- Same map, alluvial (Sankey) colors --
 # Identical data, species ordering and theme as map_rich; only the fill palette
@@ -1216,7 +1238,7 @@ ggsave("results/figures/map_richest_rpi_site.pdf",
 ggsave("results/figures/map_richest_rpi_site.png",
        plot = map_rpi_rich, width = 14, height = 7, dpi = 300, bg = "white")
 ggsave("results/figures/map_richest_rpi_site.svg",
-       plot = map_rpi_rich, width = 14, height = 7, bg = "transparent")
+       plot = map_rpi_rich + no_bg, width = 14, height = 7, bg = "transparent")
 
 # ---- 10. Summary ----
 # For a given sampling method, pooling all six sites:
